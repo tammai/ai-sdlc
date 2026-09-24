@@ -9,44 +9,7 @@ People describe a problem, agree on concrete examples, and see screenshots befor
 
 ## The loop
 
-```mermaid
-flowchart LR
-  subgraph Plan
-    A["/ai-sdlc:idea<br/>intent.md"]
-  end
-  subgraph Design
-    B["/ai-sdlc:shape<br/>agreed examples"]
-  end
-  subgraph Build
-    C["/ai-sdlc:build<br/>technical plan"]
-    P["plan review<br/>yellow / red"]
-    M["implementer<br/>checks, then code"]
-    V["fresh verifier<br/>diff vs intent"]
-  end
-  subgraph Test
-    D["/ai-sdlc:check<br/>screenshots"]
-  end
-  subgraph Deploy
-    E{"risk tier"}
-    F["engineer review<br/>of the local commit"]
-    G["merge gate<br/>on GitHub"]
-    H["deploy guard<br/>main only"]
-  end
-  subgraph Maintain
-    I["Report a problem"]
-  end
-  A --> B --> C
-  C -- green --> M
-  C -- yellow / red --> P --> M
-  M --> V
-  V -- FAIL, up to 3 rounds --> M
-  V -- PASS --> D --> E
-  E -- green --> G
-  E -- yellow / red --> F --> G
-  G --> H --> I
-  I -. next idea .-> A
-  D -. not quite .-> B
-```
+<p align="center"><img src="docs/loop.svg" width="720" alt="The ai-sdlc loop in the playbook's six stages: idea, shape, build (technical plan, a plan review for yellow and red, implementer, fresh verifier with up to 3 rounds), check, ship (an engineer review for yellow and red, merge gate, main-only deploy guard), and Report a problem feeding the next idea." /></p>
 
 Each of the playbook's six stages is one step, and each step leaves a file behind: the intent, the agreed examples, the technical plan, and the review record. After go-live, "Report a problem" feeds the next idea, which closes the loop. The person only decides at three points: whether the idea was written down right, whether the examples are right, and whether the result is what they wanted.
 
