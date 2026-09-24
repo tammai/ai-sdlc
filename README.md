@@ -1,6 +1,18 @@
 # ai-sdlc
 
-A Claude Code plugin for apps built by **non-engineers** (HR, marketing, PMs, designers), following the [AI-native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook). People describe what they want. Claude builds it on a fixed stack, proves it with screenshots, has it reviewed by a separate reviewer, and ships it through a pipeline that only deploys reviewed code from `main`.
+A Claude Code plugin that lets **non-engineers** (HR, marketing, PMs, designers) build and ship small apps with Claude, safely. It follows the [AI-native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook).
+
+People describe a problem, agree on concrete examples, and see screenshots before anything goes live. Every change gets a risk tier:
+- **Green** changes ship once the automatic checks pass.
+- **Yellow and red** changes first get an independent Claude engineer review.
+- Only reviewed code merged to `main` is deployed.
+
+## Requirements
+
+- Claude Code: the desktop app (what non-engineers use) or the CLI
+- Node 22+, pnpm (`npm i -g pnpm`), git, and the GitHub CLI signed in (`gh auth login`)
+- For each app: a GitHub repo and a Cloudflare account (Workers, D1, KV; Access for staff apps)
+- **Windows:** keep app folders at a short path, e.g. `C:\Users\<you>\apps\<app>`. Deep paths break `pnpm install`.
 
 ## Install
 
@@ -9,45 +21,78 @@ A Claude Code plugin for apps built by **non-engineers** (HR, marketing, PMs, de
 /plugin install ai-sdlc@ai-sdlc
 ```
 
-Apps made with `/ai-sdlc:new-app` also enable the plugin in their own `.claude/settings.json`, so opening an app in Claude offers to install it.
+Apps created with `/ai-sdlc:new-app` also list the plugin in their `.claude/settings.json`, so Claude should offer to install it when someone opens the app.
 
-## What's in it
+## Getting started
 
-| | For | What it does |
-| --- | --- | --- |
-| `/ai-sdlc:idea` | anyone | The problem in their own words, as an `intent/*.md`. At most 5 questions, as pick-lists. |
-| `/ai-sdlc:shape` | anyone | 2–5 examples ("When I …, I see …") they explicitly approve |
-| `/ai-sdlc:build` | anyone | Technical plan, a browser check per example, then the code |
-| `/ai-sdlc:check` | anyone | A screenshot next to each example: "Is this what you wanted?" |
-| `/ai-sdlc:ship` | anyone | Engineer review on the local commit, then push once, open the PR, post the review, merge |
-| `ai-sdlc:engineer-reviewer` | (subagent) | The independent review `/ai-sdlc:ship` runs for yellow and red changes. Read-only, fresh context, reviews against the app's `REVIEW.md`. Findings are warnings. |
-| `/ai-sdlc:new-app` | engineers | A new app from `scaffold/`, with the UI shell for its type |
-| `/ai-sdlc:update-app` | engineers | Refreshes an app's plugin-owned files (`scripts/managed.json`) on a branch, never its own work |
+**Engineers: create an app once**
+1. `/ai-sdlc:new-app` asks for the app's type (internal, public or prototype), its data, and a name. It then creates the repo, installs the UI shell for that type (dashboard, landing or starter), and proves it with `pnpm check`.
+2. Follow the app's `docs/SETUP.md`: the GitHub ruleset, Cloudflare D1/KV, Access or Turnstile, the two Workers Builds, and the owner's machine.
+3. After updating the plugin, run `/ai-sdlc:update-app` in each app. It refreshes the app's plugin-owned files on a branch and never touches the app's own work.
+
+**Everyone else: make a change**
+
+Open the app's folder in Claude and go step by step:
+
+| Step | What happens |
+| --- | --- |
+| `/ai-sdlc:idea` | You describe the problem in your own words. Claude asks at most 5 questions, as pick-lists. |
+| `/ai-sdlc:shape` | You agree on 2–5 examples, like "When I …, I see …". |
+| `/ai-sdlc:build` | Claude plans, writes a browser check for each example, then builds until they all pass. |
+| `/ai-sdlc:check` | You see a screenshot next to each example: "Is this what you wanted?" |
+| `/ai-sdlc:ship` | Yellow and red changes are reviewed on your computer first, then pushed once and merged. Merging deploys. |
+
+The engineer review at `/ai-sdlc:ship` is done by the plugin's `ai-sdlc:engineer-reviewer` subagent. It has a fresh context and read-only tools, and it isn't told what was built or why. It checks the change against the app's `REVIEW.md`.
 
 ## How it's split
 
-- **The plugin** holds the workflow: skills, the reviewer, and the scaffold. Updating the plugin updates every app's workflow at once.
-- **Each app's repo** holds what runs without Claude: the risk-tier rules and merge gate (GitHub Actions), the main-only deploy guard (Cloudflare Workers Builds), and the session hook. They're written by `/ai-sdlc:new-app` and kept current by `/ai-sdlc:update-app`.
+- **The plugin** holds the workflow: the skills, the reviewer, and the app scaffold. Updating the plugin updates these for every app at once.
+- **Each app's repo** holds what runs without Claude:
+  - the risk-tier rules and the merge gate (GitHub Actions)
+  - the main-only deploy guard (Cloudflare Workers Builds)
+  - the session hook
 
-The app stack is Nuxt 4 on Cloudflare Workers, Nuxt UI (dashboard, landing or starter shell), Pinia and Pinia Colada, D1 and KV, and Access or Turnstile. See [scaffold/README.md](scaffold/README.md) and [scaffold/docs/SETUP.md](scaffold/docs/SETUP.md).
+  These change only when `/ai-sdlc:update-app` runs, on a branch that ships like any other change. What it owns is listed in [`scripts/managed.json`](scripts/managed.json).
+
+The app stack is Nuxt 4 on Cloudflare Workers, with Nuxt UI, Pinia and Pinia Colada, D1 and KV, and Cloudflare Access or Turnstile. See [scaffold/README.md](scaffold/README.md) and [scaffold/docs/SETUP.md](scaffold/docs/SETUP.md).
+
+## Limits to know
+
+- **The review is a record, not a lock.** The merge gate accepts a posted review for the pull request's current commit, but anyone with write access could post one by hand. The hard protections live elsewhere:
+  - the session hook blocks secrets, destructive migrations, deploys and edits to engineer-owned files
+  - production refuses anything not deployed from `main`
+- **Review findings are warnings, never blockers.** `/ai-sdlc:ship` offers to fix them, and the person decides.
+- **Nothing enforces "review before push" yet.** It's an instruction in `/ai-sdlc:ship`. Making the hook refuse `git push` on an unreviewed yellow or red branch is a planned follow-up.
+- **Dates default to Vietnamese** (`locale: 'vi-VN'`, `timeZone: 'Asia/Ho_Chi_Minh'`). Change them per app in `app/app.config.ts`.
+- **The stack is fixed on purpose.** Requests outside it (other frameworks, databases, payments, mobile apps) go to an engineer.
+
+## Status
+
+Version 0.1.0.
+
+**Verified live on a test app (2026-09-24), before the workflow was packaged as a plugin:**
+- **The merge gate on real pull requests.** Red is blocked until reviewed, and green passes. A review counts only for the commit it read. The gate reads `main` as it is at check time. Branch rules are enforced.
+- **Deploys.** Workers Builds deploys only `main`, through the deploy guard, and previews go to a separate Worker with its own database.
+- **Sign-in.** Cloudflare Access sign-in is verified by the app itself, and Turnstile is checked server-side.
+- **A real HR session**, which produced a leave tracker with 5 examples.
+- **The in-session engineer review** cleared red pull requests with no human approval. It reviewed the local commit before push, so `ci` ran once.
+
+**Not yet verified:**
+- installing the plugin from this repo
+- the skills appearing as `/ai-sdlc:…`
+- the install prompt when opening an app
+- `/ai-sdlc:update-app` on a real app
 
 ## Developing the plugin
 
 ```bash
-node --test "scripts/test/*.test.mjs"                        # new-app / update-app
-cd scaffold && pnpm install && pnpm check                   # the scaffold itself
+node --test "scripts/test/*.test.mjs"          # new-app / update-app
+cd scaffold && pnpm install && pnpm check     # the scaffold itself
+claude plugin validate .                      # the manifests
 ```
 
-Bump `version` in `.claude-plugin/plugin.json` for every release. Apps record the version that last wrote their files in `.ai-sdlc.json`.
+Bump `version` in `.claude-plugin/plugin.json` for every release. Each app records the version that last wrote its files in `.ai-sdlc.json`.
 
-## Verified live (on a test app, 2026-09-24)
+## License
 
-- **The merge gate on real PRs:**
-  - red PRs are blocked until reviewed, and green ones pass
-  - a review only counts for the commit it read
-  - it reads `main` as it is at check time, not the PR's stale recorded base
-  - branch rules are enforced
-- **Deploys:** Workers Builds deploys `main` through the deploy guard (`DEPLOYED_FROM=main` plus the commit), and previews go to a separate Worker with its own database.
-- **Sign-in and bot protection:** Cloudflare Access sign-in is verified by the app itself, and Turnstile is checked server-side.
-- **A real HR session**, which produced the leave tracker (5 examples).
-- **The in-session engineer review** cleared red PRs with no human approval, reviewing the local commit before push, so `ci` ran once.
+[MIT](LICENSE) © 2026 BigIn
