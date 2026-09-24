@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "ai-sdlc",
+  "version": "0.1.0",
+  "description": "An AI-native SDLC for apps built by non-engineers: /idea → /shape → /build → /check → /ship on a fixed Nuxt UI + Cloudflare stack, with deterministic risk tiers, an independent in-session engineer review, and main-only deploys. /new-app scaffolds an app; /update-app keeps an app's safety files current.",
+  "author": {
+    "name": "Tam Mai",
+    "email": "tam.mai@bigin.vn"
+  },
+  "homepage": "https://github.com/tammai/ai-sdlc",
+  "repository": "https://github.com/tammai/ai-sdlc",
+  "license": "MIT",
+  "keywords": ["ai-sdlc", "non-engineers", "nuxt", "nuxt-ui", "pinia-colada", "cloudflare-workers", "d1", "risk-tiers", "engineer-review"]
+}

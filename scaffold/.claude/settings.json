@@ -1,0 +1,37 @@
+{
+  "extraKnownMarketplaces": {
+    "ai-sdlc": {
+      "source": {
+        "source": "github",
+        "repo": "tammai/ai-sdlc"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ai-sdlc@ai-sdlc": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/risk-tier/hook.mjs\" pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/risk-tier/hook.mjs\" post"
+          }
+        ]
+      }
+    ]
+  }
+}

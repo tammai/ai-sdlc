@@ -1,0 +1,52 @@
+// Engineer-owned (red tier). Fill in every TODO during docs/SETUP.md, once per app.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "todo-app-name",
+  "main": "./.output/server/index.mjs",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./.output/public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": {
+    // Production refuses traffic unless scripts/deploy-guard.mjs deployed it from main.
+    "DEPLOY_ENV": "production",
+    // prototype | public | internal — must match "type" in app.registry.json
+    "APP_TYPE": "internal",
+    // Cloudflare Access (internal apps, and the /reports page of public apps)
+    "ACCESS_TEAM_DOMAIN": "TODO-team.cloudflareaccess.com",
+    "ACCESS_AUD": "TODO-access-application-aud-tag",
+    // Turnstile (public apps). The secret half is set with `wrangler secret put TURNSTILE_SECRET_KEY`.
+    "TURNSTILE_SITE_KEY": ""
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "todo-app-name-db",
+      "database_id": "TODO-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "TODO-kv-namespace-id" }],
+  "env": {
+    // Previews get their own database and KV, so trying a change never touches live data.
+    // Deployed as a separate Worker named "<name>-preview".
+    "preview": {
+      "vars": {
+        "DEPLOY_ENV": "preview",
+        "APP_TYPE": "internal",
+        "ACCESS_TEAM_DOMAIN": "TODO-team.cloudflareaccess.com",
+        "ACCESS_AUD": "TODO-preview-access-aud-tag",
+        "TURNSTILE_SITE_KEY": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "todo-app-name-db-preview",
+          "database_id": "TODO-preview-d1-database-id",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "TODO-preview-kv-namespace-id" }]
+    }
+  }
+}

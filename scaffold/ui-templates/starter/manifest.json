@@ -1,0 +1,7 @@
+{
+  "name": "starter",
+  "for": "prototype",
+  "description": "Plain header + page. Curated from nuxt-ui-templates/starter.",
+  "source": { "repo": "https://github.com/nuxt-ui-templates/starter", "commit": "e67211f5035e230435076cc92baf77e01d7983c2" },
+  "dependencies": {}
+}

@@ -1,0 +1,7 @@
+{
+  "name": "landing",
+  "for": "public",
+  "description": "Header + content-driven landing page. Curated from nuxt-ui-templates/landing: kept the hero, feature grid and call-to-action. Dropped motion-v, shaders and the terminal demo. Copy lives in content/landing.yml.",
+  "source": { "repo": "https://github.com/nuxt-ui-templates/landing", "commit": "8823223b09a62eec421765c6d65978425e82f279" },
+  "dependencies": { "@nuxt/content": "^3.16.1" }
+}

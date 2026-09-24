@@ -1,0 +1,24 @@
+{
+  "$comment": "Engineer-owned (red tier). urls are shown to people by /ship. CI reads this file from the base branch, so a pull request can't change its own reviewers. type: prototype | public | internal (must match APP_TYPE in wrangler.jsonc). data: public | internal | personal — 'personal' raises every yellow change to red. claudeReview: true lets the Claude engineer review (REVIEW.md) clear red changes; false means only people in reviewers.red can.",
+  "name": "TODO-app-name",
+  "description": "TODO one sentence: what this app is for",
+  "type": "internal",
+  "data": "internal",
+  "owner": "TODO-github-handle",
+  "reviewers": {
+    "yellow": [
+      "TODO-owner-handle",
+      "TODO-teammate-handle"
+    ],
+    "red": [
+      "TODO-engineer-handle",
+      "TODO-second-engineer-handle"
+    ]
+  },
+  "reviewBy": "TODO-YYYY-MM-DD",
+  "urls": {
+    "production": "https://TODO-app-name.TODO-subdomain.workers.dev",
+    "preview": "https://TODO-app-name-preview.TODO-subdomain.workers.dev"
+  },
+  "claudeReview": true
+}

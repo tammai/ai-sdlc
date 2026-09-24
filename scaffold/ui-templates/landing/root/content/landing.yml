@@ -1,0 +1,38 @@
+# The words on the home page. Safe to edit: change the text, keep the structure.
+# Icons: any i-lucide-* name from https://lucide.dev/icons
+seo:
+  title: New app
+  description: One sentence about what this site is for.
+title: A clear headline about what we offer
+description: One or two sentences that say who this is for and why it matters.
+hero:
+  headline: New
+  links:
+    - label: Get started
+      to: '#features'
+      color: primary
+    - label: Contact us
+      to: '#contact'
+      color: neutral
+      variant: soft
+features:
+  headline: Why us
+  title: Three reasons people choose us
+  description: Keep each point short. One idea per card.
+  items:
+    - icon: i-lucide-zap
+      title: First reason
+      description: A sentence that explains it in plain words.
+    - icon: i-lucide-shield-check
+      title: Second reason
+      description: A sentence that explains it in plain words.
+    - icon: i-lucide-heart-handshake
+      title: Third reason
+      description: A sentence that explains it in plain words.
+cta:
+  title: Ready to talk?
+  description: Tell us what you need and we'll get back to you.
+  links:
+    - label: Contact us
+      to: '#contact'
+      color: primary

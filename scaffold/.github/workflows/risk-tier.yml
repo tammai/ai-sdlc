@@ -1,0 +1,44 @@
+# Merge gate: classifies the pull request and passes only when it has the approval its
+# tier needs (green: none, yellow: owner or teammate, red: engineer). Make this a
+# required status check on main (docs/SETUP.md).
+#
+# Why pull_request_target: it runs THIS file, the script and the rules from the base
+# branch, so a pull request can't edit its own gate. The PR's code is fetched only
+# as data to diff, and nothing from it is ever installed or executed.
+name: risk-tier
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: risk-tier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  risk-tier:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the base branch by NAME, i.e. its current tip. The event's base.sha is
+      # not refreshed when main moves, so it can be far behind and carry stale rules and reviewers.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+      - name: Fetch the pull request as data (never executed)
+        run: git fetch --no-tags origin "+refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Classify and check approvals
+        run: node scripts/risk-tier/ci.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}

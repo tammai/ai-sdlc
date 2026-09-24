@@ -1,0 +1,16 @@
+node_modules
+.nuxt
+.output
+.data
+.wrangler
+dist
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+*.log
+.DS_Store

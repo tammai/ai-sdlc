@@ -1,0 +1,54 @@
+{
+  "name": "app-template",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt build && wrangler dev",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "test:risk": "node --test \"scripts/**/test/*.test.mjs\"",
+    "test:examples": "playwright test",
+    "check": "pnpm typecheck && pnpm test:risk && pnpm test:examples",
+    "risk": "node scripts/risk-tier/cli.mjs",
+    "deploy:production": "node scripts/deploy-guard.mjs",
+    "deploy:preview": "wrangler d1 migrations apply DB --remote --env preview && wrangler deploy --env preview",
+    "ui:template": "node scripts/ui-template.mjs",
+    "review:post": "node scripts/risk-tier/post-review.mjs"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.136",
+    "@nuxt/ui": "^4.11.2",
+    "@pinia/colada": "^1.4.6",
+    "@pinia/colada-nuxt": "^1.2.0",
+    "@pinia/nuxt": "^1.0.2",
+    "drizzle-orm": "^0.45.3",
+    "jose": "^6.2.12",
+    "nuxt": "^4.5.2",
+    "pinia": "^4.0.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260924.1",
+    "@playwright/test": "^1.63.0",
+    "drizzle-kit": "^0.31.11",
+    "nitro-cloudflare-dev": "^0.2.2",
+    "typescript": "~5.9.3",
+    "vue-tsc": "^3.3.11",
+    "wrangler": "^4.137.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd",
+      "sharp"
+    ]
+  }
+}

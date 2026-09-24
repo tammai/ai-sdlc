@@ -1,0 +1,3 @@
+# Same line endings on Windows and macOS, so diffs (and the risk check) see only real changes.
+* text=auto eol=lf
+*.png binary

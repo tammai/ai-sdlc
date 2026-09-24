@@ -1,0 +1,7 @@
+{
+  "name": "dashboard",
+  "source": {
+    "repo": "https://github.com/nuxt-ui-templates/dashboard",
+    "commit": "8915adfc5139823d65a816792ce365842497c7d1"
+  }
+}

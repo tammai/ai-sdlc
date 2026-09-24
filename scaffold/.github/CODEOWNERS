@@ -1,0 +1,17 @@
+# Defense in depth behind the risk-tier check: these paths also need a code-owner
+# review. Replace @TODO-org/engineers with your engineering team.
+/.github/                    @TODO-org/engineers
+/.claude/                    @TODO-org/engineers
+/scripts/                    @TODO-org/engineers
+/wrangler.jsonc              @TODO-org/engineers
+/app.registry.json           @TODO-org/engineers
+/drizzle.config.ts           @TODO-org/engineers
+/CLAUDE.md                   @TODO-org/engineers
+/server/utils/access.ts      @TODO-org/engineers
+/server/utils/turnstile.ts   @TODO-org/engineers
+/server/middleware/          @TODO-org/engineers
+/REVIEW.md                   @TODO-org/engineers
+/layers/                     @TODO-org/engineers
+/ui-templates/               @TODO-org/engineers
+/content.config.ts           @TODO-org/engineers
+/colada.options.ts           @TODO-org/engineers

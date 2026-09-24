@@ -1,0 +1,232 @@
+{
+  "$comment": "Risk-tier rules. Engineer-owned: edits to this file are themselves red. Paths are repo-relative globs (** , *, {a,b}, leading ! excludes). 'added' is a regex tested against each added line. 'requireAny' flags a file whose final content contains none of the strings. 'block' denies the edit inside a Claude session for everyone; 'protected' denies it unless RISK_TIER_ROLE=engineer. CI re-checks everything regardless.",
+  "allowedExternalDomains": [
+    "challenges.cloudflare.com",
+    "cloudflareaccess.com"
+  ],
+  "escalate": {
+    "personal": {
+      "yellow": "red"
+    }
+  },
+  "rules": [
+    {
+      "id": "secret-file",
+      "tier": "red",
+      "block": true,
+      "paths": [
+        ".dev.vars",
+        ".dev.vars.*",
+        ".env",
+        ".env.*",
+        "**/.env",
+        "**/.env.*",
+        "!**/*.example"
+      ],
+      "why": "Files like .env hold passwords and keys. They must never be saved into the project.",
+      "next": "Ask an engineer to add the secret to Cloudflare directly."
+    },
+    {
+      "id": "secret-in-code",
+      "tier": "red",
+      "block": true,
+      "redact": true,
+      "paths": [
+        "**",
+        "!pnpm-lock.yaml"
+      ],
+      "added": "(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:api[_-]?key|secret|token|password|passwd)[\"']?\\s*[:=]\\s*[\"'][^\"'\\s]{12,}[\"'])",
+      "flags": "i",
+      "why": "This looks like a password or API key written into the code. Anyone who can see the code could use it.",
+      "next": "Remove it. Secrets are stored in Cloudflare by an engineer and read at runtime."
+    },
+    {
+      "id": "engineer-owned-file",
+      "tier": "red",
+      "protected": true,
+      "paths": [
+        ".github/**",
+        ".claude/**",
+        "scripts/**",
+        "wrangler.jsonc",
+        "wrangler.toml",
+        "app.registry.json",
+        "CLAUDE.md",
+        "drizzle.config.ts",
+        "REVIEW.md",
+        "layers/**",
+        "ui-templates/**",
+        "content.config.ts",
+        "colada.options.ts"
+      ],
+      "why": "This file controls the app's safety checks, infrastructure or ownership.",
+      "next": "Describe the change you want and an engineer will make it."
+    },
+    {
+      "id": "sign-in-and-bot-protection",
+      "tier": "red",
+      "protected": true,
+      "paths": [
+        "server/utils/access.ts",
+        "server/utils/turnstile.ts",
+        "server/middleware/**"
+      ],
+      "why": "This code decides who can use the app and blocks bots. A small mistake here can expose everything.",
+      "next": "Describe the change you want and an engineer will make it."
+    },
+    {
+      "id": "destructive-migration",
+      "tier": "red",
+      "block": true,
+      "paths": [
+        "migrations/*.sql"
+      ],
+      "added": "\\b(?:DROP\\s+(?:TABLE|COLUMN|INDEX|VIEW|TRIGGER)|ALTER\\s+TABLE\\s+\\S+\\s+(?:DROP|RENAME)|DELETE\\s+FROM|UPDATE\\s+\\S+\\s+SET|TRUNCATE)\\b",
+      "flags": "i",
+      "why": "This database change deletes, renames or rewrites existing data. That can't easily be undone.",
+      "next": "Only add new tables or columns. If existing data really must change, ask an engineer."
+    },
+    {
+      "id": "migration-rewritten",
+      "tier": "red",
+      "block": true,
+      "paths": [
+        "migrations/*.sql"
+      ],
+      "onStatus": [
+        "modified",
+        "deleted",
+        "renamed"
+      ],
+      "why": "This database step may already have run on the live app. Changing it now makes the live database and the code disagree.",
+      "next": "Leave it as it is and add a new migration instead."
+    },
+    {
+      "id": "personal-data-field",
+      "tier": "red",
+      "paths": [
+        "server/db/**",
+        "migrations/*.sql"
+      ],
+      "added": "\\b\\w*(?:email|phone|mobile|address|birth|dob|ssn|passport|national_?id|id_?number|salary|wage|payroll|bank|iban|account_?number|tax|gender|religion|ethnic|health|medical|diagnosis|disability)\\w*\\b",
+      "flags": "i",
+      "why": "This stores information about real people (such as contact details, pay or health). Personal data has legal rules about who may see it and how long it is kept.",
+      "next": "The engineer review at /ai-sdlc:ship will check who can see this data and how it is protected."
+    },
+    {
+      "id": "external-service",
+      "tier": "red",
+      "externalOnly": true,
+      "paths": [
+        "app/**",
+        "server/**",
+        "shared/**",
+        "nuxt.config.ts"
+      ],
+      "added": "(?:\\$?fetch|ofetch|useFetch|axios(?:\\.\\w+)?|useScript)\\s*\\(\\s*[`'\"]https?://([^/'\"`\\s:]+)|<script[^>]*\\ssrc\\s*=\\s*[\"']https?://([^/\"'\\s:]+)|\\bsrc\\s*:\\s*[\"']https?://([^/\"'\\s:]+)|\\.src\\s*=\\s*[`'\"]https?://([^/`'\"\\s:]+)",
+      "flags": "i",
+      "why": "This sends data to, or loads code from, a service outside the company (for example tracking scripts or another company's API).",
+      "next": "The engineer review at /ai-sdlc:ship will check what data leaves and whether we have an agreement with that service."
+    },
+    {
+      "id": "sends-email",
+      "tier": "red",
+      "paths": [
+        "app/**",
+        "server/**",
+        "shared/**"
+      ],
+      "added": "\\b(?:resend|sendgrid|mailgun|postmark|nodemailer|mailchannels|send_email|sendEmail)\\b",
+      "flags": "i",
+      "why": "The app would send email. Emails reach real people and can't be taken back.",
+      "next": "The engineer review at /ai-sdlc:ship will check who receives it and how sending is limited."
+    },
+    {
+      "id": "unprotected-write",
+      "tier": "red",
+      "paths": [
+        "server/api/**/*.{post,put,patch,delete}.ts",
+        "server/routes/**/*.{post,put,patch,delete}.ts"
+      ],
+      "requireAny": [
+        "requireUser(",
+        "verifyTurnstile("
+      ],
+      "why": "This lets anyone on the internet save or change data, with no sign-in and no bot protection.",
+      "next": "Call requireUser(event) for signed-in staff, or verifyTurnstile(event, token) for a public form."
+    },
+    {
+      "id": "build-or-deploy-script",
+      "tier": "red",
+      "paths": [
+        "package.json"
+      ],
+      "added": "^\\s*\"(?:deploy|build|preview|postinstall|preinstall|prepare|prepublish)[^\"]*\"\\s*:",
+      "why": "This changes how the app is built or deployed. That is what keeps unreviewed code off the live app.",
+      "next": "Describe the change you want and an engineer will make it."
+    },
+    {
+      "id": "new-library",
+      "tier": "red",
+      "paths": [
+        "package.json"
+      ],
+      "added": "^\\s*\"[^\"]+\"\\s*:\\s*\"(?:[~^<>=]*\\d|npm:|git|https?:|file:|link:|workspace:|latest|\\*)",
+      "why": "This adds or changes a third-party library. Libraries run with full access to the app and its data.",
+      "next": "The engineer review at /ai-sdlc:ship will check the library is trustworthy and maintained."
+    },
+    {
+      "id": "lockfile",
+      "tier": "yellow",
+      "paths": [
+        "pnpm-lock.yaml"
+      ],
+      "why": "The exact library versions changed.",
+      "next": "The engineer review at /ai-sdlc:ship checks which libraries changed and why."
+    },
+    {
+      "id": "app-config",
+      "tier": "yellow",
+      "paths": [
+        "nuxt.config.ts"
+      ],
+      "why": "This changes how the app is built.",
+      "next": "The engineer review at /ai-sdlc:ship checks the change is needed and safe."
+    },
+    {
+      "id": "database-change",
+      "tier": "yellow",
+      "paths": [
+        "server/db/**",
+        "migrations/*.sql"
+      ],
+      "why": "This changes what the app stores in its database.",
+      "next": "The engineer review at /ai-sdlc:ship checks the new data looks right."
+    },
+    {
+      "id": "server-route",
+      "tier": "yellow",
+      "paths": [
+        "server/api/**",
+        "server/routes/**"
+      ],
+      "why": "This changes what the app's server does with data.",
+      "next": "The engineer review at /ai-sdlc:ship checks it behaves as expected."
+    },
+    {
+      "id": "checks-changed",
+      "tier": "yellow",
+      "paths": [
+        "tests/**",
+        "playwright.config.ts"
+      ],
+      "onStatus": [
+        "modified",
+        "deleted",
+        "renamed"
+      ],
+      "why": "An existing automatic check was changed or removed, so it might no longer check what was agreed.",
+      "next": "The engineer review at /ai-sdlc:ship checks the examples still say what they approved."
+    }
+  ]
+}

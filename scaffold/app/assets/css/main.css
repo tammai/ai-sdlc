@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Brand fonts and colours go in @theme, e.g. --font-sans. Colour names are picked in app/app.config.ts. */
+@theme {
+  --font-sans: 'Public Sans', system-ui, sans-serif;
+}

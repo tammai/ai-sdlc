@@ -1,0 +1,53 @@
+{
+  "$comment": "What the ai-sdlc plugin owns inside an app. /ai-sdlc:update-app overwrites exactly these from scaffold/ and never touches anything else: the app's pages, queries, API routes, schema, migrations, intents, content, example tests, wrangler.jsonc, app.registry.json and app.config.ts are the app's own. 'dirs' are refreshed file by file (extra files an engineer added are kept and reported). 'packageScripts' are the package.json script keys the plugin owns; dependencies are only reported, never changed. 'remove' lists copies that apps made before the plugin existed; they now come from the plugin, so update-app deletes exactly these paths.",
+  "files": [
+    ".claude/settings.json",
+    ".github/workflows/ci.yml",
+    ".github/workflows/risk-tier.yml",
+    ".gitattributes",
+    "CLAUDE.md",
+    "REVIEW.md",
+    "colada.options.ts",
+    "docs/SETUP.md",
+    "drizzle.config.ts",
+    "playwright.config.ts",
+    "tsconfig.json",
+    "app/plugins/fetch-error-payload.ts",
+    "app/plugins/hydrated.client.ts",
+    "app/utils/locale.ts",
+    "server/middleware/0.deploy-guard.ts",
+    "server/middleware/access.ts",
+    "server/utils/access.ts",
+    "server/utils/turnstile.ts",
+    "tests/examples/helpers.ts"
+  ],
+  "dirs": [
+    "scripts",
+    "ui-templates"
+  ],
+  "packageScripts": [
+    "dev",
+    "build",
+    "preview",
+    "postinstall",
+    "typecheck",
+    "db:generate",
+    "db:migrate:local",
+    "test:risk",
+    "test:examples",
+    "check",
+    "risk",
+    "review:post",
+    "ui:template",
+    "deploy:production",
+    "deploy:preview"
+  ],
+  "remove": [
+    ".claude/skills/idea",
+    ".claude/skills/shape",
+    ".claude/skills/build",
+    ".claude/skills/check",
+    ".claude/skills/ship",
+    ".claude/agents/engineer-reviewer.md"
+  ]
+}
