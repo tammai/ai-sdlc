@@ -1,5 +1,5 @@
-// Regenerate with: node docs/gen-loop.mjs docs/loop.svg   (then check it: napkin's check_diagram.mjs)
-// Generates docs/loop.svg. Every position is computed from its band, so gaps and heights
+// Regenerate with: node artifacts/gen-loop.mjs artifacts/loop.svg   (then check it: napkin's check_diagram.mjs)
+// Generates artifacts/loop.svg. Every position is computed from its band, so gaps and heights
 // can change without edges drifting off their boxes.
 import { writeFileSync } from 'node:fs'
 

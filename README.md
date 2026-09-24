@@ -9,7 +9,7 @@ People describe a problem, agree on concrete examples, and see screenshots befor
 
 ## The loop
 
-<p align="center"><img src="docs/loop.svg" width="720" alt="The ai-sdlc loop in the playbook's six stages: idea, shape, build (technical plan, a plan review for yellow and red, implementer, fresh verifier with up to 3 rounds), check, ship (an engineer review for yellow and red, merge gate, main-only deploy guard), and Report a problem feeding the next idea." /></p>
+<p align="center"><img src="artifacts/loop.svg" width="720" alt="The ai-sdlc loop in the playbook's six stages: idea, shape, build (technical plan, a plan review for yellow and red, implementer, fresh verifier with up to 3 rounds), check, ship (an engineer review for yellow and red, merge gate, main-only deploy guard), and Report a problem feeding the next idea." /></p>
 
 Each of the playbook's six stages is one step, and each step leaves a file behind: the intent, the agreed examples, the technical plan, and the review record. After go-live, "Report a problem" feeds the next idea, which closes the loop. The person only decides at three points: whether the idea was written down right, whether the examples are right, and whether the result is what they wanted.
 
