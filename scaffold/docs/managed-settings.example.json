@@ -1,9 +1,16 @@
 {
-  "$comment": "Example Claude Code managed settings for the machines of people who use ai-sdlc apps. An admin deploys it as managed-settings.json (Windows: C:\\Program Files\\ClaudeCode\\managed-settings.json; macOS: /Library/Application Support/ClaudeCode/managed-settings.json; Linux: /etc/claude-code/managed-settings.json) or through the Claude admin console. Managed settings can't be overridden by project or user settings, so the guard rails hold even if an app's .claude/settings.json is edited. See docs/SETUP.md, 'Managed settings'. Remove this $comment key before deploying.",
+  "$comment": "Example Claude Code managed settings for the machines of people who use ai-sdlc apps. An admin deploys it as managed-settings.json (Windows: C:\\Program Files\\ClaudeCode\\managed-settings.json; macOS: /Library/Application Support/ClaudeCode/managed-settings.json; Linux: /etc/claude-code/managed-settings.json) or through the Claude admin console. Managed settings can't be overridden by project or user settings, so the guard rails hold even if an app's .claude/settings.json is edited. See docs/SETUP.md, 'Managed settings'. The deny list is a starting point: permission rules match how a command starts, so the session hook (scripts/risk-tier/hook.mjs) still does the main blocking, e.g. --admin anywhere in gh pr merge. Remove this $comment key before deploying.",
   "extraKnownMarketplaces": {
-    "ai-sdlc": { "source": { "source": "github", "repo": "tammai/ai-sdlc" } }
+    "ai-sdlc": {
+      "source": {
+        "source": "github",
+        "repo": "tammai/ai-sdlc"
+      }
+    }
   },
-  "enabledPlugins": { "ai-sdlc@ai-sdlc": true },
+  "enabledPlugins": {
+    "ai-sdlc@ai-sdlc": true
+  },
   "permissions": {
     "deny": [
       "Bash(wrangler deploy:*)",
@@ -19,9 +26,17 @@
       "Bash(gh secret:*)",
       "Read(**/.dev.vars)",
       "Read(**/.env)",
-      "Read(**/.env.*)"
+      "Read(**/.env.*)",
+      "Bash(npx wrangler rollback:*)",
+      "Bash(npx wrangler secret:*)",
+      "Bash(npx wrangler versions:*)",
+      "Bash(pnpm exec wrangler versions:*)",
+      "Bash(wrangler versions:*)",
+      "Bash(npm run deploy:production:*)"
     ],
     "disableBypassPermissionsMode": "disable"
   },
-  "env": { "RISK_TIER_ROLE": "" }
+  "env": {
+    "RISK_TIER_ROLE": ""
+  }
 }

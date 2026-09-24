@@ -1,5 +1,5 @@
 // The engineer review record: the PR comment /ship posts after the engineer-reviewer
-// subagent (.claude/agents/engineer-reviewer.md) has reviewed the branch. Engineer-owned.
+// subagent (the ai-sdlc plugin's ai-sdlc:engineer-reviewer) has reviewed the branch. Engineer-owned.
 //
 // The merge gate lets a red change through when a record exists for the PR's current commit.
 // Findings are warnings: they're shown, never blocking. The record proves a review was posted

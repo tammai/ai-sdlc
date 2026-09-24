@@ -55,7 +55,8 @@ function makeRepo(setup) {
   }
   if (setup?.reviewHead) {
     mkdirSync(join(repo, '.git', 'ai-sdlc-review'), { recursive: true })
-    writeFileSync(join(repo, '.git', 'ai-sdlc-review', `${git('rev-parse', 'HEAD')}.json`), '{}')
+    const sha = git('rev-parse', 'HEAD')
+    writeFileSync(join(repo, '.git', 'ai-sdlc-review', `${sha}.json`), JSON.stringify({ sha, summary: 'Reviewed.', warnings: [] }))
   }
   return repo
 }

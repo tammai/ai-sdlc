@@ -3,7 +3,8 @@
 //   node update-app.mjs [appDir]
 // Only paths listed in scripts/managed.json are written. The app's own work (pages, queries,
 // API routes, schema, migrations, intents, content, example tests, config) is never touched.
-// Runs on a new branch; the result ships like any change, through /ai-sdlc:ship.
+// Runs on a new branch and adds an intent describing the update (it never edits existing
+// intents); the result ships like any change, through /ai-sdlc:ship.
 
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -99,13 +100,59 @@ export function updateApp(appDir, { git = true } = {}) {
   execFileSync(process.execPath, [join(app, 'scripts', 'ui-template.mjs'), ...(template ? [template] : [])], { cwd: app, stdio: 'ignore' })
   if (snapshot(join(app, 'layers', 'ui')) !== before) changed.push('layers/ui/')
 
-  writeFileSync(join(app, '.ai-sdlc.json'), JSON.stringify({ plugin: 'ai-sdlc', version }, null, 2) + '\n')
+  const stampPath = join(app, '.ai-sdlc.json')
+  const from = existsSync(stampPath) ? readJson(stampPath).version : null
+  writeFileSync(stampPath, JSON.stringify({ plugin: 'ai-sdlc', version }, null, 2) + '\n')
+
+  // The record of why this change exists, like any other: the engineer review reads it.
+  if (changed.length) {
+    const today = new Date().toISOString().slice(0, 10)
+    const rel = `intent/${today}-ai-sdlc-update-${version.replace(/\./g, '-')}.md`
+    if (!existsSync(join(app, rel))) {
+      mkdirSync(join(app, 'intent'), { recursive: true })
+      writeFileSync(join(app, rel), updateIntent({ version, from, today, changed, extra, depNotes }))
+      changed.push(rel)
+    }
+  }
 
   if (git && changed.length) {
     run('add', '-A')
     run('commit', '-q', '-m', `Update ai-sdlc managed files to ${version}`)
   }
   return { branch, version, changed, extra, depNotes }
+}
+
+export function updateIntent({ version, from, today, changed, extra, depNotes }) {
+  const list = (xs) => xs.map((x) => `- \`${x}\``).join('\n')
+  return `---
+title: Update the ai-sdlc safety files to ${version}
+author: Engineering
+status: built   # draft → agreed → built → shipped | dropped
+tier: red       # engineer-owned files
+created: ${today}
+reports:
+---
+
+# Update the ai-sdlc safety files to ${version}
+
+## The problem
+This app's plugin-owned files (risk rules, merge gate, CI, session hook, deploy guard, UI shell, CLAUDE.md, REVIEW.md) are from ${from ? `ai-sdlc ${from}` : 'before the plugin recorded versions'}. The installed plugin is ${version}.
+
+## What should be true afterwards
+The app's safety files match ai-sdlc ${version}, and nothing the app's owners built has changed.
+
+## Examples
+1. When I run \`pnpm check\`, every existing check passes.
+2. When I compare this branch with main, only files listed in the plugin's \`scripts/managed.json\` have changed, plus this intent.
+
+## What will change
+${list(changed)}
+
+What changed in the plugin itself: its release notes for ${version} (https://github.com/tammai/ai-sdlc/releases).
+${extra.length ? `\nKept as they are (added by an engineer, not from the plugin):\n${list(extra)}\n` : ''}${depNotes.length ? `\nDependencies that differ from the plugin's (not changed):\n${depNotes.map((d) => `- ${d}`).join('\n')}\n` : ''}
+## Policy concerns
+None.
+`
 }
 
 function readJson(p) {

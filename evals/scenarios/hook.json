@@ -217,15 +217,15 @@
     }
   },
   {
-    "id": "triage-select-engineer",
-    "source": "/ai-sdlc:triage reading new reports",
+    "id": "live-select-engineer",
+    "source": "engineers read live data from their own terminal, not a session (triage runs its own fixed query)",
     "role": "engineer",
     "tool": "Bash",
     "input": {
       "command": "pnpm exec wrangler d1 execute DB --remote --json --command \"SELECT id, message FROM feedback WHERE status = 'new'\""
     },
     "expect": {
-      "blocked": false
+      "blocked": true
     }
   },
   {
@@ -282,6 +282,18 @@
     "tool": "Bash",
     "input": {
       "command": "pnpm exec wrangler d1 execute DB --remote --file cleanup.sql"
+    },
+    "expect": {
+      "blocked": true
+    }
+  },
+  {
+    "id": "select-with-substitution",
+    "source": "engineer review of 0.3.0: a shell substitution hidden in a SELECT",
+    "role": "engineer",
+    "tool": "Bash",
+    "input": {
+      "command": "pnpm exec wrangler d1 execute DB --remote --command \"select $(pnpm exec wrangler d1 execute DB --remote --command 'delete from feedback')\""
     },
     "expect": {
       "blocked": true

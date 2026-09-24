@@ -43,3 +43,7 @@ jobs:
           if (m.plugins[0].name !== p.name) throw new Error('plugin name mismatch');
           if (!/^\d+\.\d+\.\d+$/.test(p.version)) throw new Error('bad version');
           console.log(p.name, p.version, 'ok')"
+      - name: The marketplace points at a tag that exists
+        run: |
+          ref=$(node -p "const s=require('./.claude-plugin/marketplace.json').plugins[0].source; typeof s === 'string' ? '' : (s.ref ?? '')")
+          if [ -n "$ref" ]; then git ls-remote --exit-code --tags origin "refs/tags/$ref"; else echo "source is the repo itself"; fi

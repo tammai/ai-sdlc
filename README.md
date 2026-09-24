@@ -83,6 +83,7 @@ The app stack is Nuxt 4 on Cloudflare Workers, with Nuxt UI, Pinia and Pinia Col
   - production refuses anything not deployed from `main`
 - **Review findings are warnings, never blockers.** `/ai-sdlc:ship` offers to fix them, and the person decides.
 - **Review before push is enforced on the author's machine.** The session hook refuses `git push` for a yellow or red commit that has no saved engineer review. A push from outside Claude isn't covered by the hook, but the merge gate still needs a review for the exact commit.
+- **Apps can't pin the plugin's version.** Claude Code's project settings can't pin a plugin, so every app uses the release the marketplace points to. The marketplace entry points at a release tag, not at `main`. A new release reaches apps only when the tag is cut and the entry is bumped, and that bump passes this repo's CI and behaviour-eval gate first. What must not drift sits in each app's own repo and changes only through `/ai-sdlc:update-app` and that app's merge gate: the risk rules, the merge gate, the session hook and the deploy guard.
 - **Session settings live in the app's repo.** To hold them on every non-engineer's machine regardless, deploy the managed settings in `docs/managed-settings.example.json` (see `docs/SETUP.md`, section 7).
 - **Dates default to Vietnamese** (`locale: 'vi-VN'`, `timeZone: 'Asia/Ho_Chi_Minh'`). Change them per app in `app/app.config.ts`.
 - **The stack is fixed on purpose.** Requests outside it (other frameworks, databases, payments, mobile apps) go to an engineer.
@@ -121,7 +122,13 @@ claude plugin validate .                      # the manifests
 
 After changing a skill or agent, run the behaviour evals. When they all pass they record `evals/behavior/last-pass.json`, and CI checks it.
 
-Bump `version` in `.claude-plugin/plugin.json` for every release. Each app records the version that last wrote its files in `.ai-sdlc.json`.
+**Releasing.** Work on `main` doesn't reach anyone until it's released:
+1. Bump `version` in `.claude-plugin/plugin.json`.
+2. Make sure CI is green, including the behaviour-eval gate.
+3. Tag it (`git tag v<version> && git push origin v<version>`) and create a GitHub release with the notes.
+4. Point `ref` in `.claude-plugin/marketplace.json` at the new tag, and push.
+
+Each app records the version that last wrote its files in `.ai-sdlc.json`, and `/ai-sdlc:update-app` writes an intent describing each update.
 
 ## License
 

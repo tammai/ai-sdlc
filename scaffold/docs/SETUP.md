@@ -130,7 +130,7 @@ Both files belong to the app, and `/ai-sdlc:update-app` only creates them when t
 
 Follow `docs/ROLLBACK.md`. Rolling back is always done by an engineer, never from a Claude session.
 
-Run `/ai-sdlc:triage` to turn **Report a problem** submissions into draft intents, and `/ai-sdlc:report` for per-stage delivery metrics.
+Run `/ai-sdlc:triage` to turn **Report a problem** submissions into draft intents, and `/ai-sdlc:report` for per-stage delivery metrics. Triage reads only each report's id, message, page and date, never who sent it, with one fixed query. The messages still enter the engineer's Claude session, so don't use it on an app whose reports may contain sensitive details. Any other read of live data happens in the engineer's own terminal: the session hook blocks every `--remote` database command.
 
 ## What each layer is for
 

@@ -18,6 +18,7 @@ import { isAbsolute, join, relative } from 'node:path'
 import { classify, normalizePath } from './classify.mjs'
 import { collectChanges, currentBranch, gitDir, isGitRepo, resolveBase } from './git.mjs'
 import { formatForSession } from './report.mjs'
+import { validateReview } from './review-record.mjs'
 
 const here = new URL('.', import.meta.url)
 const config = JSON.parse(readFileSync(new URL('rules.json', here), 'utf8'))
@@ -49,8 +50,7 @@ const BASH_RULES = [
   },
   {
     re: /\bwrangler\b[^\n]*\b(?:d1|kv|r2)\b[^\n]*--remote\b/,
-    remote: true,
-    why: 'This command would read or change the live database or storage. Live data changes only through a reviewed migration (engineers may run a single read-only SELECT).',
+    why: 'This command would read or change the live database or storage. Live data changes only through a reviewed migration. Engineers read it from their own terminal.',
   },
   {
     re: /\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b|\s\+\S)/,
@@ -65,23 +65,8 @@ const BASH_RULES = [
   { re: /\bgh\s+(?:secret|variable)\s+(?:set|delete)\b/, why: 'Repository secrets and settings are managed by engineers.' },
 ]
 
-// Engineers may read the live database with one SELECT, e.g. to triage problem reports. The
-// whole command must be just that: no files, no chaining, no redirects, no second statement.
-function isReadOnlyRemoteQuery(command) {
-  const m = command.match(/\s--command(?:=|\s+)(?:"([^"]*)"|'([^']*)')/)
-  if (!m) return false
-  const sql = (m[1] ?? m[2]).trim().replace(/;\s*$/, '')
-  if (!/^select\b/i.test(sql) || /;/.test(sql)) return false
-  const rest = command.replace(m[0], ' ')
-  return /^\s*(?:(?:pnpm\s+exec|npx|pnpm)\s+)?wrangler\s+d1\s+execute\s+[\w-]+(?:\s+(?:--remote|--json|--yes|-y|--env(?:=|\s+)[\w-]+))*\s*$/.test(rest) && /\s--remote\b/.test(rest)
-}
-
 function checkBash(command, cwd) {
-  const engineerRead = isEngineer && isReadOnlyRemoteQuery(command)
-  for (const rule of BASH_RULES) {
-    if (engineerRead && rule.remote) continue
-    if (rule.re.test(command)) deny(`Blocked by the risk check: ${rule.why} ${TAIL}`)
-  }
+  for (const rule of BASH_RULES) if (rule.re.test(command)) deny(`Blocked by the risk check: ${rule.why} ${TAIL}`)
   if (/\bgit\s+push\b/.test(command) && ['main', 'master'].includes(currentBranch(cwd))) {
     deny(`Blocked by the risk check: you're on main. Work happens on a branch and reaches main through a pull request. ${TAIL}`)
   }
@@ -100,11 +85,22 @@ function requireReviewBeforePush(cwd) {
   const { tier } = classify(collectChanges({ cwd, base }), config, { data: registryField(cwd, 'data') })
   if (tier === 'green') return
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim()
-  if (existsSync(join(gitDir(cwd), 'ai-sdlc-review', `${head}.json`))) return
+  if (reviewSaved(cwd, head)) return
   deny(
     `Blocked by the risk check: this is a ${tier} change, and commit ${head.slice(0, 7)} hasn't had its engineer review yet. ` +
       `Run the review first (/ai-sdlc:ship step 3): it saves to .git/ai-sdlc-review/${head}.json, and then the push goes through. ${TAIL}`,
   )
+}
+
+// A saved review counts only if it's a complete review of exactly this commit, the same check
+// `pnpm review:post` makes. The file is local and could be forged: the merge gate is the lock.
+function reviewSaved(cwd, head) {
+  try {
+    const review = JSON.parse(readFileSync(join(gitDir(cwd), 'ai-sdlc-review', `${head}.json`), 'utf8'))
+    return validateReview(review).length === 0 && review.sha === head
+  } catch {
+    return false
+  }
 }
 
 function registryField(cwd, field) {
