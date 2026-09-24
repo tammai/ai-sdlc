@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-sdlc",
   "version": "0.1.0",
-  "description": "An AI-native SDLC for apps built by non-engineers: /idea → /shape → /build → /check → /ship on a fixed Nuxt UI + Cloudflare stack, with deterministic risk tiers, an independent in-session engineer review, and main-only deploys. /new-app scaffolds an app; /update-app keeps an app's safety files current.",
+  "description": "Lets non-engineers (HR, marketing, PMs, designers) build and ship small apps with Claude, safely. They describe a problem, agree on examples, and see screenshots before anything goes live. Every change gets a risk tier, riskier changes get an independent Claude engineer review, and only reviewed code merged to main is deployed. Runs on a fixed Nuxt UI + Cloudflare stack; engineers create apps with /ai-sdlc:new-app and keep them current with /ai-sdlc:update-app.",
   "author": {
     "name": "Tam Mai",
     "email": "tam.mai@bigin.vn"
@@ -10,5 +10,15 @@
   "homepage": "https://github.com/tammai/ai-sdlc",
   "repository": "https://github.com/tammai/ai-sdlc",
   "license": "MIT",
-  "keywords": ["ai-sdlc", "non-engineers", "nuxt", "nuxt-ui", "pinia-colada", "cloudflare-workers", "d1", "risk-tiers", "engineer-review"]
+  "keywords": [
+    "ai-sdlc",
+    "non-engineers",
+    "nuxt",
+    "nuxt-ui",
+    "pinia-colada",
+    "cloudflare-workers",
+    "d1",
+    "risk-tiers",
+    "engineer-review"
+  ]
 }
