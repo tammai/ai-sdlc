@@ -12,6 +12,7 @@
 // The session hook is a convenience that catches problems early. The merge gate is CI
 // (ci.mjs), which re-checks every change no matter how it was made.
 
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative } from 'node:path'
 import { classify, normalizePath } from './classify.mjs'
@@ -35,7 +36,7 @@ const deny = (reason) =>
 // ---------- Bash ----------
 
 const PROTECTED_IN_SHELL =
-  /(?:>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bgit\s+(?:checkout|restore)\b)[^\n|;&]*(?:\.github[\\/]|\.claude[\\/]|scripts[\\/]|layers[\\/]|ui-templates[\\/]|wrangler\.(?:jsonc|toml)|app\.registry\.json|CLAUDE\.md|REVIEW\.md|content\.config\.ts|colada\.options\.ts)/
+  /(?:>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bgit\s+(?:checkout|restore)\b)[^\n|;&]*(?:\.github[\\/]|\.claude[\\/]|scripts[\\/]|layers[\\/]|ui-templates[\\/]|wrangler\.(?:jsonc|toml)|app\.registry\.json|CLAUDE\.md|REVIEW\.md|POLICIES\.md|LEARNED\.md|content\.config\.ts|colada\.options\.ts)/
 
 const BASH_RULES = [
   {
@@ -48,7 +49,8 @@ const BASH_RULES = [
   },
   {
     re: /\bwrangler\b[^\n]*\b(?:d1|kv|r2)\b[^\n]*--remote\b/,
-    why: 'This command would read or change the live database or storage. Live data changes only through a reviewed migration.',
+    remote: true,
+    why: 'This command would read or change the live database or storage. Live data changes only through a reviewed migration (engineers may run a single read-only SELECT).',
   },
   {
     re: /\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b|\s\+\S)/,
@@ -63,13 +65,53 @@ const BASH_RULES = [
   { re: /\bgh\s+(?:secret|variable)\s+(?:set|delete)\b/, why: 'Repository secrets and settings are managed by engineers.' },
 ]
 
+// Engineers may read the live database with one SELECT, e.g. to triage problem reports. The
+// whole command must be just that: no files, no chaining, no redirects, no second statement.
+function isReadOnlyRemoteQuery(command) {
+  const m = command.match(/\s--command(?:=|\s+)(?:"([^"]*)"|'([^']*)')/)
+  if (!m) return false
+  const sql = (m[1] ?? m[2]).trim().replace(/;\s*$/, '')
+  if (!/^select\b/i.test(sql) || /;/.test(sql)) return false
+  const rest = command.replace(m[0], ' ')
+  return /^\s*(?:(?:pnpm\s+exec|npx|pnpm)\s+)?wrangler\s+d1\s+execute\s+[\w-]+(?:\s+(?:--remote|--json|--yes|-y|--env(?:=|\s+)[\w-]+))*\s*$/.test(rest) && /\s--remote\b/.test(rest)
+}
+
 function checkBash(command, cwd) {
-  for (const rule of BASH_RULES) if (rule.re.test(command)) deny(`Blocked by the risk check: ${rule.why} ${TAIL}`)
+  const engineerRead = isEngineer && isReadOnlyRemoteQuery(command)
+  for (const rule of BASH_RULES) {
+    if (engineerRead && rule.remote) continue
+    if (rule.re.test(command)) deny(`Blocked by the risk check: ${rule.why} ${TAIL}`)
+  }
   if (/\bgit\s+push\b/.test(command) && ['main', 'master'].includes(currentBranch(cwd))) {
     deny(`Blocked by the risk check: you're on main. Work happens on a branch and reaches main through a pull request. ${TAIL}`)
   }
   if (!isEngineer && PROTECTED_IN_SHELL.test(command)) {
     deny(`Blocked by the risk check: this command would change an engineer-owned file (safety checks, infrastructure or ownership). ${TAIL}`)
+  }
+  if (/\bgit\s+push\b/.test(command)) requireReviewBeforePush(cwd)
+}
+
+// Review before push: a yellow or red branch leaves this computer only after the engineer
+// review of its exact commit (/ai-sdlc:ship step 3 saves it to .git/ai-sdlc-review/<sha>.json).
+// Engineers, and apps where people review instead ("claudeReview": false), push freely.
+function requireReviewBeforePush(cwd) {
+  if (isEngineer || registryField(cwd, 'claudeReview') === false || !isGitRepo(cwd)) return
+  const base = resolveBase(cwd, 'origin/main')
+  const { tier } = classify(collectChanges({ cwd, base }), config, { data: registryField(cwd, 'data') })
+  if (tier === 'green') return
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim()
+  if (existsSync(join(gitDir(cwd), 'ai-sdlc-review', `${head}.json`))) return
+  deny(
+    `Blocked by the risk check: this is a ${tier} change, and commit ${head.slice(0, 7)} hasn't had its engineer review yet. ` +
+      `Run the review first (/ai-sdlc:ship step 3): it saves to .git/ai-sdlc-review/${head}.json, and then the push goes through. ${TAIL}`,
+  )
+}
+
+function registryField(cwd, field) {
+  try {
+    return JSON.parse(readFileSync(join(cwd, 'app.registry.json'), 'utf8'))[field]
+  } catch {
+    return undefined
   }
 }
 

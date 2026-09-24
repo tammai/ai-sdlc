@@ -59,6 +59,9 @@ export function updateApp(appDir, { git = true } = {}) {
     }
   }
 
+  // Seeds: files the app owns once they exist (policies, lessons). Written only when missing.
+  for (const rel of m.seed ?? []) if (!existsSync(join(app, rel))) put(join(SCAFFOLD, rel), rel)
+
   // Copies of the plugin's skills and reviewer from before the plugin existed: now duplicates.
   for (const rel of m.remove ?? []) {
     if (!existsSync(join(app, rel))) continue

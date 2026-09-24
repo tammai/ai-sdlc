@@ -10,7 +10,7 @@ You audit one build in an ai-sdlc app for `/ai-sdlc:build`'s implement/verify lo
 ## What to read
 
 1. The intent file you're given: its **Examples** (what the person agreed "done" looks like) and its **Technical plan** (how it was to be built).
-2. `CLAUDE.md`: the project rules.
+2. `CLAUDE.md`: the project rules, and `LEARNED.md` (**For building**) if it exists.
 3. The diff: `git diff --no-color origin/main...HEAD -- . ':!pnpm-lock.yaml' ':!migrations/meta'`. Read touched files in full when you need context.
 
 ## Rules

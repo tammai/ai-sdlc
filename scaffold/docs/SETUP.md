@@ -108,6 +108,30 @@ Open the folder in Claude. The hooks in `.claude/settings.json` load automatical
 
 The `block` rules (secrets, destructive migrations) still apply to engineers, and CI still gates every merge.
 
+## 7. Managed settings (recommended for a whole team)
+
+The hooks in `.claude/settings.json` live in the app's repo, and someone with the right permissions could edit them. To hold the guard rails on every non-engineer's machine regardless, an admin deploys Claude Code **managed settings**. Project and user settings can't override them. Start from `docs/managed-settings.example.json`:
+- installs and enables the plugin
+- denies deploy, rollback, secret and admin-merge commands
+- denies reading `.dev.vars` and `.env` files
+- disables bypass-permissions mode
+- pins `RISK_TIER_ROLE` to non-engineer
+
+Deploy it through the Claude admin console, or as `managed-settings.json` in the system folder named in the file. Don't deploy it to engineers' machines.
+
+## 8. Policies and lessons
+
+- **`POLICIES.md`**: your organisation's rules for what apps may do, such as personal data, retention, outside services and announcements. `/ai-sdlc:shape` checks every idea against it and records **Policy concerns** in the intent. `/ai-sdlc:build` won't start while a sign-off is pending, and the engineer review checks the result. The file ships with starter policies: replace them with yours, and have legal, HR or security confirm them.
+- **`LEARNED.md`**: lessons from this app's own history. `CLAUDE.md` imports it, and the reviewer reads its **For review** section. Run `/ai-sdlc:learn` now and then (monthly, say): it gathers repeated verifier issues and review warnings and proposes one-line lessons, which you approve.
+
+Both files belong to the app, and `/ai-sdlc:update-app` only creates them when they're missing. Both are engineer-owned.
+
+## 9. When something goes wrong in production
+
+Follow `docs/ROLLBACK.md`. Rolling back is always done by an engineer, never from a Claude session.
+
+Run `/ai-sdlc:triage` to turn **Report a problem** submissions into draft intents, and `/ai-sdlc:report` for per-stage delivery metrics.
+
 ## What each layer is for
 
 | Layer | Where | Purpose | Can the session get round it? |

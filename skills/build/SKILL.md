@@ -15,6 +15,7 @@ This is `bigin-skills`' `task-workflow` loop. Tell the person one plain sentence
 ## Before you start
 
 - The intent must have `status: agreed`. If it's `draft`, run `/ai-sdlc:shape` first. Don't build from an idea nobody confirmed.
+- If any line under **Policy concerns** ends `(waiting for <role>)`, stop. Say who still has to agree, then ask with `AskUserQuestion`: **They've agreed now** (change the line to `(agreed by <role>)` and commit) / **Wait for them**.
 - You must be on the intent's branch, never `main`. Run `git fetch origin`, and if the branch is behind, `git merge origin/main`. Run `pnpm install` if `package.json` changed.
 
 ## Steps
@@ -48,7 +49,7 @@ This is `bigin-skills`' `task-workflow` loop. Tell the person one plain sentence
 
 4. **Verify with a fresh verifier every round.** Start a **new** **`ai-sdlc:verifier`** with the Agent tool, giving it the intent file's path. **Never pass the implementer's reply or summary.** The verifier reads the diff itself. It returns `{"verdict": "PASS" | "FAIL", "issues": [...]}`.
    - **`PASS`:** go to step 6.
-   - **`FAIL`:** add a line to the plan's `### Build log` ("Round 2/3: <issue count> issues"). Then resume the **same** implementer with `SendMessage`, relaying the issues **verbatim**, so it fixes only what was flagged. When it replies `DONE`, start a **new** verifier (step 4 again). Never reuse a verifier.
+   - **`FAIL`:** add the round to the plan's `### Build log`: a line `Round 2/3: <issue count> issues`, then one indented line per issue (`- <file>: <problem>`, one sentence). `/ai-sdlc:report` and `/ai-sdlc:learn` read these lines. Then resume the **same** implementer with `SendMessage`, relaying the issues **verbatim**, so it fixes only what was flagged. When it replies `DONE`, start a **new** verifier (step 4 again). Never reuse a verifier.
    - **Trivial-fix exception.** You may fix issues yourself instead of resuming the implementer, but only if **every** issue on the list meets all four conditions:
      - it already names the correct value
      - it's text, not behaviour

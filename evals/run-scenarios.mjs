@@ -5,7 +5,7 @@
 // Deterministic and free: run on every change to the plugin (CI does). Every scenario must pass.
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -36,13 +36,33 @@ for (const s of load('tiers.json')) {
 }
 
 // ---- hook: the session guard ---------------------------------------------------------------
-const repo = mkdtempSync(join(tmpdir(), 'aisdlc-eval-'))
-try {
-  const git = (...a) => execFileSync('git', a, { cwd: repo, stdio: 'ignore' })
+// Each scenario gets its own repo: main, plus a branch idea/eval with any setup files committed
+// (and, with reviewHead, the engineer review saved for that commit).
+function makeRepo(setup) {
+  const repo = mkdtempSync(join(tmpdir(), 'aisdlc-eval-'))
+  const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  const cfg = ['-c', 'user.email=e@e', '-c', 'user.name=e']
   git('init', '-q', '-b', 'main')
-  git('-c', 'user.email=e@e', '-c', 'user.name=e', 'commit', '-q', '--allow-empty', '-m', 'base')
+  git(...cfg, 'commit', '-q', '--allow-empty', '-m', 'base')
   git('switch', '-q', '-c', 'idea/eval')
-  for (const s of load('hook.json')) {
+  if (setup?.files) {
+    for (const [path, content] of Object.entries(setup.files)) {
+      mkdirSync(dirname(join(repo, path)), { recursive: true })
+      writeFileSync(join(repo, path), content)
+    }
+    git('add', '-A')
+    git(...cfg, 'commit', '-q', '-m', 'setup')
+  }
+  if (setup?.reviewHead) {
+    mkdirSync(join(repo, '.git', 'ai-sdlc-review'), { recursive: true })
+    writeFileSync(join(repo, '.git', 'ai-sdlc-review', `${git('rev-parse', 'HEAD')}.json`), '{}')
+  }
+  return repo
+}
+
+for (const s of load('hook.json')) {
+  const repo = makeRepo(s.setup)
+  try {
     const input = { ...s.input }
     if (input.file_path) input.file_path = join(repo, input.file_path)
     const res = spawnSync(process.execPath, [join(riskTier, 'hook.mjs'), 'pre'], {
@@ -56,9 +76,9 @@ try {
     if (res.status !== 0) problems.push(`hook exited ${res.status}: ${res.stderr.trim()}`)
     if (blocked !== s.expect.blocked) problems.push(blocked ? `blocked, expected allowed: ${out.permissionDecisionReason}` : 'allowed, expected blocked')
     record('hook', s, problems)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
   }
-} finally {
-  rmSync(repo, { recursive: true, force: true })
 }
 
 // ---- report --------------------------------------------------------------------------------

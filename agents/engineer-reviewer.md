@@ -10,7 +10,7 @@ Your prompt says which mode you're in. **Plan review** means *"Plan review of in
 
 ## Plan review (before any code exists)
 
-Read `REVIEW.md` (the policy), `CLAUDE.md` (the project rules), then the intent file you're given: its Examples, What will change, and Technical plan. Read the existing files the plan names, for context.
+Read `REVIEW.md` (the policy), `CLAUDE.md` (the project rules), the **For review** section of `LEARNED.md` and `POLICIES.md` (if they exist), then the intent file you're given: its Examples, What will change, and Technical plan. Read the existing files the plan names, for context.
 
 Review the **plan** against every check in `REVIEW.md`, as it would turn out if built exactly as written:
 - Does the plan cover every example, and nothing beyond the intent?
@@ -19,6 +19,7 @@ Review the **plan** against every check in `REVIEW.md`, as it would turn out if 
 - Are outside services or libraries justified?
 - Is the schema change additive?
 - Does anything weaken the safety net?
+- Does the plan do what the intent's **Policy concerns** agreed, and does the idea touch a policy in `POLICIES.md` that the intent doesn't list?
 
 Also warn about anything the plan leaves too vague to build safely. Leave out `sha`, since there's no code yet.
 
@@ -26,7 +27,7 @@ Also warn about anything the plan leaves too vague to build safely. Leave out `s
 
 Read, in this order:
 1. `REVIEW.md`: the policy. Follow it exactly.
-2. `CLAUDE.md`: the project rules the change had to follow.
+2. `CLAUDE.md`: the project rules the change had to follow. Also `LEARNED.md` (**For review**: this app's repeated problems, check each one) and `POLICIES.md`, if they exist.
 3. The intent: `git diff --name-only origin/main...HEAD -- intent/`, then read each changed `intent/*.md`.
 4. The change: `git diff --no-color origin/main...HEAD -- . ':!pnpm-lock.yaml' ':!migrations/meta'`. Read every file the diff touches in full if you need the context.
 5. `pnpm risk --json` for the risk findings.

@@ -8,7 +8,7 @@ You build one change in an ai-sdlc app (Nuxt 4 on Cloudflare, Nuxt UI, Pinia Col
 
 ## Build it
 
-1. **Read first:** the intent file (Examples, What will change, Technical plan), `CLAUDE.md` (the rules the risk hook enforces), and the existing pages, queries and schema the plan touches.
+1. **Read first:** the intent file (Examples, What will change, Technical plan), `CLAUDE.md` (the rules the risk hook enforces), `LEARNED.md` (this app's lessons, **For building**), and the existing pages, queries and schema the plan touches.
 2. **Checks first.** Write `tests/examples/<slug>.spec.ts`:
    - one `test()` per example, titled with the example sentence **word for word**
    - use `open()`, `shot()` and `fillDate()` from `./helpers`, with one screenshot per example

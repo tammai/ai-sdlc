@@ -1,0 +1,27 @@
+{
+  "$comment": "Example Claude Code managed settings for the machines of people who use ai-sdlc apps. An admin deploys it as managed-settings.json (Windows: C:\\Program Files\\ClaudeCode\\managed-settings.json; macOS: /Library/Application Support/ClaudeCode/managed-settings.json; Linux: /etc/claude-code/managed-settings.json) or through the Claude admin console. Managed settings can't be overridden by project or user settings, so the guard rails hold even if an app's .claude/settings.json is edited. See docs/SETUP.md, 'Managed settings'. Remove this $comment key before deploying.",
+  "extraKnownMarketplaces": {
+    "ai-sdlc": { "source": { "source": "github", "repo": "tammai/ai-sdlc" } }
+  },
+  "enabledPlugins": { "ai-sdlc@ai-sdlc": true },
+  "permissions": {
+    "deny": [
+      "Bash(wrangler deploy:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(pnpm exec wrangler deploy:*)",
+      "Bash(wrangler rollback:*)",
+      "Bash(pnpm exec wrangler rollback:*)",
+      "Bash(wrangler secret:*)",
+      "Bash(pnpm exec wrangler secret:*)",
+      "Bash(pnpm deploy:production:*)",
+      "Bash(pnpm run deploy:production:*)",
+      "Bash(gh pr merge --admin:*)",
+      "Bash(gh secret:*)",
+      "Read(**/.dev.vars)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "env": { "RISK_TIER_ROLE": "" }
+}

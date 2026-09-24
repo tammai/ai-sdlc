@@ -4,6 +4,7 @@ author: <who asked for it — a role is fine, e.g. "HR team">
 status: draft   # draft → agreed → built → shipped | dropped
 tier:           # green | yellow | red, predicted at /ai-sdlc:shape
 created: <YYYY-MM-DD>
+reports:        # problem-report ids this answers, filled by /ai-sdlc:triage
 ---
 
 # <Short name of the idea>

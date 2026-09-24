@@ -29,6 +29,8 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@example.com
           GIT_COMMITTER_NAME: ci
           GIT_COMMITTER_EMAIL: ci@example.com
+      - name: Behaviour-eval gate (skills/agents unchanged since the last passing full run)
+        run: node evals/fingerprint.mjs --check
       - name: Scenario evals (every scenario must pass)
         run: node evals/run-scenarios.mjs
       - name: Scaffold risk-tier and deploy-guard tests

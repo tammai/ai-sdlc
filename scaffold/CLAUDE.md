@@ -17,16 +17,16 @@ Five skills, always in this order. Each one leaves the `intent/<slug>.md` file o
 | Skill | Status after | What happens |
 | --- | --- | --- |
 | `/ai-sdlc:idea` | draft | Their problem, in their words, on a new branch. Nothing is built. |
-| `/ai-sdlc:shape` | agreed | 2–5 examples ("When I …, I see …") that they explicitly approve |
+| `/ai-sdlc:shape` | agreed | 2–5 examples ("When I …, I see …") that they explicitly approve, checked against `POLICIES.md` |
 | `/ai-sdlc:build` | built | Technical plan, a plan review (yellow/red), then an implementer builds and a fresh verifier checks it, up to 3 rounds |
 | `/ai-sdlc:check` | built | Screenshots next to each example. "Is this what you wanted?" |
 | `/ai-sdlc:ship` | shipped | Pull request, tier explained, who approves what. The pipeline deploys. |
 
-If someone asks for a change directly, start at `/ai-sdlc:idea`, even for something small. It takes a minute and keeps the record.
+If someone asks for a change directly, start at `/ai-sdlc:idea`, even for something small. It takes a minute and keeps the record. Engineers also have `/ai-sdlc:triage` (problem reports → draft intents), `/ai-sdlc:report` (delivery metrics) and `/ai-sdlc:learn` (repeated issues → lessons in `LEARNED.md`).
 
 ## Risk tiers
 
-Green changes ship after the checks pass. Yellow and red changes get an engineer review at `/ai-sdlc:ship`: a separate `ai-sdlc:engineer-reviewer` subagent checks the branch against `REVIEW.md`, and its findings are warnings you offer to fix before merging. The session hook blocks some changes outright and tells you when the tier changes. CI decides the tier again at merge time. **Never try to lower a tier by working around a rule.** Say what the rule protects and move on.
+Green changes ship after the checks pass. Yellow and red changes get an engineer review at `/ai-sdlc:ship`: a separate `ai-sdlc:engineer-reviewer` subagent checks the branch against `REVIEW.md`, and its findings are warnings you offer to fix before merging. The session hook blocks some changes outright, refuses to push a yellow or red commit before its engineer review, and tells you when the tier changes. CI decides the tier again at merge time. **Never try to lower a tier by working around a rule.** Say what the rule protects and move on.
 
 ## Rules
 
@@ -36,7 +36,7 @@ Green changes ship after the checks pass. Yellow and red changes get an engineer
 - No new libraries in `package.json` unless the idea needs one. It triggers an engineer review.
 - No calls to outside services or third-party scripts (analytics, pixels, APIs) unless the idea needs them. They trigger an engineer review.
 - Store personal data (contact details, pay, health, ID numbers) only when the idea needs it, and show it only to signed-in staff. It triggers an engineer review.
-- Engineer-owned, don't edit: `.github/`, `.claude/`, `scripts/`, `wrangler.jsonc`, `app.registry.json`, `drizzle.config.ts`, `server/utils/access.ts`, `server/utils/turnstile.ts`, `server/middleware/`, `colada.options.ts`, `REVIEW.md`, this file.
+- Engineer-owned, don't edit: `.github/`, `.claude/`, `scripts/`, `wrangler.jsonc`, `app.registry.json`, `drizzle.config.ts`, `server/utils/access.ts`, `server/utils/turnstile.ts`, `server/middleware/`, `colada.options.ts`, `REVIEW.md`, `POLICIES.md`, `LEARNED.md`, this file.
 - Don't edit an existing test to make it pass. If an example was wrong, change the intent with the person first.
 - Build and deploy scripts in `package.json` are engineer-owned. Production only runs code merged to `main`.
 
@@ -50,3 +50,7 @@ Green changes ship after the checks pass. Yellow and red changes get an engineer
 | `pnpm risk` | Shows this branch's risk tier and why |
 
 In local dev, sign-in and the bot check are skipped: you're `dev@localhost`.
+
+## Learned in this app
+
+@LEARNED.md

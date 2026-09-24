@@ -39,6 +39,7 @@ const F = box(deploy, 22, SX, SW)
 const G = box(deploy, 120)
 const Hh = box(deploy, 200)
 const I = box(maintain, 17)
+const T = box(maintain, 17, SX, SW)
 const dia = (band, dy) => ({ cx: MC, cy: band.top + dy, rx: 75, ry: 32 })
 const D1 = dia(build, 124)
 const D2 = dia(deploy, 50)
@@ -58,7 +59,7 @@ const label = (x, y, t, anchor) => `  <text class="label" x="${x}" y="${y}"${anc
 const down = (a, b) => edge(`M${MC},${a} V${b}`)
 
 const aria =
-  "The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page feeds the next idea, back at Plan."
+  "The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page stores each report; an engineer runs /ai-sdlc:triage, which turns new reports into draft intents, each the next idea, back at Plan."
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${aria}">
   <style>
@@ -105,6 +106,7 @@ ${rect(F, 'box', 'engineer review', 'of the local commit')}
 ${rect(G, 'box', 'merge gate', 'GitHub, exact commit')}
 ${rect(Hh, 'box', 'deploy guard', 'only main goes live')}
 ${rect(I, 'box-accent', 'Report a problem', 'on every page')}
+${rect(T, 'box', '/ai-sdlc:triage', 'reports → draft intents')}
 
   <!-- Forward edges, main column -->
 ${down(A.y + BH, B.y)}
@@ -140,8 +142,9 @@ ${edge(`M${F.cx},${F.y + BH} V${G.cy} H${MX + MW}`)}
 ${edge(`M${MX},${D.cy} H170 V${B.cy} H${MX}`, 'loop')}
 ${label(178, D.cy - 8, 'not quite')}
 
-  <!-- Maintain: every report is the next idea -->
-${edge(`M${MX + MW},${I.cy} H858 V${A.cy} H${MX + MW}`, 'loop')}
+  <!-- Maintain: reports are triaged into the next ideas -->
+${edge(`M${MX + MW},${I.cy} H${SX}`)}
+${edge(`M${SX + SW},${T.cy} H858 V${A.cy} H${MX + MW}`, 'loop')}
 ${label(850, Math.round((A.cy + I.cy) / 2), 'next idea', 'end')}
 </svg>
 `

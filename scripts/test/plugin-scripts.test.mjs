@@ -62,6 +62,9 @@ test("update-app: restores plugin files and never touches the app's own work", (
   writeFileSync(join(dir, '.claude/skills/ship/SKILL.md'), '# old in-repo copy\n')
   mkdirSync(join(dir, '.claude/skills/my-own'), { recursive: true })
   writeFileSync(join(dir, '.claude/skills/my-own/SKILL.md'), '# an engineer skill\n')
+  // Seeds: an app's own policies stay; a missing lessons file is created.
+  writeFileSync(join(dir, 'POLICIES.md'), '# Our policies\n')
+  rmSync(join(dir, 'LEARNED.md'))
   const pkg = readJson(join(dir, 'package.json'))
   pkg.scripts.check = 'echo old'
   writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
@@ -78,6 +81,8 @@ test("update-app: restores plugin files and never touches the app's own work", (
   assert.ok(r.changed.includes('scripts/risk-tier/hook.mjs'))
   assert.ok(r.changed.includes('package.json (scripts)'))
   assert.deepEqual(r.extra, ['scripts/seed.mjs'])
+  assert.equal(readFileSync(join(dir, 'POLICIES.md'), 'utf8'), '# Our policies\n')
+  assert.ok(r.changed.includes('LEARNED.md') && !r.changed.includes('POLICIES.md'))
   assert.notEqual(readFileSync(join(dir, 'scripts/risk-tier/hook.mjs'), 'utf8'), '// old hook\n')
   assert.notEqual(readJson(join(dir, 'package.json')).scripts.check, 'echo old')
   for (const f of appFiles) assert.equal(readFileSync(join(dir, f), 'utf8'), before[f], `${f} must not change`)

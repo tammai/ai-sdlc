@@ -1,5 +1,5 @@
 {
-  "$comment": "What the ai-sdlc plugin owns inside an app. /ai-sdlc:update-app overwrites exactly these from scaffold/ and never touches anything else: the app's pages, queries, API routes, schema, migrations, intents, content, example tests, wrangler.jsonc, app.registry.json and app.config.ts are the app's own. 'dirs' are refreshed file by file (extra files an engineer added are kept and reported). 'packageScripts' are the package.json script keys the plugin owns; dependencies are only reported, never changed. 'remove' lists copies that apps made before the plugin existed; they now come from the plugin, so update-app deletes exactly these paths.",
+  "$comment": "What the ai-sdlc plugin owns inside an app. /ai-sdlc:update-app overwrites exactly these from scaffold/ and never touches anything else: the app's pages, queries, API routes, schema, migrations, intents, content, example tests, wrangler.jsonc, app.registry.json and app.config.ts are the app's own. 'dirs' are refreshed file by file (extra files an engineer added are kept and reported). 'seed' files are written only when the app lacks them, then belong to the app (engineer-owned). 'packageScripts' are the package.json script keys the plugin owns; dependencies are only reported, never changed. 'remove' lists copies that apps made before the plugin existed; they now come from the plugin, so update-app deletes exactly these paths.",
   "files": [
     ".claude/settings.json",
     ".github/workflows/ci.yml",
@@ -20,11 +20,17 @@
     "server/utils/access.ts",
     "server/utils/turnstile.ts",
     "tests/examples/helpers.ts",
-    "intent/_template.md"
+    "intent/_template.md",
+    "docs/ROLLBACK.md",
+    "docs/managed-settings.example.json"
   ],
   "dirs": [
     "scripts",
     "ui-templates"
+  ],
+  "seed": [
+    "POLICIES.md",
+    "LEARNED.md"
   ],
   "packageScripts": [
     "dev",

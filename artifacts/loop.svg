@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 1086" width="880" height="1086" role="img" aria-label="The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page feeds the next idea, back at Plan.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 1086" width="880" height="1086" role="img" aria-label="The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page stores each report; an engineer runs /ai-sdlc:triage, which turns new reports into draft intents, each the next idea, back at Plan.">
   <style>
     :root { --bg: #ffffff; --band: #f4f4f5; --box: #ffffff; --line: #d4d4d8; --text: #18181b; --muted: #52525b; --accent: #2563eb; --accent-soft: #dbeafe; --edge: #71717a; }
     @media (prefers-color-scheme: dark) {
@@ -79,6 +79,9 @@
   <rect class="box-accent" x="300" y="997" width="260" height="56" rx="8" />
   <text class="title" x="430" y="1020" text-anchor="middle">Report a problem</text>
   <text class="sub" x="430" y="1039" text-anchor="middle">on every page</text>
+  <rect class="box" x="610" y="997" width="220" height="56" rx="8" />
+  <text class="title" x="720" y="1020" text-anchor="middle">/ai-sdlc:triage</text>
+  <text class="sub" x="720" y="1039" text-anchor="middle">reports → draft intents</text>
 
   <!-- Forward edges, main column -->
   <path class="edge" d="M430,89 V135" marker-end="url(#arrow)" />
@@ -114,7 +117,8 @@
   <path class="loop" d="M300,641 H170 V163 H300" marker-end="url(#arrow)" />
   <text class="label" x="178" y="633">not quite</text>
 
-  <!-- Maintain: every report is the next idea -->
-  <path class="loop" d="M560,1025 H858 V61 H560" marker-end="url(#arrow)" />
+  <!-- Maintain: reports are triaged into the next ideas -->
+  <path class="edge" d="M560,1025 H610" marker-end="url(#arrow)" />
+  <path class="loop" d="M830,1025 H858 V61 H560" marker-end="url(#arrow)" />
   <text class="label" x="850" y="543" text-anchor="end">next idea</text>
 </svg>

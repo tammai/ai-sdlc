@@ -54,6 +54,8 @@
         "CLAUDE.md",
         "drizzle.config.ts",
         "REVIEW.md",
+        "POLICIES.md",
+        "LEARNED.md",
         "layers/**",
         "ui-templates/**",
         "content.config.ts",

@@ -121,3 +121,26 @@ test('bash: editing the deploy guard from the shell is blocked', () => {
   assert.ok(denied(run('pre', 'Bash', { command: "sed -i 's/main/dev/' scripts/deploy-guard.mjs" })))
   assert.ok(denied(run('pre', 'Write', { file_path: join(dir, 'scripts', 'deploy-guard.mjs'), content: 'x' })))
 })
+
+test('bash: a yellow/red branch can only be pushed after the engineer review of its exact commit', () => {
+  const cfg = ['-c', 'user.email=t@t', '-c', 'user.name=t']
+  mkdirSync(join(dir, 'server', 'api'), { recursive: true })
+  writeFileSync(join(dir, 'server', 'api', 'rooms.get.ts'), 'export default defineEventHandler(async (e) => { await requireUser(e); return [] })\n')
+  git('add', '-A')
+  git(...cfg, 'commit', '-q', '-m', 'rooms route')
+  const push = { command: 'git push -u origin feature' }
+  try {
+    assert.ok(denied(run('pre', 'Bash', push)), 'no review yet: blocked')
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim()
+    mkdirSync(join(dir, '.git', 'ai-sdlc-review'), { recursive: true })
+    writeFileSync(join(dir, '.git', 'ai-sdlc-review', `${head}.json`), '{}')
+    assert.equal(run('pre', 'Bash', push), null, 'reviewed commit: allowed')
+    assert.equal(run('pre', 'Bash', push, { RISK_TIER_ROLE: 'engineer' }), null, 'engineers push freely')
+    writeFileSync(join(dir, 'server', 'api', 'rooms.get.ts'), 'export default defineEventHandler(async (e) => { await requireUser(e); return [1] })\n')
+    git(...cfg, 'commit', '-qam', 'after the review')
+    assert.ok(denied(run('pre', 'Bash', push)), 'a commit after the review needs a new review')
+  } finally {
+    git('reset', '-q', '--hard', 'main')
+  }
+  assert.equal(run('pre', 'Bash', push), null, 'a green branch pushes without a review')
+})
