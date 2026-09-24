@@ -7,6 +7,41 @@ People describe a problem, agree on concrete examples, and see screenshots befor
 - **Yellow and red** changes first get an independent Claude engineer review.
 - Only reviewed code merged to `main` is deployed.
 
+## The loop
+
+```mermaid
+flowchart LR
+  subgraph Plan
+    A["/ai-sdlc:idea<br/>intent.md"]
+  end
+  subgraph Design
+    B["/ai-sdlc:shape<br/>agreed examples"]
+  end
+  subgraph Build
+    C["/ai-sdlc:build<br/>plan, checks, code"]
+  end
+  subgraph Test
+    D["/ai-sdlc:check<br/>screenshots"]
+  end
+  subgraph Deploy
+    E{"risk tier"}
+    F["engineer review<br/>of the local commit"]
+    G["merge gate<br/>on GitHub"]
+    H["deploy guard<br/>main only"]
+  end
+  subgraph Maintain
+    I["Report a problem"]
+  end
+  A --> B --> C --> D --> E
+  E -- green --> G
+  E -- yellow / red --> F --> G
+  G --> H --> I
+  I -. next idea .-> A
+  D -. not quite .-> B
+```
+
+Each of the playbook's six stages is one step, and each step leaves a file behind: the intent, the agreed examples, the technical plan, and the review record. After go-live, "Report a problem" feeds the next idea, which closes the loop. The person only decides at three points: whether the idea was written down right, whether the examples are right, and whether the result is what they wanted.
+
 ## Requirements
 
 - Claude Code: the desktop app (what non-engineers use) or the CLI
