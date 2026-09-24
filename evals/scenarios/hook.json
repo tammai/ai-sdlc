@@ -347,5 +347,28 @@
     "expect": {
       "blocked": false
     }
+  },
+  {
+    "id": "edit-rollback-guide",
+    "source": "engineer review of 0.3.0: docs/ was not engineer-owned",
+    "tool": "Write",
+    "input": {
+      "file_path": "docs/ROLLBACK.md",
+      "content": "# Just redeploy\n"
+    },
+    "expect": {
+      "blocked": true
+    }
+  },
+  {
+    "id": "shell-edit-version-stamp",
+    "source": "faking the plugin version an app is on",
+    "tool": "Bash",
+    "input": {
+      "command": "echo {} > .ai-sdlc.json"
+    },
+    "expect": {
+      "blocked": true
+    }
   }
 ]

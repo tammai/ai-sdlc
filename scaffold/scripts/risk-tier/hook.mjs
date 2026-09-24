@@ -37,7 +37,7 @@ const deny = (reason) =>
 // ---------- Bash ----------
 
 const PROTECTED_IN_SHELL =
-  /(?:>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bgit\s+(?:checkout|restore)\b)[^\n|;&]*(?:\.github[\\/]|\.claude[\\/]|scripts[\\/]|layers[\\/]|ui-templates[\\/]|wrangler\.(?:jsonc|toml)|app\.registry\.json|CLAUDE\.md|REVIEW\.md|POLICIES\.md|LEARNED\.md|content\.config\.ts|colada\.options\.ts)/
+  /(?:>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bgit\s+(?:checkout|restore)\b)[^\n|;&]*(?:\.github[\\/]|\.claude[\\/]|scripts[\\/]|layers[\\/]|ui-templates[\\/]|wrangler\.(?:jsonc|toml)|app\.registry\.json|CLAUDE\.md|REVIEW\.md|POLICIES\.md|LEARNED\.md|docs[\\/]|\.ai-sdlc\.json|content\.config\.ts|colada\.options\.ts)/
 
 // `git push`, also with options before it: git -C . push, git -c k=v push, git --no-pager push.
 const PUSH = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+-\S+)*\s+push\b`

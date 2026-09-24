@@ -1,5 +1,5 @@
 {
-  "$comment": "Engineer-owned (red tier). urls are shown to people by /ship. CI reads this file from the base branch, so a pull request can't change its own reviewers. type: prototype | public | internal (must match APP_TYPE in wrangler.jsonc). data: public | internal | personal — 'personal' raises every yellow change to red. claudeReview: true lets the Claude engineer review (REVIEW.md) clear red changes; false means only people in reviewers.red can.",
+  "$comment": "Engineer-owned (red tier). urls are shown to people by /ai-sdlc:ship. CI reads this file from the base branch, so a pull request can't change its own reviewers. type: prototype | public | internal (must match APP_TYPE in wrangler.jsonc). data: public | internal | personal — 'personal' raises every yellow change to red. claudeReview: true lets the Claude engineer review (REVIEW.md) clear yellow and red changes; false means only people can (reviewers.yellow or reviewers.red for yellow, reviewers.red for red).",
   "name": "TODO-app-name",
   "description": "TODO one sentence: what this app is for",
   "type": "internal",

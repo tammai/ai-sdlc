@@ -56,6 +56,8 @@
         "REVIEW.md",
         "POLICIES.md",
         "LEARNED.md",
+        "docs/**",
+        ".ai-sdlc.json",
         "layers/**",
         "ui-templates/**",
         "content.config.ts",
