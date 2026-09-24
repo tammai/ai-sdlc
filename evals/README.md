@@ -19,5 +19,5 @@ When something goes wrong in a real app (an incident, a surprise tier, a guard t
 
 - Each run gets a fresh clone of a base app, with **no git remote**, so nothing can be pushed.
 - Cloudflare credentials are replaced with an invalid token, so nothing can be deployed, even if a guard failed.
-- `--budget` caps each run's spend.
+- `--budget` caps each run. Signed in with a claude.ai plan, runs count toward the plan's usage limits (no API credits), and the cap applies to the run's estimated usage. With an API key, it caps real spend.
 - Apps live under `~/apps/.ai-sdlc-evals/`. Delete the folder to clean up.

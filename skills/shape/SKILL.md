@@ -36,7 +36,7 @@ The examples you agree here become the automatic checks, **word for word**. The 
 7. **Write it into the intent file:**
    - Replace **Examples** with the agreed list, numbered.
    - Add a `## What will change` section with the bullets.
-   - Set `status: agreed`.
+   - Set `status: agreed`, and `tier:` to the tier you predicted in step 5 (`green`, `yellow` or `red`). `/ai-sdlc:build` uses it to decide whether the plan gets reviewed before any code.
    - Commit: `git commit -am "Agree examples: <short name>"`.
 
 8. **Too big?** If you need more than about 5 examples, or more than 2 new tables, suggest splitting it into two ideas and shipping the first one alone. Smaller changes get reviewed and shipped faster.

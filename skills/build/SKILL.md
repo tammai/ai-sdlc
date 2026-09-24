@@ -1,52 +1,66 @@
 ---
 name: build
-description: "Build an agreed intent: write a technical plan into the intent file, turn each agreed example into a browser check first, then implement until every check passes. Use after /ai-sdlc:shape when an intent has status: agreed, or when someone types /ai-sdlc:build."
+description: "Build an agreed intent: write a technical plan, get it reviewed before any code for yellow/red changes, then run the implement/verify loop — an implementer subagent builds (checks first), a fresh verifier audits the diff against the intent, capped at 3 rounds. Use after /ai-sdlc:shape when an intent has status: agreed, or when someone types /ai-sdlc:build."
 ---
 
 # /ai-sdlc:build: make the examples true
 
-The person agreed on examples, not code. Build exactly those, prove each one with a check, and keep them informed in one sentence at a time. Follow every rule in `CLAUDE.md`. The risk hook enforces the important ones anyway.
+The person agreed on examples, not code. You **orchestrate**:
+- you write the plan and get it reviewed
+- a separate **implementer** builds it
+- a separate, fresh **verifier** checks the result against what was agreed
+
+This is `bigin-skills`' `task-workflow` loop. Tell the person one plain sentence at each step. They don't need the mechanics.
 
 ## Before you start
 
 - The intent must have `status: agreed`. If it's `draft`, run `/ai-sdlc:shape` first. Don't build from an idea nobody confirmed.
-- You must be on the intent's branch, never `main`.
-- Run `git pull --ff-only origin main` if the branch is behind, then `pnpm install` if `package.json` changed.
+- You must be on the intent's branch, never `main`. Run `git fetch origin`, and if the branch is behind, `git merge origin/main`. Run `pnpm install` if `package.json` changed.
 
 ## Steps
 
-1. **Plan first, in the intent file.** Add a `## Technical plan` section at the bottom of `intent/<slug>.md`. This is for engineers and reviewers, so it may be technical:
-   - files to add or change, in the order you'll touch them
-   - schema changes, **additive only**: new tables or new nullable or defaulted columns
+1. **Plan, in the intent file.** Add a `## Technical plan` section at the bottom of `intent/<slug>.md`, for engineers and reviewers:
+   - files to add or change, in order
+   - schema changes (additive only)
    - server routes, and which ones call `requireUser` or `verifyTurnstile`
-   - which example each test proves
-   - risks: anything that could break existing pages or data
+   - `app/queries/` composables
+   - which Nuxt UI components and which template page structure
+   - which test proves which example
+   - risks
 
-   Commit it before writing code. Tell the person one sentence: "I've planned it: a new page, a list, and a place to store the entries."
+   Commit it: `git commit -am "Plan: <short name>"`.
 
-2. **Checks first.** Write `tests/examples/<slug>.spec.ts`:
-   - one `test()` per agreed example, **titled with the example sentence, word for word**
-   - use `open(page, path)` and `shot(page, '<slug>-<n>')` from `./helpers`, with one screenshot per example at the moment it proves the example
-   - use made-up data, and a unique marker (e.g. `Date.now()`) so reruns don't collide
+   Coverage check, before going on: every example maps to a planned test, and everything in "What will change" maps to a step. Fix any gap in the plan now. It's one line here, and a whole round later.
 
-   Run `pnpm test:examples` and confirm the new tests **fail** for the right reason: the feature doesn't exist yet.
+2. **Plan review, for 🟡 and 🔴 only, before any code.** Use the `tier:` that `/ai-sdlc:shape` recorded in the intent. If there isn't one, anything that stores data, adds a server route, a library or an outside service counts as 🟡 or 🔴.
+   1. Tell them: "Before building, a separate reviewer checks the plan. Changing a plan is cheap. Changing code isn't."
+   2. Start a fresh **`ai-sdlc:engineer-reviewer`** with the Agent tool: *"Plan review of `intent/<slug>.md`."* Give it no summary of your own.
+   3. **No warnings:** go to step 3.
+   4. **Warnings:** explain each one in a plain sentence, then ask with `AskUserQuestion`: **Adjust the plan (Recommended)** / **Build as planned**.
+      - *Adjust:* change the plan, commit, and run **one** more fresh plan review.
+      - *Build as planned:* record the warnings under `### Plan review warnings` in the plan.
 
-3. **Build it.**
-   - Database: edit `server/db/schema.ts`, then `pnpm db:generate` and `pnpm db:migrate:local`. Never edit or delete an existing file in `migrations/`.
-   - Server: `server/api/<name>.<method>.ts`. Saving or changing data calls `requireUser(event)` for staff or `verifyTurnstile(event, token)` for public forms. Staff-only reads call `requireUser(event)`. Validate every input and cap text lengths.
-   - Data from the server: add or extend `app/queries/<thing>.ts`, with a `useQuery` for each read and a `useMutation` for each write, invalidating the read's key. Follow `app/queries/feedback.ts`.
-   - Pages: `app/pages/`, built from Nuxt UI components (`UForm`, `UFormField`, `UInput`, `UTable`, `UCard`, `UButton`, `UModal`…) inside the template's page structure (see `layers/ui/app/pages/reports.vue`). Add the page to `navigation` in `app/app.config.ts` if people should find it from the menu. It must work at phone width and in dark mode.
+      Either way, don't loop on plan reviews more than twice. Anything left becomes a note in the plan.
 
-4. **Loop until green:** `pnpm typecheck && pnpm test:examples`.
-   - **Never edit a test to make it pass.** If an example turns out impossible or ambiguous, stop and ask the person. If the example changes, update it in the intent first, then the test.
-   - If the risk hook blocks something, explain what it protects in plain words and find the allowed way. If there isn't one, it's a job for an engineer: say so, and note it in the intent's Open questions.
+3. **Implement.** Tell them: "Building it now. This takes a few minutes." Start the **`ai-sdlc:implementer`** subagent with the Agent tool, giving it the intent file's path and nothing else. Keep its agent ID. Wait for it:
+   - `NEEDS_DECISION: …`: explain it plainly and ask the person with `AskUserQuestion`. If an example changes, update the intent first, then resume the same implementer (`SendMessage` to its ID) with their answer.
+   - `DONE` plus check output: go to step 4.
 
-5. **Keep the plan honest.** If what you built differs from the Technical plan, update the plan in the same commit.
+4. **Verify with a fresh verifier every round.** Start a **new** **`ai-sdlc:verifier`** with the Agent tool, giving it the intent file's path. **Never pass the implementer's reply or summary.** The verifier reads the diff itself. It returns `{"verdict": "PASS" | "FAIL", "issues": [...]}`.
+   - **`PASS`:** go to step 6.
+   - **`FAIL`:** add a line to the plan's `### Build log` ("Round 2/3: <issue count> issues"). Then resume the **same** implementer with `SendMessage`, relaying the issues **verbatim**, so it fixes only what was flagged. When it replies `DONE`, start a **new** verifier (step 4 again). Never reuse a verifier.
+   - **Trivial-fix exception.** You may fix issues yourself instead of resuming the implementer, but only if **every** issue on the list meets all four conditions:
+     - it already names the correct value
+     - it's text, not behaviour
+     - it's one small hunk, in a file the diff already touches
+     - it's all or nothing: the whole list qualifies, not just some of it
 
-6. **Commit** with a plain message: `git add -A && git commit -m "Build: <short name>"`. Set `status: built` in the intent.
+     Commit the fix, log the round as "orchestrator-applied", and still start a fresh verifier. Never fix it yourself twice running.
 
-7. **Next:** "It's built and every example passes. Say **/ai-sdlc:check** and I'll show you each one working."
+5. **Round cap: 3.** After three `FAIL`s, stop. Explain the remaining issues in plain words, then ask with `AskUserQuestion`: **Let me adjust the plan** / **Try one more round** / **Ask an engineer**. Don't go on to `/ai-sdlc:check` with a failing verification.
+
+6. **Prove it yourself.** Run `pnpm typecheck && pnpm test:examples` and keep the output. Don't trust the implementer's copy. Then set `status: built` in the intent, commit, and tell them: "It's built, and a separate check confirmed it matches what we agreed. Say **/ai-sdlc:check** and I'll show you each example working."
 
 ## Scope
 
-Build only what the examples need. If you notice something else worth doing, add it to the intent's Open questions as a future idea. Don't build it now.
+Build only what the examples need. If something else looks worth doing, add it to the intent's Open questions as a future idea.

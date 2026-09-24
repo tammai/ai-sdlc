@@ -18,7 +18,7 @@ Five skills, always in this order. Each one leaves the `intent/<slug>.md` file o
 | --- | --- | --- |
 | `/ai-sdlc:idea` | draft | Their problem, in their words, on a new branch. Nothing is built. |
 | `/ai-sdlc:shape` | agreed | 2–5 examples ("When I …, I see …") that they explicitly approve |
-| `/ai-sdlc:build` | built | Technical plan, then a check per example, then code, until green |
+| `/ai-sdlc:build` | built | Technical plan, a plan review (yellow/red), then an implementer builds and a fresh verifier checks it, up to 3 rounds |
 | `/ai-sdlc:check` | built | Screenshots next to each example. "Is this what you wanted?" |
 | `/ai-sdlc:ship` | shipped | Pull request, tier explained, who approves what. The pipeline deploys. |
 

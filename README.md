@@ -18,7 +18,10 @@ flowchart LR
     B["/ai-sdlc:shape<br/>agreed examples"]
   end
   subgraph Build
-    C["/ai-sdlc:build<br/>plan, checks, code"]
+    C["/ai-sdlc:build<br/>technical plan"]
+    P["plan review<br/>yellow / red"]
+    M["implementer<br/>checks, then code"]
+    V["fresh verifier<br/>diff vs intent"]
   end
   subgraph Test
     D["/ai-sdlc:check<br/>screenshots"]
@@ -32,7 +35,12 @@ flowchart LR
   subgraph Maintain
     I["Report a problem"]
   end
-  A --> B --> C --> D --> E
+  A --> B --> C
+  C -- green --> M
+  C -- yellow / red --> P --> M
+  M --> V
+  V -- FAIL, up to 3 rounds --> M
+  V -- PASS --> D --> E
   E -- green --> G
   E -- yellow / red --> F --> G
   G --> H --> I
@@ -73,11 +81,14 @@ Open the app's folder in Claude and go step by step:
 | --- | --- |
 | `/ai-sdlc:idea` | You describe the problem in your own words. Claude asks at most 5 questions, as pick-lists. |
 | `/ai-sdlc:shape` | You agree on 2–5 examples, like "When I …, I see …". |
-| `/ai-sdlc:build` | Claude plans, writes a browser check for each example, then builds until they all pass. |
+| `/ai-sdlc:build` | Claude writes a technical plan, and a reviewer checks it before any code for riskier changes. One subagent builds it, checks first. A fresh subagent then checks the result against what you agreed, up to 3 rounds. |
 | `/ai-sdlc:check` | You see a screenshot next to each example: "Is this what you wanted?" |
 | `/ai-sdlc:ship` | Yellow and red changes are reviewed on your computer first, then pushed once and merged. Merging deploys. |
 
-The engineer review at `/ai-sdlc:ship` is done by the plugin's `ai-sdlc:engineer-reviewer` subagent. It has a fresh context and read-only tools, and it isn't told what was built or why. It checks the change against the app's `REVIEW.md`.
+Three plugin subagents do the checking. None of them is told what was built or why:
+- **`ai-sdlc:engineer-reviewer`** reviews against the app's `REVIEW.md` twice: the technical plan before any code, at `/ai-sdlc:build`, for yellow and red; and the final commit before push, at `/ai-sdlc:ship`.
+- **`ai-sdlc:implementer`** builds the change.
+- **`ai-sdlc:verifier`** is fresh and read-only every round. It audits the build's diff against the intent, never against the implementer's own account. This is the implement/verify loop from `bigin-skills`' `task-workflow`.
 
 ## How it's split
 

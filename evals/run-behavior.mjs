@@ -32,7 +32,8 @@ function prepareBase() {
   createApp(base, { name: 'eval-app', type: 'internal', data: 'internal' })
   execFileSync('pnpm', ['install'], { cwd: base, stdio: 'inherit', shell: process.platform === 'win32' })
   git(base, 'add', '-A')
-  git(base, '-c', 'user.email=e@e', '-c', 'user.name=e', 'commit', '-q', '-m', 'install')
+  // pnpm install may leave nothing to commit (lockfile already current).
+  if (git(base, 'status', '--porcelain')) git(base, '-c', 'user.email=e@e', '-c', 'user.name=e', 'commit', '-q', '-m', 'install')
 }
 
 function freshApp(id) {

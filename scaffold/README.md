@@ -21,7 +21,7 @@ Five skills, always in this order. Each one moves the idea's file, `intent/<slug
 | --- | --- |
 | `/ai-sdlc:idea` | The person's problem in their own words, at most 5 questions. Nothing is built. |
 | `/ai-sdlc:shape` | 2–5 examples ("When I …, I see …") that they explicitly approve |
-| `/ai-sdlc:build` | Technical plan, then a browser check per example, then the code, until every check passes |
+| `/ai-sdlc:build` | Technical plan, a plan review before any code (yellow/red), then an implementer builds (checks first) and a fresh verifier audits it against the intent, up to 3 rounds |
 | `/ai-sdlc:check` | A screenshot next to each example: "Is this what you wanted?" |
 | `/ai-sdlc:ship` | Engineer review on the local commit, then push once, open the pull request, post the review, merge. The pipeline deploys. |
 

@@ -19,7 +19,8 @@
     "server/middleware/access.ts",
     "server/utils/access.ts",
     "server/utils/turnstile.ts",
-    "tests/examples/helpers.ts"
+    "tests/examples/helpers.ts",
+    "intent/_template.md"
   ],
   "dirs": [
     "scripts",

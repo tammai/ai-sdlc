@@ -2,6 +2,7 @@
 title: <short name of the idea>
 author: <who asked for it — a role is fine, e.g. "HR team">
 status: draft   # draft → agreed → built → shipped | dropped
+tier:           # green | yellow | red, predicted at /ai-sdlc:shape
 created: <YYYY-MM-DD>
 ---
 
