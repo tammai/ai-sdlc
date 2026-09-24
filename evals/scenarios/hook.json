@@ -298,5 +298,54 @@
     "expect": {
       "blocked": true
     }
+  },
+  {
+    "id": "push-main-with-C",
+    "source": "engineer review of 0.3.0: git -C . push past the main rule",
+    "tool": "Bash",
+    "input": {
+      "command": "git -C . push origin main"
+    },
+    "expect": {
+      "blocked": true
+    }
+  },
+  {
+    "id": "force-push-with-c",
+    "source": "a config option before push",
+    "tool": "Bash",
+    "input": {
+      "command": "git -c push.default=current push --force origin idea/x"
+    },
+    "expect": {
+      "blocked": true
+    }
+  },
+  {
+    "id": "push-red-unreviewed-with-C",
+    "source": "git -C . push past the review-before-push rule",
+    "setup": {
+      "files": {
+        "server/api/rooms.get.ts": "export default defineEventHandler(async (e) => { await requireUser(e); return [] })\n"
+      }
+    },
+    "tool": "Bash",
+    "input": {
+      "command": "git -C . push -u origin HEAD"
+    },
+    "expect": {
+      "blocked": true
+    }
+  },
+  {
+    "id": "commit-mentions-push",
+    "source": "\"push\" in a commit message is not a push",
+    "tool": "Bash",
+    "input": {
+      "command": "git commit -m \"push the rooms page later\""
+    },
+    "expect": {
+      "blocked": false
+    }
   }
 ]

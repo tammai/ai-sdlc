@@ -102,7 +102,11 @@ export function updateApp(appDir, { git = true } = {}) {
 
   const stampPath = join(app, '.ai-sdlc.json')
   const from = existsSync(stampPath) ? readJson(stampPath).version : null
-  writeFileSync(stampPath, JSON.stringify({ plugin: 'ai-sdlc', version }, null, 2) + '\n')
+  const stamp = JSON.stringify({ plugin: 'ai-sdlc', version }, null, 2) + '\n'
+  if (!existsSync(stampPath) || readFileSync(stampPath, 'utf8') !== stamp) {
+    writeFileSync(stampPath, stamp)
+    if (changed.length) changed.push('.ai-sdlc.json')
+  }
 
   // The record of why this change exists, like any other: the engineer review reads it.
   if (changed.length) {

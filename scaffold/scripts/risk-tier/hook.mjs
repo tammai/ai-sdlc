@@ -39,6 +39,10 @@ const deny = (reason) =>
 const PROTECTED_IN_SHELL =
   /(?:>>?|\btee\b|\bsed\s+-i|\bmv\b|\bcp\b|\brm\b|\bgit\s+(?:checkout|restore)\b)[^\n|;&]*(?:\.github[\\/]|\.claude[\\/]|scripts[\\/]|layers[\\/]|ui-templates[\\/]|wrangler\.(?:jsonc|toml)|app\.registry\.json|CLAUDE\.md|REVIEW\.md|POLICIES\.md|LEARNED\.md|content\.config\.ts|colada\.options\.ts)/
 
+// `git push`, also with options before it: git -C . push, git -c k=v push, git --no-pager push.
+const PUSH = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+-\S+)*\s+push\b`
+const isPush = (command) => new RegExp(PUSH).test(command)
+
 const BASH_RULES = [
   {
     re: /\bwrangler\b[^\n]*\b(?:deploy|publish|rollback|delete|secret|versions\s+(?:upload|deploy))\b/,
@@ -53,11 +57,11 @@ const BASH_RULES = [
     why: 'This command would read or change the live database or storage. Live data changes only through a reviewed migration. Engineers read it from their own terminal.',
   },
   {
-    re: /\bgit\s+push\b[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b|\s\+\S)/,
+    re: new RegExp(PUSH + String.raw`[^\n]*(?:\s--force(?:-with-lease)?\b|\s-f\b|\s\+\S)`),
     why: 'Force-pushing rewrites history that other people may depend on.',
   },
   {
-    re: /\bgit\s+push\b[^\n]*\s(?:\S+:)?(?:main|master)\b/,
+    re: new RegExp(PUSH + String.raw`[^\n]*\s(?:\S+:)?(?:main|master)\b`),
     why: 'Changes reach main only through a pull request, where the checks run.',
   },
   { re: /--no-verify\b/, why: 'Skipping the checks is not allowed.' },
@@ -67,13 +71,13 @@ const BASH_RULES = [
 
 function checkBash(command, cwd) {
   for (const rule of BASH_RULES) if (rule.re.test(command)) deny(`Blocked by the risk check: ${rule.why} ${TAIL}`)
-  if (/\bgit\s+push\b/.test(command) && ['main', 'master'].includes(currentBranch(cwd))) {
+  if (isPush(command) && ['main', 'master'].includes(currentBranch(cwd))) {
     deny(`Blocked by the risk check: you're on main. Work happens on a branch and reaches main through a pull request. ${TAIL}`)
   }
   if (!isEngineer && PROTECTED_IN_SHELL.test(command)) {
     deny(`Blocked by the risk check: this command would change an engineer-owned file (safety checks, infrastructure or ownership). ${TAIL}`)
   }
-  if (/\bgit\s+push\b/.test(command)) requireReviewBeforePush(cwd)
+  if (isPush(command)) requireReviewBeforePush(cwd)
 }
 
 // Review before push: a yellow or red branch leaves this computer only after the engineer
