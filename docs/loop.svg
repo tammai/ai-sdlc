@@ -1,12 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 1016" width="880" height="1016" role="img" aria-label="The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page feeds the next idea, back at Plan.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 1086" width="880" height="1086" role="img" aria-label="The ai-sdlc loop, in the playbook's six stages. Plan: /ai-sdlc:idea writes the problem in the person's words. Design: /ai-sdlc:shape agrees 2 to 5 examples. Build: a technical plan is written; if the change is yellow or red, a plan review happens before any code, otherwise it goes straight to the implementer; the implementer writes checks first, then code; a fresh verifier audits the diff against the intent, and on FAIL the work goes back to the implementer, up to 3 rounds. Test: on PASS, /ai-sdlc:check shows screenshots; if it is not quite right, it goes back to shape. Deploy: if the change is yellow or red, an engineer review of the local commit happens first; then the merge gate on GitHub checks the exact commit, and the deploy guard lets only main go live. Maintain: Report a problem on every page feeds the next idea, back at Plan.">
   <style>
-    :root { --bg: #ffffff; --band: #f4f4f5; --band-alt: #fafafa; --box: #ffffff; --line: #d4d4d8; --text: #18181b; --muted: #52525b; --accent: #2563eb; --accent-soft: #dbeafe; --edge: #71717a; }
+    :root { --bg: #ffffff; --band: #f4f4f5; --box: #ffffff; --line: #d4d4d8; --text: #18181b; --muted: #52525b; --accent: #2563eb; --accent-soft: #dbeafe; --edge: #71717a; }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #0d1117; --band: #161b22; --band-alt: #11161d; --box: #0d1117; --line: #30363d; --text: #e6edf3; --muted: #9da7b3; --accent: #58a6ff; --accent-soft: #10243e; --edge: #8b949e; }
+      :root { --bg: #0d1117; --band: #161b22; --box: #0d1117; --line: #30363d; --text: #e6edf3; --muted: #9da7b3; --accent: #58a6ff; --accent-soft: #10243e; --edge: #8b949e; }
     }
     .bg { fill: var(--bg); }
     .band { fill: var(--band); }
-    .band-alt { fill: var(--band-alt); }
     .stage { fill: var(--text); font: 700 14px system-ui, -apple-system, 'Segoe UI', sans-serif; }
     .caption { fill: var(--muted); font: 11px ui-monospace, 'SFMono-Regular', Consolas, monospace; }
     .box { fill: var(--box); stroke: var(--line); stroke-width: 1.5; }
@@ -24,118 +23,98 @@
     </marker>
   </defs>
 
-  <path class="bg" d="M0,0 H880 V1016 H0 Z" />
+  <path class="bg" d="M0,0 H880 V1086 H0 Z" />
 
-  <!-- Stage bands: one per playbook stage -->
+  <!-- Stage bands, one per playbook stage, 12px apart (drawn as paths: containers, not boxes) -->
   <path class="band" d="M18,16 H862 A10,10 0 0 1 872,26 V96 A10,10 0 0 1 862,106 H18 A10,10 0 0 1 8,96 V26 A10,10 0 0 1 18,16 Z" />
-  <path class="band-alt" d="M18,106 H862 A10,10 0 0 1 872,116 V186 A10,10 0 0 1 862,196 H18 A10,10 0 0 1 8,186 V116 A10,10 0 0 1 18,106 Z" />
-  <path class="band" d="M18,196 H862 A10,10 0 0 1 872,206 V550 A10,10 0 0 1 862,560 H18 A10,10 0 0 1 8,550 V206 A10,10 0 0 1 18,196 Z" />
-  <path class="band-alt" d="M18,560 H862 A10,10 0 0 1 872,570 V640 A10,10 0 0 1 862,650 H18 A10,10 0 0 1 8,640 V570 A10,10 0 0 1 18,560 Z" />
-  <path class="band" d="M18,650 H862 A10,10 0 0 1 872,660 V910 A10,10 0 0 1 862,920 H18 A10,10 0 0 1 8,910 V660 A10,10 0 0 1 18,650 Z" />
-  <path class="band-alt" d="M18,920 H862 A10,10 0 0 1 872,930 V1000 A10,10 0 0 1 862,1010 H18 A10,10 0 0 1 8,1000 V930 A10,10 0 0 1 18,920 Z" />
-
+  <path class="band" d="M18,118 H862 A10,10 0 0 1 872,128 V198 A10,10 0 0 1 862,208 H18 A10,10 0 0 1 8,198 V128 A10,10 0 0 1 18,118 Z" />
+  <path class="band" d="M18,220 H862 A10,10 0 0 1 872,230 V574 A10,10 0 0 1 862,584 H18 A10,10 0 0 1 8,574 V230 A10,10 0 0 1 18,220 Z" />
+  <path class="band" d="M18,596 H862 A10,10 0 0 1 872,606 V676 A10,10 0 0 1 862,686 H18 A10,10 0 0 1 8,676 V606 A10,10 0 0 1 18,596 Z" />
+  <path class="band" d="M18,698 H862 A10,10 0 0 1 872,708 V958 A10,10 0 0 1 862,968 H18 A10,10 0 0 1 8,958 V708 A10,10 0 0 1 18,698 Z" />
+  <path class="band" d="M18,980 H862 A10,10 0 0 1 872,990 V1060 A10,10 0 0 1 862,1070 H18 A10,10 0 0 1 8,1060 V990 A10,10 0 0 1 18,980 Z" />
   <text class="stage" x="24" y="44">1  Plan</text>
-  <text class="stage" x="24" y="134">2  Design</text>
-  <text class="stage" x="24" y="224">3  Build</text>
-  <text class="caption" x="24" y="242">/ai-sdlc:build</text>
-  <text class="stage" x="24" y="588">4  Test</text>
-  <text class="stage" x="24" y="678">5  Deploy</text>
-  <text class="caption" x="24" y="696">/ai-sdlc:ship</text>
-  <text class="stage" x="24" y="948">6  Maintain</text>
+  <text class="stage" x="24" y="146">2  Design</text>
+  <text class="stage" x="24" y="248">3  Build</text>
+  <text class="caption" x="24" y="266">/ai-sdlc:build</text>
+  <text class="stage" x="24" y="624">4  Test</text>
+  <text class="stage" x="24" y="726">5  Deploy</text>
+  <text class="caption" x="24" y="744">/ai-sdlc:ship</text>
+  <text class="stage" x="24" y="1008">6  Maintain</text>
 
-  <!-- Main column: x 300..560 (centre 430), side column: x 610..830 (centre 720) -->
-
-  <!-- Plan -->
+  <!-- Boxes -->
   <rect class="box-accent" x="300" y="33" width="260" height="56" rx="8" />
   <text class="title" x="430" y="56" text-anchor="middle">/ai-sdlc:idea</text>
   <text class="sub" x="430" y="75" text-anchor="middle">the problem, in their words</text>
-
-  <!-- Design -->
-  <rect class="box-accent" x="300" y="123" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="146" text-anchor="middle">/ai-sdlc:shape</text>
-  <text class="sub" x="430" y="165" text-anchor="middle">agree 2–5 examples</text>
-
-  <!-- Build -->
-  <rect class="box" x="300" y="213" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="236" text-anchor="middle">technical plan</text>
-  <text class="sub" x="430" y="255" text-anchor="middle">in the intent file</text>
-
-  <polygon class="box" points="430,288 505,320 430,352 355,320" />
-  <text class="title" x="430" y="325" text-anchor="middle">yellow / red?</text>
-
-  <rect class="box" x="610" y="292" width="220" height="56" rx="8" />
-  <text class="title" x="720" y="315" text-anchor="middle">plan review</text>
-  <text class="sub" x="720" y="334" text-anchor="middle">before any code</text>
-
-  <rect class="box" x="300" y="390" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="413" text-anchor="middle">implementer</text>
-  <text class="sub" x="430" y="432" text-anchor="middle">checks first, then code</text>
-
-  <rect class="box" x="300" y="480" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="503" text-anchor="middle">fresh verifier</text>
-  <text class="sub" x="430" y="522" text-anchor="middle">audits the diff vs the intent</text>
-
-  <!-- Test -->
-  <rect class="box-accent" x="300" y="577" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="600" text-anchor="middle">/ai-sdlc:check</text>
-  <text class="sub" x="430" y="619" text-anchor="middle">screenshots: is this it?</text>
-
-  <!-- Deploy -->
-  <polygon class="box" points="430,668 505,700 430,732 355,700" />
-  <text class="title" x="430" y="705" text-anchor="middle">yellow / red?</text>
-
-  <rect class="box" x="610" y="672" width="220" height="56" rx="8" />
-  <text class="title" x="720" y="695" text-anchor="middle">engineer review</text>
-  <text class="sub" x="720" y="714" text-anchor="middle">of the local commit</text>
-
-  <rect class="box" x="300" y="770" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="793" text-anchor="middle">merge gate</text>
-  <text class="sub" x="430" y="812" text-anchor="middle">GitHub, exact commit</text>
-
-  <rect class="box" x="300" y="850" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="873" text-anchor="middle">deploy guard</text>
-  <text class="sub" x="430" y="892" text-anchor="middle">only main goes live</text>
-
-  <!-- Maintain -->
-  <rect class="box-accent" x="300" y="937" width="260" height="56" rx="8" />
-  <text class="title" x="430" y="960" text-anchor="middle">Report a problem</text>
-  <text class="sub" x="430" y="979" text-anchor="middle">on every page</text>
+  <rect class="box-accent" x="300" y="135" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="158" text-anchor="middle">/ai-sdlc:shape</text>
+  <text class="sub" x="430" y="177" text-anchor="middle">agree 2–5 examples</text>
+  <rect class="box" x="300" y="237" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="260" text-anchor="middle">technical plan</text>
+  <text class="sub" x="430" y="279" text-anchor="middle">in the intent file</text>
+  <polygon class="box" points="430,312 505,344 430,376 355,344" />
+  <text class="title" x="430" y="349" text-anchor="middle">yellow / red?</text>
+  <rect class="box" x="610" y="316" width="220" height="56" rx="8" />
+  <text class="title" x="720" y="339" text-anchor="middle">plan review</text>
+  <text class="sub" x="720" y="358" text-anchor="middle">before any code</text>
+  <rect class="box" x="300" y="414" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="437" text-anchor="middle">implementer</text>
+  <text class="sub" x="430" y="456" text-anchor="middle">checks first, then code</text>
+  <rect class="box" x="300" y="504" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="527" text-anchor="middle">fresh verifier</text>
+  <text class="sub" x="430" y="546" text-anchor="middle">audits the diff vs the intent</text>
+  <rect class="box-accent" x="300" y="613" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="636" text-anchor="middle">/ai-sdlc:check</text>
+  <text class="sub" x="430" y="655" text-anchor="middle">screenshots: is this it?</text>
+  <polygon class="box" points="430,716 505,748 430,780 355,748" />
+  <text class="title" x="430" y="753" text-anchor="middle">yellow / red?</text>
+  <rect class="box" x="610" y="720" width="220" height="56" rx="8" />
+  <text class="title" x="720" y="743" text-anchor="middle">engineer review</text>
+  <text class="sub" x="720" y="762" text-anchor="middle">of the local commit</text>
+  <rect class="box" x="300" y="818" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="841" text-anchor="middle">merge gate</text>
+  <text class="sub" x="430" y="860" text-anchor="middle">GitHub, exact commit</text>
+  <rect class="box" x="300" y="898" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="921" text-anchor="middle">deploy guard</text>
+  <text class="sub" x="430" y="940" text-anchor="middle">only main goes live</text>
+  <rect class="box-accent" x="300" y="997" width="260" height="56" rx="8" />
+  <text class="title" x="430" y="1020" text-anchor="middle">Report a problem</text>
+  <text class="sub" x="430" y="1039" text-anchor="middle">on every page</text>
 
   <!-- Forward edges, main column -->
-  <path class="edge" d="M430,89 V123" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,179 V213" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,269 V288" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,352 V390" marker-end="url(#arrow)" />
-  <text class="label" x="438" y="376">green</text>
-  <path class="edge" d="M430,446 V480" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,536 V577" marker-end="url(#arrow)" />
-  <text class="label" x="438" y="562">PASS</text>
-  <path class="edge" d="M430,633 V668" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,732 V770" marker-end="url(#arrow)" />
-  <text class="label" x="438" y="756">green</text>
-  <path class="edge" d="M430,826 V850" marker-end="url(#arrow)" />
-  <path class="edge" d="M430,906 V937" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,89 V135" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,191 V237" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,293 V312" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,376 V414" marker-end="url(#arrow)" />
+  <text class="label" x="438" y="399">green</text>
+  <path class="edge" d="M430,470 V504" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,560 V613" marker-end="url(#arrow)" />
+  <text class="label" x="438" y="590.5">PASS</text>
+  <path class="edge" d="M430,669 V716" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,780 V818" marker-end="url(#arrow)" />
+  <text class="label" x="438" y="803">green</text>
+  <path class="edge" d="M430,874 V898" marker-end="url(#arrow)" />
+  <path class="edge" d="M430,954 V997" marker-end="url(#arrow)" />
 
-  <!-- Build: the yellow / red branch through the plan review -->
-  <path class="edge" d="M505,320 H610" marker-end="url(#arrow)" />
-  <text class="label" x="557" y="312" text-anchor="middle">yes</text>
-  <path class="edge" d="M720,348 V418 H560" marker-end="url(#arrow)" />
+  <!-- Build: yellow / red goes through the plan review -->
+  <path class="edge" d="M505,344 H610" marker-end="url(#arrow)" />
+  <text class="label" x="557.5" y="336" text-anchor="middle">yes</text>
+  <path class="edge" d="M720,372 V442 H560" marker-end="url(#arrow)" />
 
   <!-- Build: FAIL goes back to the same implementer -->
-  <path class="loop" d="M300,508 H265 V418 H300" marker-end="url(#arrow)" />
-  <text class="label" x="258" y="458" text-anchor="end">FAIL</text>
-  <text class="label" x="258" y="474" text-anchor="end">≤ 3 rounds</text>
+  <path class="loop" d="M300,532 H265 V442 H300" marker-end="url(#arrow)" />
+  <text class="label" x="258" y="484" text-anchor="end">FAIL</text>
+  <text class="label" x="258" y="500" text-anchor="end">≤ 3 rounds</text>
 
-  <!-- Deploy: the yellow / red branch through the engineer review -->
-  <path class="edge" d="M505,700 H610" marker-end="url(#arrow)" />
-  <text class="label" x="557" y="692" text-anchor="middle">yes</text>
-  <path class="edge" d="M720,728 V798 H560" marker-end="url(#arrow)" />
+  <!-- Deploy: yellow / red goes through the engineer review -->
+  <path class="edge" d="M505,748 H610" marker-end="url(#arrow)" />
+  <text class="label" x="557.5" y="740" text-anchor="middle">yes</text>
+  <path class="edge" d="M720,776 V846 H560" marker-end="url(#arrow)" />
 
   <!-- Test: not quite goes back to shape -->
-  <path class="loop" d="M300,605 H170 V151 H300" marker-end="url(#arrow)" />
-  <text class="label" x="178" y="597">not quite</text>
+  <path class="loop" d="M300,641 H170 V163 H300" marker-end="url(#arrow)" />
+  <text class="label" x="178" y="633">not quite</text>
 
   <!-- Maintain: every report is the next idea -->
-  <path class="loop" d="M560,965 H858 V61 H560" marker-end="url(#arrow)" />
-  <text class="label" x="850" y="520" text-anchor="end">next idea</text>
+  <path class="loop" d="M560,1025 H858 V61 H560" marker-end="url(#arrow)" />
+  <text class="label" x="850" y="543" text-anchor="end">next idea</text>
 </svg>
