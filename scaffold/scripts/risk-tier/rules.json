@@ -129,6 +129,22 @@
       "next": "The engineer review at /ai-sdlc:ship will check what data leaves and whether we have an agreement with that service."
     },
     {
+      "id": "external-service",
+      "tier": "red",
+      "externalOnly": true,
+      "paths": [
+        "app/queries/**",
+        "app/composables/**",
+        "app/stores/**",
+        "server/**"
+      ],
+      "added": "[`'\"]https?://([^/'\"`\\s:$]+)",
+      "flags": "i",
+      "why": "This sends data to, or loads code from, a service outside the company (for example tracking scripts or another company's API).",
+      "next": "The engineer review at /ai-sdlc:ship will check what data leaves and whether we have an agreement with that service.",
+      "$comment": "Data code: any outside URL counts, however it is called (e.g. api = useRequestFetch(); api(url))."
+    },
+    {
       "id": "sends-email",
       "tier": "red",
       "paths": [
