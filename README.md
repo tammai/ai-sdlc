@@ -97,6 +97,7 @@ Version 0.3.0.
 - **Sign-in.** Cloudflare Access sign-in is verified by the app itself, and Turnstile is checked server-side.
 - **A real HR session**, which produced a leave tracker with 5 examples.
 - **The in-session engineer review** cleared red pull requests with no human approval. It reviewed the local commit before push, so `ci` ran once.
+- **`/ai-sdlc:report`, `/ai-sdlc:triage` and `/ai-sdlc:learn`** on the test app's real pull requests and live database. Triage read the new reports with its one read-only query. Learn found a repeated review warning that led to a fix in `/ai-sdlc:ship`.
 
 **Checked by evals** (see [evals/README.md](evals/README.md)):
 - **Scenario evals** replay real incidents against the risk rules and the session hook: deterministic, and run in CI.
@@ -107,7 +108,6 @@ Version 0.3.0.
 - installing the plugin from the marketplace (the evals load it with `--plugin-dir`)
 - the install prompt when opening an app
 - `/ai-sdlc:update-app` on a real app
-- `/ai-sdlc:triage` against a live database. It's tested on an exported result.
 
 ## Developing the plugin
 

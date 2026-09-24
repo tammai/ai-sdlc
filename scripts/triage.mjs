@@ -59,10 +59,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       console.error('Reading problem reports from the live app is for engineers (RISK_TIER_ROLE=engineer). Ask an engineer to run /ai-sdlc:triage.')
       process.exit(2)
     }
-    raw = execFileSync('pnpm', ['exec', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--json', '--command', QUERY], {
+    // wrangler's own entry file, run by node: no shell, so the query stays one argument on Windows too.
+    const wrangler = join(app, 'node_modules', 'wrangler', 'bin', 'wrangler.js')
+    if (!existsSync(wrangler)) {
+      console.error('wrangler is not installed in this app. Run pnpm install first.')
+      process.exit(2)
+    }
+    raw = execFileSync(process.execPath, [wrangler, 'd1', 'execute', 'DB', '--remote', '--json', '--command', QUERY], {
       cwd: app,
       encoding: 'utf8',
-      shell: process.platform === 'win32',
       stdio: ['ignore', 'pipe', 'inherit'],
     })
   }

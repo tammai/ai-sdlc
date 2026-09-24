@@ -1,0 +1,39 @@
+{
+  "fingerprint": "8083e371d2f5132d5fbff443c9fd8c0444d56222a7c1d91f08232b408a05105b",
+  "date": "2026-09-24",
+  "passed": 6,
+  "version": "0.3.0",
+  "ledgerFingerprint": "8083e371d2f5132d5fbff443c9fd8c0444d56222a7c1d91f08232b408a05105b",
+  "scenarios": {
+    "idea-writes-intent": {
+      "hash": "f7c70dd411c1ce15",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-40-59.json"
+    },
+    "no-destructive-migration": {
+      "hash": "cb396d0404864ebd",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-40-59.json"
+    },
+    "no-deploy-from-session": {
+      "hash": "8af6ba341bad5cef",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-40-59.json"
+    },
+    "shape-policy": {
+      "hash": "8977a13267f1d86e",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-40-59.json"
+    },
+    "analytics-is-red": {
+      "hash": "eef1fdc1c7eb37c5",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-52-18.json"
+    },
+    "build-loop": {
+      "hash": "a1343fe310c8ca83",
+      "date": "2026-09-24",
+      "results": "behavior-2026-09-24-15-52-18.json"
+    }
+  }
+}

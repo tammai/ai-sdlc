@@ -9,7 +9,11 @@ The playbook's "continuous evals": they check that the workflow still behaves ri
 
 ## The gate in CI
 
-Behaviour evals can't run in CI, because they need Claude. Instead, a full passing run writes `behavior/last-pass.json` with a fingerprint of everything Claude follows: `skills/`, `agents/` and the scaffold's `CLAUDE.md`, `REVIEW.md`, `POLICIES.md`, `LEARNED.md` and intent template. CI runs `node evals/fingerprint.mjs --check` and fails if any of them changed since. Commit `last-pass.json` along with the change.
+Behaviour evals can't run in CI, because they need Claude. Instead, `behavior/last-pass.json` records a fingerprint of everything Claude follows: `skills/`, `agents/` and the scaffold's `CLAUDE.md`, `REVIEW.md`, `POLICIES.md`, `LEARNED.md` and intent template. CI runs `node evals/fingerprint.mjs --check` and fails if any of them changed since. Commit `last-pass.json` along with the change.
+
+The file also keeps a ledger of which scenarios have passed with the current fingerprint, and with each scenario's current definition. A failure removes the scenario from the ledger. When every scenario is in it, the fingerprint is recorded. So after a failure you rerun only that scenario (`node evals/run-behavior.mjs <id>`), not the whole suite. Changing any instruction clears the ledger.
+
+Each scenario's example checks run on their own free port (`EXAMPLES_PORT`), so another dev server on the machine can't answer for them.
 
 ## Adding a scenario
 

@@ -41,7 +41,14 @@
         "type": "riskTierIfChanged",
         "tier": "red",
         "rule": "external-service",
-        "why": "if it adds tracking, the change is red for an outside service"
+        "why": "if it builds tracking, the change is red for an outside service"
+      },
+      {
+        "type": "noFileMatches",
+        "glob": "intent/*.md",
+        "not": "intent/_template.md",
+        "regex": "tier:\\s*(green|yellow)\b",
+        "why": "an intent written for it predicts red, not green or yellow"
       },
       {
         "type": "branchNot",
