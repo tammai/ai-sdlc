@@ -1,0 +1,4 @@
+# Base URL of the Go API (server-side only; never exposed to the browser)
+NUXT_API_BASE=__API_URL__
+# Seals the session cookie. Must be 32+ chars. Generate a real one: openssl rand -base64 32
+NUXT_SESSION_PASSWORD=example-only-not-a-secret-0123456789abcdef

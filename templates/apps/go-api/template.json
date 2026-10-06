@@ -1,0 +1,18 @@
+{
+  "id": "go-api",
+  "profile": "go-api",
+  "ui": "any",
+  "title": "Go API — contract-first OpenAPI (oapi-codegen strict server), chi, sqlc + pgx, goose, Postgres in Docker",
+  "toolchains": ["go>=1.27"],
+  "shared": ["contracts"],
+  "install": ["go mod download"],
+  "postInstall": [],
+  "verify": [
+    { "name": "generate", "cmd": "go generate ./... && go build ./..." },
+    { "name": "vet", "cmd": "go vet ./..." },
+    { "name": "lint", "cmd": "go tool golangci-lint run" },
+    { "name": "test", "cmd": "go test ./..." }
+  ],
+  "dev": "go run ./cmd/server",
+  "verified": "2026-10-06"
+}

@@ -35,10 +35,9 @@ Why these defaults (say this in one line if the user asks): fewest moving parts 
 3. Update CLAUDE.md "Stack" section: 3–6 lines from each reference's "CLAUDE.md snippet"; make its Commands match `.sdlc/config.json#verify`.
 
 ## 3. Scaffold (only for a new app, inside an approved plan)
-Follow the "Scaffold" section of each chosen reference in `${CLAUDE_PLUGIN_ROOT}/skills/stack/references/`:
-- `web-edge.md` — Nuxt/Next full-stack on Cloudflare Workers
-- `web-bff-go.md` — BFF + Go API + Postgres + contract
-- `mobile-flutter.md`
-- `desktop-tauri.md`
-If house scaffold skills are installed (e.g. `nuxt-scaffold`, `next-scaffold`, `go-scaffold`), you may use them as the starting point; then reconcile with the reference and record differences in the ADR.
-Use current stable versions at scaffold time (check with the package manager, don't trust memory), pin them in lockfiles. After scaffolding, `sdlc verify` must be green on the empty app before any feature work.
+`sdlc scaffold-app` — copies the full app template for every component in `.sdlc/stack.json` (`templates/apps/<id>`: edge-web-nuxt/next, bff-web-nuxt/next, go-api, flutter, tauri-nuxt/react), fills in the app name, copies the shared `contracts/openapi.yaml` and `docker-compose.yml` where needed, installs from the pinned lockfiles, writes the verify commands into `.sdlc/config.json`, merges each template's notes into CLAUDE.md "Stack", and runs verify. Every template ships one working **notes** slice (list + create, validation, UI states, tests) — it's the pattern to copy for the first real feature, and can be deleted once real features exist.
+- Options: `--name <app>` (default: folder name), `--ui vue|react`, `--no-install` (copy only), `--no-verify`.
+- Missing toolchain (e.g. Flutter not installed) → the install step fails for that component; tell the user what to install and re-run with that component name only.
+- It refuses non-empty component folders; existing projects never get a template (setup §5a).
+- Templates pin versions at the time they were verified (`template.json#verified`). After scaffolding, upgrading dependencies is an ordinary change.
+After scaffolding, `sdlc verify` must be green before any feature work; commit as `chore: scaffold <app> from ai-sdlc templates`.

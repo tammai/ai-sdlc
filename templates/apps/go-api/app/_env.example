@@ -1,0 +1,13 @@
+# Copy to .env (never commit .env). The server reads the process environment; export these or use your shell/IDE.
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/__APP_SNAKE__?sslmode=disable
+PORT=8080
+
+# Apply embedded goose migrations on start (convenient locally; gate it in production).
+RUN_MIGRATIONS=true
+
+# JWT validation. Leave AUTH_JWKS_URL empty ONLY for local development (auth is then disabled).
+# The server refuses to start with APP_ENV=production and no AUTH_JWKS_URL.
+AUTH_JWKS_URL=
+AUTH_ISSUER=
+AUTH_AUDIENCE=
+# APP_ENV=production

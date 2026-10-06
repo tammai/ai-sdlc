@@ -2,3 +2,15 @@ node_modules/
 .sdlc/local/
 evals/results/
 .DS_Store
+
+# app templates: never commit installs or build output
+templates/apps/**/node_modules/
+templates/apps/**/.nuxt/
+templates/apps/**/.output/
+templates/apps/**/.next/
+templates/apps/**/.open-next/
+templates/apps/**/.wrangler/
+templates/apps/**/dist/
+templates/apps/**/target/
+templates/apps/**/.dart_tool/
+templates/apps/**/build/

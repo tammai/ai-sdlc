@@ -1,0 +1,54 @@
+{
+  // Worker config, read directly by wrangler (`wrangler deploy [--env staging]`) and by Nitro's local dev emulation.
+  // `pnpm build` writes the Worker to .output/server and the SPA assets to .output/public — the paths below.
+  // Local dev emulates the bindings (state in .wrangler/state). Every id marked PLACEHOLDER must be replaced with a real one
+  // (`wrangler d1 create`, `wrangler kv namespace create`) before the first remote deploy.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2025-07-15",
+  "compatibility_flags": ["nodejs_compat", "no_nodejs_compat_v2"],
+  "assets": { "directory": ".output/public", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "__APP_NAME__-db",
+      "database_id": "00000000-0000-0000-0000-000000000000", // PLACEHOLDER (ignored by local dev)
+      "migrations_dir": "server/db/migrations"
+    }
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "00000000000000000000000000000000" }], // PLACEHOLDER
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files" }],
+
+  // `wrangler deploy --env <name>`: bindings are NOT inherited, so each env redeclares them.
+  "env": {
+    "staging": {
+      "name": "__APP_NAME__-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "__APP_NAME__-db-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID", // PLACEHOLDER
+          "migrations_dir": "server/db/migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "REPLACE_WITH_STAGING_KV_ID" }], // PLACEHOLDER
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files-staging" }]
+    },
+    "production": {
+      "name": "__APP_NAME__-production",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "__APP_NAME__-db-production",
+          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID", // PLACEHOLDER
+          "migrations_dir": "server/db/migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "REPLACE_WITH_PRODUCTION_KV_ID" }], // PLACEHOLDER
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files-production" }]
+    }
+  }
+}

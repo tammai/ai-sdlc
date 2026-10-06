@@ -1,0 +1,17 @@
+node_modules
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+.env
+.env.*
+!.env.example
+logs
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+

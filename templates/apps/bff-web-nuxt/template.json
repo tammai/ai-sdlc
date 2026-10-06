@@ -1,0 +1,18 @@
+{
+  "id": "bff-web-nuxt",
+  "profile": "bff-web",
+  "ui": "vue",
+  "title": "Nuxt 4 SPA as a thin BFF in front of a Go API — Nuxt UI, nuxt-auth-utils session, typed openapi-fetch client",
+  "toolchains": ["node>=22", "pnpm>=10"],
+  "install": ["pnpm install --frozen-lockfile"],
+  "postInstall": [],
+  "verify": [
+    { "name": "typecheck", "cmd": "pnpm run typecheck" },
+    { "name": "lint", "cmd": "pnpm run lint" },
+    { "name": "test", "cmd": "pnpm run test" },
+    { "name": "build", "cmd": "pnpm run build" }
+  ],
+  "dev": "pnpm dev",
+  "shared": ["contracts"],
+  "verified": "2026-10-06"
+}

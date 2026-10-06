@@ -28,6 +28,7 @@ Rust: unit tests for services, `cargo clippy --all-targets -D warnings`, `cargo 
 CI builds per OS (`tauri-action`), signs (Windows Authenticode / macOS notarization), publishes the updater manifest. Draft releases the agent may create in CI; publishing a release and touching signing keys is gated. Rollback: re-point the updater manifest to the previous version.
 
 ## Scaffold
+`sdlc scaffold-app` copies the verified template for this profile (`templates/apps/`). The notes below describe how the template was built — use them only when adding this profile's pieces by hand.
 `pnpm create tauri-app@latest <name>` (Vue or React template) → for Nuxt, replace the Vite frontend with `nuxt` (`ssr: false`, `devServer.port` = `devUrl` port, `frontendDist: ../.output/public`) and add `@nuxt/ui`; React: shadcn init. Add `keyring`, `thiserror`, `serde`, `reqwest` (rustls), `sqlx` (sqlite) as needed; updater plugin + key pair (private key → CI secret, never the repo).
 
 ## CLAUDE.md snippet

@@ -65,7 +65,7 @@ Ask with **one** `AskUserQuestion` call holding two questions.
 
 Then run `sdlc stack --surfaces <comma list, lowercase> --backend <fullstack|separated>` (add `--ui react` only if the repo is already React or the user asks for React/shadcn). It maps the answers to components (fullstack → `edge-web` [+ `flutter`] [+ `tauri`]; separated → `go-api` [+ `bff-web`] [+ `flutter`] [+ `tauri`]), writes `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`. Then continue with the **stack** skill from "§2 Record" step 1 (ADR) and step 3 (CLAUDE.md "Stack" section) — the decision itself is made.
 
-Don't scaffold the app here: scaffolding is the first change. Offer it: "Want me to scaffold it now? (`/ai-sdlc:vibe scaffold the app`)" — that runs as a tier-M change with a plan, and `sdlc verify` must be green on the empty app before feature work.
+Then offer to scaffold: "Want me to create the app now from the ai-sdlc templates?" On yes: `sdlc scaffold-app --name <app-name>` (see the **stack** skill §3). It's a fixed, verified template, so it doesn't need the intent→plan chain; it must end with verify green. Then suggest committing, and `/ai-sdlc:vibe` for the first feature.
 
 ## 6. Finish
 - Recommend branch protection on main: PR required, code-owner approval, required checks = the verify commands. Agents never push to main (the prod gate also asks on `git push … main`).

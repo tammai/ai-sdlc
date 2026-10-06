@@ -13,7 +13,7 @@ Speed comes from collapsing handoffs, not from skipping judgment. You generate a
 ## 0. Orient
 - If `.sdlc/config.json` is missing → run the **setup** skill first (it takes a minute), then come back.
 - `sdlc status`. If the user gave no idea and a change is active, resume at its "next" step. If the user gave a new idea while another change is active, ask whether to park it (`sdlc deactivate`) or finish it first.
-- If the repo has no app yet (empty or scaffold-less) → run the **stack** skill to choose and record the stack profile before the plan.
+- If the repo has no app yet → setup §5b records the stack, then `sdlc scaffold-app` creates it from the verified templates before the first feature.
 
 ## 1. Size the tier (decide, then state it in one line)
 | Tier | Signals | Chain |

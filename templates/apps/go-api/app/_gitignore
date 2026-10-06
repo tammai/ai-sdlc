@@ -1,0 +1,14 @@
+# binaries and test output
+*.exe
+*.test
+*.out
+bin/
+tmp/
+
+# local env (keep .env.example)
+.env
+.env.local
+
+# editor
+.idea/
+.vscode/

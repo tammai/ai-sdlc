@@ -10,6 +10,7 @@ import {
   readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIER_TO_COMPLEXITY, routeAgent
 } from './lib.mjs';
 import { detectProject, detectedVerify, packageManager, globExists } from './detect.mjs';
+import { scaffoldApp } from './scaffold-app.mjs';
 
 const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATES = path.join(PLUGIN, 'templates');
@@ -284,6 +285,17 @@ function baseline() {
   console.log(red.length
     ? `baseline: ${red.length} check(s) already failing — reported but not enforced until fixed (${red.map((v) => v.name).join(', ')})`
     : 'baseline: all green — every check is enforced');
+}
+
+// ---------------------------------------------------------- scaffold-app ---
+function scaffoldAppCmd() {
+  need();
+  const cfgFile = path.join(root, '.sdlc', 'config.json');
+  scaffoldApp({
+    root, plugin: PLUGIN, args: f._, flags: f, die,
+    loadConfigRaw: () => JSON.parse(fs.readFileSync(cfgFile, 'utf8')),
+    saveConfigRaw: (c) => fs.writeFileSync(cfgFile, JSON.stringify(c, null, 2) + '\n')
+  });
 }
 
 // --------------------------------------------------------------- inspect ---
@@ -576,6 +588,8 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   inspect [--json]                   detect existing apps, their stack profile and verify commands
   baseline                           run verify once; mark already-failing checks known-red (not enforced)
   init [--force]                     create .sdlc/config.json (auto-detects verify cmds) + ${DEFAULT_CONFIG.artifactsDir}/
+  scaffold-app [component...] [--name n] [--ui vue|react] [--dir d] [--no-install] [--no-verify]
+                                     copy a full app template for the recorded stack, install, verify green
   scaffold <what...> [--force]       ${Object.keys(SCAFFOLD).join(' | ')}
   new "<title>" [--tier S|M|L] [--source human|monitor|scan|incident|review] [--fix] [--no-activate]
   draft design|ui|spec|plan|review  create the next artifact from its template (active change)
@@ -597,7 +611,7 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
 Common flag: --id <change-id> to target a non-active change.`;
 
 const COMMANDS = {
-  init, inspect, baseline, scaffold, adr, stack, route, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
+  init, inspect, baseline, 'scaffold-app': scaffoldAppCmd, scaffold, adr, stack, route, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
   approve: () => setStatus('approved'), reject: () => setStatus('rejected'), reopen: () => setStatus('draft'),
   'lock-tests': lockTests, 'unlock-tests': unlockTests, help: () => console.log(HELP)
 };

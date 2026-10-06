@@ -1,0 +1,5 @@
+- Commands: `pnpm dev` · `pnpm typecheck` · `pnpm lint` · `pnpm test` · `pnpm build` · `pnpm gen:api` (regenerates `app/api/schema.d.ts` from `../contracts/openapi.yaml`; never hand-edit it).
+- Nuxt 4 SPA (`ssr: false`) + Nuxt UI/Tailwind v4. `server/api/*` is a thin BFF: validate with Zod, forward the session's bearer token to the Go API (`runtimeConfig.apiBase`), pass problem+json errors through. No business logic here.
+- Session: nuxt-auth-utils sealed cookie; the API token lives in `session.secure` and never reaches the browser. `server/api/auth/login.post.ts` is a dev stub (paste a JWT) — replace it with your IdP flow.
+- CSRF: `server/middleware/csrf.ts` rejects mutating `/api/**` requests without `X-Requested-With: bff` or with a cross-origin `Origin`. Call the BFF via `app/api/client.ts` (adds the header).
+- Tests: vitest; `test/nuxt` (components), `test/e2e` (built BFF against a stubbed Go API, offline). Contract change → edit `contracts/openapi.yaml`, run `pnpm gen:api`, commit the result.

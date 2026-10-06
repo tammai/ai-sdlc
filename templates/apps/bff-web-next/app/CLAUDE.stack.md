@@ -1,0 +1,5 @@
+- Commands: `pnpm dev` · `pnpm typecheck` · `pnpm lint` · `pnpm test` · `pnpm build` · `pnpm gen:api` (regenerates `src/api/schema.d.ts` from `../contracts/openapi.yaml`; never hand-edit it).
+- Next App Router, client pages (`'use client'`), shadcn/ui + Tailwind v4, TanStack Query. `src/app/api/**/route.ts` is a thin BFF: validate with Zod, forward the session's bearer token to the Go API (`API_BASE_URL`), pass problem+json errors through. No business logic here.
+- Session: iron-session sealed httpOnly cookie (`SESSION_SECRET`); the API token never reaches the browser. `src/app/api/auth/login/route.ts` is a dev stub (paste a JWT) — replace it with your IdP flow.
+- CSRF: every mutating `/api/**` handler calls `checkCsrf` (needs `X-Requested-With: bff`, same-origin `Origin`). Call the BFF via `src/api/client.ts` (adds the header).
+- Tests: vitest (offline) — route handlers run against a stubbed `fetch` standing in for the Go API (`src/test/`); add shadcn components with `pnpm dlx shadcn@latest add <name>`.

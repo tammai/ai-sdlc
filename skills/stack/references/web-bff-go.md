@@ -33,6 +33,7 @@ Go: table-driven unit tests for services; integration tests against real Postgre
 Images built in CI, tagged with the git SHA. Dev/staging: compose or the platform's staging env (agent may deploy). Production: CI on tag/merge with release approval; `goose up` against prod and image pushes to prod tags are gated. Rollback: previous image tag + down-migration only if the migration was additive-reversible (prefer expand/contract migrations so rollback never needs a down).
 
 ## Scaffold
+`sdlc scaffold-app` copies the verified template for this profile (`templates/apps/`). The notes below describe how the template was built — use them only when adding this profile's pieces by hand.
 `go mod init`, add `oapi-codegen` (as a `go tool` dependency), `sqlc`, `goose`, `chi`, `pgx/v5`; `//go:generate` lines for oapi-codegen and sqlc in `internal/api/gen/gen.go` and `internal/db/gen.go`; `.golangci.yml`; Dockerfile; compose with `postgres` healthcheck. Web: as edge-web but without Cloudflare bindings; `nitro.routeRules` / server routes proxy `/api/**` to the Go API with the session token.
 
 ## CLAUDE.md snippet

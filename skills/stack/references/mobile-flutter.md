@@ -31,6 +31,7 @@ Unit tests for domain + repositories (mock the generated client at the repositor
 Builds per flavor in CI (Codemagic/GitHub Actions + fastlane). Internal tracks (TestFlight internal, Play internal) the agent may trigger from CI; store release/promotion is gated (`fastlane … release|deliver|supply`). Rollback: halt staged rollout + hotfix build; use remote config flags for kill switches.
 
 ## Scaffold
+`sdlc scaffold-app` copies the verified template for this profile (`templates/apps/`). The notes below describe how the template was built — use them only when adding this profile's pieces by hand.
 `flutter create --org <reverse-domain> --platforms ios,android <name>` → add deps above; `analysis_options.yaml` includes `very_good_analysis`; flavors; `build.yaml`; a script `tool/gen_api.sh` to regenerate the client.
 
 ## CLAUDE.md snippet

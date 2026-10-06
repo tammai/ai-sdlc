@@ -1,0 +1,6 @@
+- Commands (in this dir): `go run ./cmd/server` (needs `DATABASE_URL`, see `.env.example`; `docker compose up -d postgres` from the repo root), `go generate ./...`, `go vet ./...`, `go tool golangci-lint run`, `go test ./...`. Tools (oapi-codegen, sqlc, goose, golangci-lint) are `go tool` deps: no global installs.
+- Contract-first: edit `contracts/openapi.yaml` (repo root) -> `go generate ./...` -> implement the new methods on `internal/notes` handler. A breaking contract change is tier L.
+- Never edit `internal/api/gen/`, `internal/db/sqlc/` or an applied migration; schema changes are new `migrations/NNNN_*.sql` files (goose, append-only) plus `internal/db/queries/*.sql`, then `go generate`.
+- Layers: `handler.go` decodes + maps errors to RFC 9457 problem+json; business rules live in `service.go` (also the audit log line and ownership checks); `repo.go` is sqlc calls only.
+- Auth: `internal/auth` validates JWTs when `AUTH_JWKS_URL` is set (off, with a loud warning, otherwise: TODO before production). `/healthz` and `/readyz` are public.
+- DB tests skip without `DATABASE_URL`; run them against `docker compose up -d postgres`. `go test -race` needs cgo (a C toolchain), so it is not in the default verify.

@@ -1,0 +1,6 @@
+- Nuxt 4 SPA (`ssr: false`) served as static assets + Nitro server routes on Cloudflare Workers (preset `cloudflare_module`); D1 via Drizzle, KV, R2. UI: Nuxt UI + Tailwind v4.
+- Commands: `pnpm dev` · `typecheck` · `lint` · `test` (vitest; runs offline, D1 emulated by wrangler's local workerd) · `build` · `db:generate`.
+- Layout: `app/` client only · `server/api/` the only server code (validate every body/query with Zod from `shared/`) · `server/utils/` `db(event)`, `kv(event)`, `r2(event)` read `event.context.cloudflare.env` · `server/db/schema.ts` · `shared/` Zod schemas + types.
+- Never edit `server/db/migrations/` by hand — change `schema.ts`, run `pnpm db:generate`, commit the output; apply locally with `pnpm db:migrate:local`.
+- Non-public routes call `requireUserSession(event)` (nuxt-auth-utils) first; the notes routes are public only as a demo.
+- Applying D1 migrations remotely, `wrangler secret put` and `wrangler deploy` (production) need a human; `wrangler deploy --env staging` is the preview.

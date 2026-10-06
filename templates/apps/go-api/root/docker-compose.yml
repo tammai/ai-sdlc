@@ -1,0 +1,33 @@
+# Local stack: Postgres + the Go API. `docker compose up -d postgres` is enough for `go test ./...` and `go run ./cmd/server`.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: __APP_SNAKE__
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d __APP_SNAKE__"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/__APP_SNAKE__?sslmode=disable
+      PORT: "8080"
+      RUN_MIGRATIONS: "true"
+      # AUTH_JWKS_URL: https://idp.example.com/.well-known/jwks.json   # unset = auth disabled (local dev only)
+    ports:
+      - "${API_PORT:-8080}:8080"
+
+volumes:
+  pgdata:

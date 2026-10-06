@@ -14,6 +14,8 @@ wrangler.jsonc  bindings: d1_databases[DB], kv_namespaces[KV], r2_buckets[BUCKET
 ```
 Next variant: `app/` routes are `'use client'` pages; `app/api/**/route.ts` are the server; bindings via `getCloudflareContext().env`.
 
+Note: `create-cloudflare --framework=next` now generates a vinext (Vite-based) app by default. This profile and its template use `create-next-app` with `@opennextjs/cloudflare`. OpenNext's build needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
+
 ## Rules
 - Data access only in server routes; the client calls `/api/*` with `$fetch`/`useFetch` (Nuxt) or TanStack Query (Next). No secrets or bindings in client code.
 - Auth: `nuxt-auth-utils` sealed-cookie sessions (Nuxt) / Better Auth with the D1 Drizzle adapter (Next). Every non-public route calls `requireUserSession(event)` (or equivalent) first.
@@ -29,6 +31,7 @@ Vitest (+ `@nuxt/test-utils` for Nuxt) for server routes and composables (D1 via
 Preview: `wrangler versions upload` / `wrangler deploy --env staging` (agent may run). Production: `wrangler deploy` (prod gate) from CI on merge to main. Rollback: `wrangler rollback` (rehearse it).
 
 ## Scaffold
+`sdlc scaffold-app` copies the verified template for this profile (`templates/apps/`). The notes below describe how the template was built — use them only when adding this profile's pieces by hand.
 Nuxt: `pnpm create nuxt@latest <name>` → add `@nuxt/ui`, `drizzle-orm`, `drizzle-kit`, `zod`, `nuxt-auth-utils`, `@nuxt/eslint`, `@nuxt/test-utils`, `vitest`, `wrangler`; `nuxt.config.ts`: `ssr: false`, `nitro: { preset: 'cloudflare_module' }`; local bindings via `nitro-cloudflare-dev` (or Nitro's built-in Cloudflare dev emulation if available in your version). Scripts: `typecheck` (`nuxt typecheck`), `lint`, `test` (`vitest run`), `build`.
 Next: `pnpm create cloudflare@latest <name> --framework=next` (OpenNext) → shadcn init, Drizzle, Zod, Better Auth.
 

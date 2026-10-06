@@ -1,0 +1,21 @@
+{
+  "id": "flutter",
+  "profile": "flutter",
+  "ui": "any",
+  "title": "Flutter (Material 3) — Riverpod, go_router, Dio; notes slice on /v1/notes",
+  "toolchains": ["flutter (stable) >=3.47.0 / dart >=3.13.0"],
+  "shared": ["contracts"],
+  "lockfile": "generated on first install (pubspec.lock is created by flutter create / flutter pub get; commit it after the first green verify)",
+  "install": [
+    "flutter create --org com.example --platforms android,ios .",
+    "flutter pub get"
+  ],
+  "postInstall": [],
+  "verify": [
+    { "name": "analyze", "cmd": "flutter analyze" },
+    { "name": "test", "cmd": "flutter test" }
+  ],
+  "dev": "flutter run",
+  "verified": null,
+  "note": "written without a local Flutter SDK; proven by .github/workflows/templates.yml. `flutter create .` only adds missing files (android/, ios/, .metadata, README.md) — it takes the project name from pubspec.yaml and skips existing files such as lib/main.dart and test/widget_test.dart unless --overwrite is passed."
+}

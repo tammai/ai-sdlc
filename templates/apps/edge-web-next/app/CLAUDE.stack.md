@@ -1,0 +1,6 @@
+- Next.js (App Router) on Cloudflare Workers via OpenNext (`@opennextjs/cloudflare`); D1 via Drizzle, KV, R2. UI: shadcn/ui + Tailwind v4. Pages are client-rendered (`'use client'`) and talk to `/api/*` with TanStack Query.
+- Commands: `pnpm dev` · `typecheck` · `lint` · `test` (vitest; runs offline, D1 emulated by wrangler's local workerd) · `build` (= `opennextjs-cloudflare build`, output `.open-next/`) · `db:generate`. On Windows run `pnpm build` in WSL (OpenNext needs symlinks).
+- Layout: `app/` pages (client) + `app/api/**/route.ts` (the only server code; validate every body/query with Zod from `shared/`) · `server/` db client (`db()`), `kv()`/`r2()` via `getCloudflareContext().env`, `server/db/schema.ts` · `components/ui/` shadcn primitives · `shared/` Zod schemas.
+- Never edit `server/db/migrations/` by hand — change `schema.ts`, run `pnpm db:generate`, commit the output; apply locally with `pnpm db:migrate:local`.
+- Non-public routes check the session first (Better Auth + D1 Drizzle adapter — not installed yet); the notes routes are public only as a demo.
+- Applying D1 migrations remotely, `wrangler secret put` and `wrangler deploy` (production) need a human; `wrangler deploy --env staging` is the preview.

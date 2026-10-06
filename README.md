@@ -71,6 +71,23 @@ Setup asks two questions — **which surfaces** (web, mobile, desktop) and **ful
 
 `sdlc stack` records the decision in `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
 
+## App templates (`sdlc scaffold-app`)
+For a new app, setup offers to create it from full, working templates in `templates/apps/`. Each template is generated with the framework's official tooling, pinned with a lockfile, and ships one working **notes** feature (list and create, validation, empty, loading and error states, tests) to copy for real features.
+
+| Template | What you get |
+|---|---|
+| `edge-web-nuxt` / `edge-web-next` | Nuxt 4 + Nuxt UI, or Next 16 + shadcn/ui (OpenNext), SPA on Cloudflare Workers, with D1 via Drizzle, KV and R2 bindings, and tests on a local D1 |
+| `bff-web-nuxt` / `bff-web-next` | Nuxt/Next BFF holding a cookie session, CSRF check, and a typed client generated from `contracts/openapi.yaml` |
+| `go-api` | chi + oapi-codegen strict server, sqlc + pgx, goose, JWT/JWKS middleware, problem+json errors, Dockerfile, compose with Postgres; tools run as `go tool` |
+| `tauri-nuxt` / `tauri-react` | Tauri v2 with Rust commands as the BFF, local SQLite, least-privilege capabilities, strict CSP, typed `invoke` wrapper |
+| `flutter` | Material 3, Riverpod, go_router, Dio with an auth interceptor, notes feature against the shared contract |
+
+`sdlc scaffold-app` copies the templates for the components in `.sdlc/stack.json`, fills in the app name, installs, writes the verify commands, adds stack notes to CLAUDE.md, and runs verify. `.github/workflows/templates.yml` scaffolds and verifies every template weekly on Linux. It needs no Claude token.
+
+Known limits:
+- **edge-web-next** builds on Linux, macOS or WSL. OpenNext needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
+- **flutter** was written without a local Flutter SDK. Its only proof is the CI run, and its lockfile is created on first install.
+
 ## Guardrails (hooks)
 | Hook | What it does |
 |---|---|
@@ -92,7 +109,7 @@ Setup detects what's already there (`sdlc inspect`) and keeps it. It doesn't ask
 - **`sdlc baseline`** marks checks that already fail as *known-red*. `sdlc verify` reports them but doesn't enforce them, so Claude is never pushed to fix a red build it didn't cause. Fix them as small changes and re-run `sdlc baseline` to start enforcing them.
 
 ## CLI
-`node scripts/sdlc.mjs help`: `init · scaffold · adr · stack · route · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
+`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
 
 ## Scaffolds (`sdlc scaffold …`)
 `claude-md`, `review` (REVIEW.md), `evals` (worktree-isolated agent eval runner), `ci-evals`, `ci-review` (claude-code-action review + `@claude`), `ci-triage` (failed-build triage), `ci-monitor` (detect → diagnose → intent PR), `babysit-command`, `design-md` (DESIGN.md contract), `managed-settings` (regulated-org reference).

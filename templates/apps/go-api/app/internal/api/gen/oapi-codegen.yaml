@@ -1,0 +1,10 @@
+# oapi-codegen config — output is committed; regenerate with `go generate ./...`.
+package: gen
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+output: api.gen.go
+compatibility:
+  # Keep generated names stable and tidy
+  always-prefix-enum-values: true

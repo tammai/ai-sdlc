@@ -1,0 +1,30 @@
+[package]
+name = "__APP_NAME__"
+version = "0.1.0"
+description = "Local-first notes - Tauri v2 desktop app"
+authors = []
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+# The `_lib` suffix keeps the lib name unique from the bin name (a Windows linker issue, see rust-lang/cargo#8519).
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# `bundled` compiles SQLite from source: no system sqlite needed on Windows/macOS/Linux.
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

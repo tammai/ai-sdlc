@@ -3,6 +3,31 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [0.3.0] — 2026-10-07
+
+Full app templates for new projects.
+
+### Added
+- **`sdlc scaffold-app`.** Creates the app from full templates for the stack recorded in `.sdlc/stack.json`. It:
+  - fills in the app name, title, Go module and API URL;
+  - copies the shared `contracts/openapi.yaml` and `docker-compose.yml` to the repo root;
+  - installs from pinned lockfiles;
+  - writes the verify commands;
+  - adds each template's notes to the CLAUDE.md "Stack" section (creating CLAUDE.md if missing);
+  - runs verify.
+
+  It refuses folders that aren't empty and repos with an existing app.
+- **8 templates in `templates/apps/`:** edge-web-nuxt, edge-web-next, bff-web-nuxt, bff-web-next, go-api, tauri-nuxt, tauri-react, flutter. Each ships a working notes feature with tests. The contract is in `templates/apps/SPEC.md`.
+- **`.github/workflows/templates.yml`.** Scaffolds and verifies every template weekly and on changes (Linux runners, Postgres service for go-api). It needs no Claude token.
+
+### Changed
+- **Setup offers `scaffold-app`** after recording a new stack. The stack references now point to the templates.
+
+### Known limits
+- **edge-web-next** `pnpm build` needs symlink support (Linux, macOS, WSL, or Windows Developer Mode).
+- **flutter** is unproven until its first CI run: it was written without a local Flutter SDK, and its lockfile is generated on first install.
+- **go-api** tests don't use `-race`, which needs cgo. The drift check regenerates and builds rather than diffing against git.
+
 ## [0.2.1] — 2026-10-06
 
 Installing on an existing project now keeps its stack.
@@ -82,6 +107,7 @@ Installing on an existing project now keeps its stack.
 - **Scaffolds:** `CLAUDE.md`, `REVIEW.md`, `DESIGN.md`, agent eval runner, CI workflows, `/babysit` command, managed-settings reference.
 - MIT license.
 
+[0.3.0]: https://github.com/tammai/ai-sdlc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/tammai/ai-sdlc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tammai/ai-sdlc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tammai/ai-sdlc/releases/tag/v0.1.0

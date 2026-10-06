@@ -1,0 +1,5 @@
+- Tauri v2 desktop app: Vite + React + shadcn/ui (Tailwind v4) SPA; Rust commands are the BFF. `pnpm dev` = `tauri dev`; `pnpm typecheck|lint|test|build` cover the frontend only; Rust: `cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test`.
+- The UI talks to Rust only through the typed wrappers in `src/lib/tauri.ts` (never `fetch()` to remote APIs). Commands in `src-tauri/src/commands/` stay thin; logic lives in `services/`; every error is the one serializable `AppError` (`error.rs`).
+- New command = fn in `commands/` + register in `lib.rs` `generate_handler!` + add to `COMMANDS` in `build.rs` + `allow-<command>` in `capabilities/default.json` + wrapper and test in `src/lib/`.
+- Local data: SQLite (rusqlite, bundled) in the app data dir; add a new file in `src-tauri/migrations/` and append it to `MIGRATIONS` in `services/db.rs` (never edit a shipped migration).
+- Keep the CSP in `tauri.conf.json` strict and capabilities least-privilege (no `fs:`/`shell:` grants); validate every command argument; don't edit `src-tauri/gen/`. Add shadcn components with `pnpm dlx shadcn@latest add <name>`.

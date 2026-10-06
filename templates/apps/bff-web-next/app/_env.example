@@ -1,0 +1,4 @@
+# Base URL of the Go API (server-side only; never exposed to the browser)
+API_BASE_URL=__API_URL__
+# Seals the session cookie (iron-session). Must be 32+ chars. Generate a real one: openssl rand -base64 32
+SESSION_SECRET=example-only-not-a-secret-0123456789abcdef

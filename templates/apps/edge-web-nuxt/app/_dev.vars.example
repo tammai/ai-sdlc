@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev` / previews (never commit .dev.vars). `pnpm dev` generates a session password on its own.
+# Production/staging: `wrangler secret put NUXT_SESSION_PASSWORD` (a human step — secrets are gated).
+# nuxt-auth-utils sealed-cookie session password, at least 32 characters:
+NUXT_SESSION_PASSWORD=change-me-to-a-random-string-of-32-chars-or-more

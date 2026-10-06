@@ -1,0 +1,17 @@
+{
+  "id": "edge-web-nuxt",
+  "profile": "edge-web",
+  "ui": "vue",
+  "title": "Nuxt 4 SPA on Cloudflare Workers — D1 + KV + R2",
+  "toolchains": ["node>=22", "pnpm>=10"],
+  "install": ["pnpm install --frozen-lockfile"],
+  "postInstall": [],
+  "verify": [
+    { "name": "typecheck", "cmd": "pnpm run typecheck" },
+    { "name": "lint", "cmd": "pnpm run lint" },
+    { "name": "test", "cmd": "pnpm run test" },
+    { "name": "build", "cmd": "pnpm run build" }
+  ],
+  "dev": "pnpm dev",
+  "verified": "2026-10-06"
+}
