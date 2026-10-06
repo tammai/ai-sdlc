@@ -25,7 +25,7 @@ Full app templates for new projects.
 
 ### Known limits
 - **edge-web-next** `pnpm build` needs symlink support (Linux, macOS, WSL, or Windows Developer Mode).
-- **flutter** is unproven until its first CI run: it was written without a local Flutter SDK, and its lockfile is generated on first install.
+- **flutter** was written without a local Flutter SDK. CI proves it: `flutter analyze` is clean and all 17 tests pass. Its lockfile is generated on first install.
 - **go-api** tests don't use `-race`, which needs cgo. The drift check regenerates and builds rather than diffing against git.
 
 ## [0.2.1] — 2026-10-06

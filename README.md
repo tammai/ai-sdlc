@@ -86,7 +86,7 @@ For a new app, setup offers to create it from full, working templates in `templa
 
 Known limits:
 - **edge-web-next** builds on Linux, macOS or WSL. OpenNext needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
-- **flutter** was written without a local Flutter SDK. Its only proof is the CI run, and its lockfile is created on first install.
+- **flutter** was written without a local Flutter SDK; CI proves it on Linux. Its lockfile is created on first install.
 
 ## Guardrails (hooks)
 | Hook | What it does |
