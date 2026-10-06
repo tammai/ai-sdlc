@@ -1,0 +1,5 @@
+{
+  "passThreshold": 0.9,
+  "maxTurns": 30,
+  "allowedTools": "Read,Edit,Write,Grep,Glob,Bash(git *),Bash(make *),Bash(npm *),Bash(pnpm *),Bash(go *),Bash(flutter *),Bash(cargo *)"
+}

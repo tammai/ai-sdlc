@@ -1,0 +1,112 @@
+#!/usr/bin/env node
+// PreToolUse guard — the deterministic layer under the skills (playbook: "Hooks as build-time
+// guardrails" + "Hooks as approval gates"). Fast and file-scoped; heavy checks belong in CI.
+//   1. secrets      — never read/write .env, keys, credentials; never write secret-looking strings
+//   2. protected    — generated/frozen paths from .sdlc/config.json
+//   3. test lock    — during a fix, the failing test must not be edited
+//   4. plan gate    — nothing is implemented without an accepted plan.md
+//   5. prod gate    — the agent does everything up to the production gate and nothing past it
+import path from 'node:path';
+import {
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson
+} from './lib.mjs';
+
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const SECRET_CONTENT = [
+  [/AKIA[0-9A-Z]{16}/, 'AWS access key'],
+  [/-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/, 'private key'],
+  [/\bghp_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{40,}/, 'GitHub token'],
+  [/\bsk-ant-[A-Za-z0-9_-]{20,}/, 'Anthropic API key'],
+  [/\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}/, 'API secret key'],
+  [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'Slack token'],
+  [/\bAIza[0-9A-Za-z_-]{35}\b/, 'Google API key']
+];
+
+function decide(decision, reason) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: decision, permissionDecisionReason: `[ai-sdlc] ${reason}` }
+  }));
+  process.exit(0);
+}
+
+const isSecretPath = (cfg, rel) => matchesAny(rel, cfg.secretPaths) && !matchesAny(rel, cfg.secretAllow);
+
+function tokens(cmd) {
+  return cmd.split(/[\s'"`;|&<>()=]+/).filter(Boolean);
+}
+
+const input = await readStdinJson();
+const tool = input.tool_name;
+const ti = input.tool_input || {};
+const root = findRoot(input.cwd);
+const cfg = loadConfig(root);
+const state = loadState(root);
+
+if (tool === 'Bash' || tool === 'PowerShell') {
+  const cmd = String(ti.command || '');
+
+  // 1. secrets referenced on the command line
+  for (const t of tokens(cmd)) {
+    const rel = toRel(root, t.replace(/^~[\\/]/, ''));
+    if (/[\\/.]/.test(t) && isSecretPath(cfg, rel ?? t)) decide('deny', `"${t}" matches a secret path. Secrets stay out of the session; use an env-injected value or ask the user.`);
+  }
+
+  // 3. test lock — destructive commands against locked tests
+  const locked = state.testLock || [];
+  if (locked.length && /\b(rm|del|mv|sed\s+-i|truncate|git\s+(checkout|restore|rm)|Remove-Item|Set-Content|Out-File)\b|>/.test(cmd)) {
+    const hit = locked.find((p) => cmd.includes(p) || cmd.includes(p.split('/').join('\\')));
+    if (hit) decide('deny', `${hit} is locked while the fix is in progress. Fix the code, not the test. Unlock only after verify passes.`);
+  }
+
+  // 5. production gate
+  const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(cmd));
+  if (prod) {
+    if (process.env.RELEASE_APPROVAL) process.exit(0);
+    const why = `Production gate: "${cmd.slice(0, 120)}" crosses the release boundary. A named human must authorize it ` +
+      `(set RELEASE_APPROVAL=<ticket or approver> in the launching shell, or approve this prompt). ` +
+      `Route: open a PR and let branch protection + the release manager decide.`;
+    decide(cfg.prodGate === 'deny' ? 'deny' : 'ask', why);
+  }
+  process.exit(0);
+}
+
+const filePath = ti.file_path || ti.notebook_path || ti.path;
+if (!filePath) process.exit(0);
+const rel = toRel(root, filePath);
+const inside = isInside(rel);
+
+// 1. secrets — paths
+if (['Read', ...EDIT_TOOLS].includes(tool) && isSecretPath(cfg, inside ? rel : path.basename(filePath))) {
+  decide('deny', `${rel} is a secret file (secretPaths in .sdlc/config.json). Do not read or write it; reference the variable name instead.`);
+}
+if (!EDIT_TOOLS.has(tool)) process.exit(0);
+
+// 1. secrets — content
+const content = [ti.content, ti.new_string, ti.new_source, ...(ti.edits || []).map((e) => e.new_string)].filter(Boolean).join('\n');
+for (const [re, label] of SECRET_CONTENT) {
+  if (re.test(content)) decide('deny', `The new content contains what looks like a ${label}. Keep credentials out of the diff; read them from the environment.`);
+}
+if (!inside) process.exit(0);
+
+// 2. protected paths
+if (matchesAny(rel, cfg.protectedPaths)) {
+  decide('deny', `${rel} is protected (generated or frozen — see protectedPaths in .sdlc/config.json). Change the source or the owning package instead.`);
+}
+
+// 3. test lock
+if ((state.testLock || []).includes(rel)) {
+  decide('deny', `${rel} is the locked failing test for the current fix. Fix the code, not the test (playbook Stage 4).`);
+}
+
+// 4. plan gate — only when a change is active in an initialized repo
+if (isInitialized(root) && cfg.enforcePlan && state.active) {
+  const exempt = rel.startsWith(cfg.artifactsDir.replace(/\/$/, '') + '/') || rel.startsWith('.sdlc/') ||
+    matchesAny(rel, cfg.alwaysEditable) ||
+    // fix flow: the reproducing test is written before the plan is executed
+    (state.fixMode && matchesAny(rel, cfg.testGlobs));
+  if (!exempt && !planApproved(root, cfg, state.active)) {
+    decide('deny', `No approved plan for active change "${state.active}". Nothing is implemented without an accepted plan: ` +
+      `run /ai-sdlc:plan, get the user's approval, then \`sdlc approve plan\`. (Or \`sdlc deactivate\` for out-of-band edits.)`);
+  }
+}
+process.exit(0);

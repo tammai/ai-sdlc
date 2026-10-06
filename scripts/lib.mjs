@@ -1,0 +1,206 @@
+// Shared helpers for the ai-sdlc hooks and CLI. Zero dependencies, Node >= 18.
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+
+export const STAGES = ['intent', 'spec', 'plan'];
+
+// Model routing: subagent complexity follows the change's risk tier (S→simple, M→normal, L→complex).
+export const TIERS = {
+  simple: { model: 'sonnet', effort: 'low', suffix: '-simple', label: 'SIMPLE tier (risk tier S)' },
+  normal: { model: 'sonnet', effort: 'high', suffix: '', label: 'NORMAL tier (risk tier M)' },
+  complex: { model: 'opus', effort: 'medium', suffix: '-complex', label: 'COMPLEX tier (risk tier L)' }
+};
+export const ROLES = {
+  implementer: ['simple', 'normal', 'complex'],
+  reviewer: ['normal', 'complex'],
+  researcher: ['simple', 'normal', 'complex'],
+  verifier: ['normal'],
+  'architect-reviewer': ['normal', 'complex'],
+  'ui-reviewer': ['normal', 'complex']
+};
+export const TIER_TO_COMPLEXITY = { S: 'simple', M: 'normal', L: 'complex' };
+
+export function routeAgent(role, complexity) {
+  const tiers = ROLES[role];
+  if (!tiers) return null;
+  const order = ['simple', 'normal', 'complex'];
+  // nearest available variant, preferring the stronger one
+  const pick = tiers.includes(complexity) ? complexity : tiers.find((t) => order.indexOf(t) > order.indexOf(complexity)) || tiers.at(-1);
+  return { agent: `ai-sdlc:${role}${TIERS[pick].suffix}`, complexity: pick, model: TIERS[pick].model, effort: TIERS[pick].effort };
+}
+
+export const DEFAULT_CONFIG = {
+  artifactsDir: 'docs/sdlc',
+  enforcePlan: true,
+  requireVerifyOnStop: true,
+  prodGate: 'ask', // "ask" pauses for a human; "deny" blocks unless RELEASE_APPROVAL is set
+  prodPatterns: [
+    '\\bdeploy\\b.*\\bprod(uction)?\\b',
+    '\\bprod(uction)?\\b.*\\bdeploy\\b',
+    '\\bvercel\\b.*--prod\\b',
+    '\\bnetlify\\s+deploy\\b.*--prod\\b',
+    '\\bwrangler\\s+(deploy|publish)\\b(?!.*--env[ =](dev|staging|preview))',
+    '\\bfly(ctl)?\\s+deploy\\b',
+    '\\bkubectl\\b.*\\b(apply|delete|rollout)\\b.*\\bprod',
+    '\\bhelm\\s+(upgrade|install)\\b.*\\bprod',
+    '\\bterraform\\s+(apply|destroy)\\b',
+    '\\bnpm\\s+publish\\b',
+    '\\bgh\\s+release\\s+create\\b',
+    '\\bgit\\s+push\\b.*\\s(--force|-f)\\b',
+    '\\bgit\\s+push\\b.*[\\s:](main|master)(\\s|$)'
+  ],
+  protectedPaths: [],
+  alwaysEditable: [],
+  secretPaths: ['.env', '.env.*', '*.pem', '*.key', '*.p12', 'id_rsa*', 'id_ed25519*', 'secrets/**', '**/secrets/**', '.aws/credentials', '.ssh/**'],
+  secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.*'],
+  testGlobs: ['**/*.test.*', '**/*.spec.*', '**/*_test.*', '**/test_*.py', '**/tests/**', '**/test/**', '**/__tests__/**', '**/itest/**'],
+  formatOnEdit: null,
+  verify: []
+};
+
+export function findRoot(start = process.env.CLAUDE_PROJECT_DIR || process.cwd()) {
+  let dir = path.resolve(start);
+  for (;;) {
+    if (fs.existsSync(path.join(dir, '.sdlc')) || fs.existsSync(path.join(dir, '.git'))) return dir;
+    const up = path.dirname(dir);
+    if (up === dir) return path.resolve(start);
+    dir = up;
+  }
+}
+
+export function isInitialized(root) {
+  return fs.existsSync(path.join(root, '.sdlc', 'config.json'));
+}
+
+export function loadConfig(root) {
+  const file = path.join(root, '.sdlc', 'config.json');
+  let user = {};
+  if (fs.existsSync(file)) {
+    try { user = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { user = {}; }
+  }
+  return { ...DEFAULT_CONFIG, ...user };
+}
+
+const statePath = (root) => path.join(root, '.sdlc', 'local', 'state.json');
+
+export function loadState(root) {
+  try { return { active: null, dirty: false, testLock: [], ...JSON.parse(fs.readFileSync(statePath(root), 'utf8')) }; }
+  catch { return { active: null, dirty: false, testLock: [] }; }
+}
+
+export function saveState(root, state) {
+  fs.mkdirSync(path.dirname(statePath(root)), { recursive: true });
+  fs.writeFileSync(statePath(root), JSON.stringify(state, null, 2) + '\n');
+}
+
+export function changeDir(root, cfg, id) {
+  return path.join(root, cfg.artifactsDir, id);
+}
+
+// --- frontmatter (flat key: value only) ---------------------------------
+export function readDoc(file) {
+  if (!fs.existsSync(file)) return null;
+  const text = fs.readFileSync(file, 'utf8');
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  const meta = {};
+  if (m) {
+    for (const line of m[1].split(/\r?\n/)) {
+      const kv = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+      if (kv) meta[kv[1]] = kv[2].trim();
+    }
+  }
+  return { meta, body: m ? text.slice(m[0].length) : text };
+}
+
+export function writeMeta(file, patch) {
+  const doc = readDoc(file);
+  if (!doc) throw new Error(`missing ${file}`);
+  const meta = { ...doc.meta, ...patch };
+  const fm = Object.entries(meta).map(([k, v]) => `${k}: ${v ?? ''}`).join('\n');
+  fs.writeFileSync(file, `---\n${fm}\n---\n${doc.body}`);
+}
+
+// --- paths & globs -------------------------------------------------------
+export function toRel(root, p) {
+  if (!p) return null;
+  const abs = path.resolve(root, p);
+  return path.relative(root, abs).split(path.sep).join('/');
+}
+
+export function isInside(rel) {
+  return rel && !rel.startsWith('../') && rel !== '..' && !path.isAbsolute(rel);
+}
+
+export function globToRegExp(glob) {
+  let re = '';
+  let braces = 0;
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '{') { braces++; re += '(?:'; continue; }
+    if (c === '}' && braces) { braces--; re += ')'; continue; }
+    if (c === ',' && braces) { re += '|'; continue; }
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        i++;
+        if (glob[i + 1] === '/') { i++; re += '(?:.*/)?'; } else re += '.*';
+      } else re += '[^/]*';
+    } else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`, process.platform === 'win32' ? 'i' : '');
+}
+
+// gitignore-ish: a pattern without "/" matches the basename anywhere.
+export function matchesAny(rel, globs = []) {
+  if (!rel) return false;
+  const norm = rel.split('\\').join('/');
+  const base = norm.split('/').pop();
+  return globs.some((g) => {
+    const re = globToRegExp(g);
+    return g.includes('/') ? re.test(norm) : re.test(base);
+  });
+}
+
+export function gitUser(root) {
+  try { return execFileSync('git', ['config', 'user.name'], { cwd: root, encoding: 'utf8' }).trim() || 'unknown'; }
+  catch { return process.env.USER || process.env.USERNAME || 'unknown'; }
+}
+
+export function nowIso() {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+export async function readStdinJson() {
+  let data = '';
+  for await (const chunk of process.stdin) data += chunk;
+  try { return JSON.parse(data || '{}'); } catch { return {}; }
+}
+
+// Status of the active change's chain: what's approved and what comes next.
+export function chainStatus(root, cfg, id) {
+  const dir = changeDir(root, cfg, id);
+  const docs = {};
+  for (const s of [...STAGES, 'design', 'ui', 'verify', 'review']) docs[s] = readDoc(path.join(dir, `${s}.md`));
+  const st = (s) => docs[s]?.meta.status || (docs[s] ? 'draft' : 'missing');
+  const tier = docs.intent?.meta.tier || 'M';
+  const needsSpec = tier !== 'S';
+  let next;
+  if (st('intent') === 'rejected') next = 'closed (intent rejected)';
+  else if (st('intent') !== 'approved') next = 'intent';
+  // tier L (or any change that opted in by creating design.md) needs an approved system design before the spec
+  else if ((tier === 'L' || docs.design) && st('design') !== 'approved') next = 'design';
+  // a change that opted into UI design (ui.md) needs the design direction approved before the spec
+  else if (docs.ui && st('ui') !== 'approved') next = 'ui';
+  else if (needsSpec && st('spec') !== 'approved') next = 'spec';
+  else if (st('plan') !== 'approved') next = 'plan';
+  else if (st('verify') !== 'passed') next = 'build';
+  else if (tier !== 'S' && st('review') !== 'approved') next = 'review';
+  else next = 'ship';
+  return { id, dir, tier, docs, status: Object.fromEntries(Object.keys(docs).map((k) => [k, st(k)])), next };
+}
+
+export function planApproved(root, cfg, id) {
+  const plan = readDoc(path.join(changeDir(root, cfg, id), 'plan.md'));
+  return plan?.meta.status === 'approved';
+}

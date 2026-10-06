@@ -1,0 +1,26 @@
+name: Agent evals
+on:
+  pull_request:
+    paths: ['CLAUDE.md', '.claude/**', 'evals/**', 'REVIEW.md']
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # Add your stack's toolchain here (setup-go, flutter-action, pnpm/action-setup …) so eval checks can run.
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Run eval suite
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node evals/run.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-results, path: evals/results/ }

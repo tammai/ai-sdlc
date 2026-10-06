@@ -1,0 +1,53 @@
+name: Close the loop
+# Playbook Stage 6. Deterministic detection (sdlc detect: rolling baseline + Western Electric rules)
+# decides IF Claude runs; .sdlc/bands.json decides WHAT it may do. Findings re-enter the pipeline
+# as an intent.md in a PR — the service owner triages; nothing reaches production from here.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Fetch ai-sdlc CLI
+        run: git clone --depth 1 "${AI_SDLC_REPO:-https://github.com/YOUR-ORG/ai-sdlc}" /tmp/ai-sdlc
+        env: { AI_SDLC_REPO: '${{ vars.AI_SDLC_REPO }}' }
+      - name: Detect
+        id: detect
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: node /tmp/ai-sdlc/scripts/sdlc.mjs detect | tee detect.json
+      - name: Diagnose (2σ+) and write intent.md
+        if: steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          TOOLS=$(jq -r --arg m "${{ steps.detect.outputs.metric }}" --arg t "${{ steps.detect.outputs.tier }}" \
+            '.results[] | select(.metric==$m) | .tierConfig.tools // "Read,Grep,Glob"' detect.json)
+          node /tmp/ai-sdlc/scripts/sdlc.mjs new "anomaly ${{ steps.detect.outputs.metric }} $(date -u +%H%M)" --source monitor --no-activate --tier M > new.json
+          INTENT=$(jq -r .intent new.json)
+          claude -p "A monitoring band was breached. Detection output: $(cat detect.json).
+          Tier ${{ steps.detect.outputs.tier }} → action '${{ steps.detect.outputs.action }}'.
+          Diagnose read-only from the repo and CI history, then fill in $INTENT (keep its frontmatter):
+          anomaly, evidence (commands + output), likely cause, proposed outcome, affected systems, open questions.
+          If the action is 'propose' and a bounded fix exists (quarantine a flaky test, revert a commit), make it
+          and describe it in the intent. Never deploy, never touch production." \
+            --allowedTools "$TOOLS,Edit($INTENT),Write($INTENT)" --max-turns 40
+      - name: Open triage PR
+        if: steps.detect.outputs.tier == '2sigma' || steps.detect.outputs.tier == '3sigma'
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          branch="monitor/$(date -u +%Y%m%d-%H%M)"
+          git config user.name "ai-sdlc-monitor[bot]"; git config user.email "ai-sdlc-monitor@users.noreply.github.com"
+          git checkout -b "$branch" && git add -A && git commit -m "monitor: ${{ steps.detect.outputs.metric }} breached ${{ steps.detect.outputs.tier }}" && git push -u origin "$branch"
+          gh pr create --title "[monitor] ${{ steps.detect.outputs.metric }} ${{ steps.detect.outputs.tier }}" \
+            --body "Automated diagnosis. Service owner: triage (merge = accept intent, close = dismiss with a reason so the band can be tuned)." --label triage || true

@@ -1,0 +1,27 @@
+{
+  "description": "ai-sdlc guardrails: secrets + protected paths + test lock + plan gate + production gate (PreToolUse), formatter + unverified-work tracking (PostToolUse), verify-before-done (Stop), chain status on session start.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs\"", "timeout": 10 }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.mjs\"", "timeout": 10 }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/post-edit.mjs\"", "timeout": 30 }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/stop-gate.mjs\"", "timeout": 10 }]
+      }
+    ]
+  }
+}

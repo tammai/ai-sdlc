@@ -1,0 +1,13 @@
+[
+  {
+    "metric": "ci_test_failure_rate",
+    "owner": "service-owner@example.com",
+    "source": { "cmd": "gh run list --limit 60 --json conclusion,createdAt --jq '[ .[] | if .conclusion == \"failure\" then 1 else 0 end ] | reverse'" },
+    "window": 30,
+    "tiers": {
+      "1sigma": { "action": "log" },
+      "2sigma": { "action": "diagnose", "tools": "Read,Grep,Glob,Bash(gh run view *),Bash(gh run list *)" },
+      "3sigma": { "action": "propose", "tools": "Read,Grep,Glob,Edit,Write,Bash(gh run view *)", "routes": ["pull_request", "runbook:quarantine-flaky-test"] }
+    }
+  }
+]
