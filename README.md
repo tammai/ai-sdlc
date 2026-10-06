@@ -78,3 +78,7 @@ The hooks only apply in repos with `.sdlc/config.json`. The plan gate only appli
 
 ## What stays human
 Approving intent and spec (product owner), approving the plan (engineer or tech lead), merging the PR (code owner), deploying to production (release manager), and triaging maintenance findings (service owner). Agents generate and verify. They never approve their own work and never cross the production gate.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
