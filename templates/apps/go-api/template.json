@@ -11,7 +11,7 @@
     { "name": "generate", "cmd": "go generate ./... && go build ./..." },
     { "name": "vet", "cmd": "go vet ./..." },
     { "name": "lint", "cmd": "go tool golangci-lint run" },
-    { "name": "test", "cmd": "go test ./..." }
+    { "name": "test", "cmd": "go test -v ./..." }
   ],
   "dev": "go run ./cmd/server",
   "verified": "2026-10-06"
