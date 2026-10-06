@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Fetch ai-sdlc CLI
-        run: git clone --depth 1 "${AI_SDLC_REPO:-https://github.com/YOUR-ORG/ai-sdlc}" /tmp/ai-sdlc
+        run: git clone --depth 1 "${AI_SDLC_REPO:-https://github.com/tammai/ai-sdlc}" /tmp/ai-sdlc
         env: { AI_SDLC_REPO: '${{ vars.AI_SDLC_REPO }}' }
       - name: Detect
         id: detect

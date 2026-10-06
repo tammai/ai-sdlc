@@ -7,7 +7,7 @@ A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook]
 ## Install
 
 ```text
-/plugin marketplace add C:/Users/Admin/orca/ai-sdlc     # or the git URL once pushed
+/plugin marketplace add tammai/ai-sdlc
 /plugin install ai-sdlc@ai-sdlc
 ```
 Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR flows.
