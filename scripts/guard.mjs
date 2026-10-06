@@ -6,6 +6,7 @@
 //   3. test lock    — during a fix, the failing test must not be edited
 //   4. plan gate    — nothing is implemented without an accepted plan.md
 //   5. prod gate    — the agent does everything up to the production gate and nothing past it
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson
@@ -35,6 +36,32 @@ function tokens(cmd) {
   return cmd.split(/[\s'"`;|&<>()=]+/).filter(Boolean);
 }
 
+// Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects
+// like `> .env`) and commit/tag messages before scanning a shell command for secret paths.
+function stripProse(cmd) {
+  return cmd
+    .replace(/<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$2$3')
+    .replace(/@(['"])[\s\S]*?\n\1@/g, '')                                   // PowerShell here-strings
+    .replace(/(\s(?:-m|--message|-F)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1MSG');
+}
+
+// A command-line token is a secret access when it names a distinctive secret file (.env, *.pem,
+// id_rsa…) or matches a directory-style secret glob (secrets/**, .ssh/**) AND that path exists.
+// "D1/secrets/deploy" in prose matches secrets/** but exists nowhere, so it is allowed.
+function secretToken(cfg, t, dirs) {
+  if (!/[\\/.]/.test(t)) return false;
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  const expanded = /^~[\\/]/.test(t) ? path.join(home, t.slice(2)) : t;
+  const rel = toRel(root, expanded) ?? t;
+  const candidates = isInside(rel) ? [rel] : [rel, t.replace(/^~[\\/]/, '')];
+  if (candidates.some((c) => matchesAny(c, cfg.secretAllow))) return false;
+  const byName = cfg.secretPaths.filter((g) => !g.includes('/'));
+  const byDir = cfg.secretPaths.filter((g) => g.includes('/'));
+  if (candidates.some((c) => matchesAny(c, byName))) return true;
+  if (!candidates.some((c) => matchesAny(c, byDir))) return false;
+  return dirs.some((d) => fs.existsSync(path.resolve(d, expanded)));
+}
+
 const input = await readStdinJson();
 const tool = input.tool_name;
 const ti = input.tool_input || {};
@@ -46,9 +73,9 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   const cmd = String(ti.command || '');
 
   // 1. secrets referenced on the command line
-  for (const t of tokens(cmd)) {
-    const rel = toRel(root, t.replace(/^~[\\/]/, ''));
-    if (/[\\/.]/.test(t) && isSecretPath(cfg, rel ?? t)) decide('deny', `"${t}" matches a secret path. Secrets stay out of the session; use an env-injected value or ask the user.`);
+  const dirs = [...new Set([input.cwd, root].filter(Boolean))];
+  for (const t of tokens(stripProse(cmd))) {
+    if (secretToken(cfg, t, dirs)) decide('deny', `"${t}" matches a secret path. Secrets stay out of the session; use an env-injected value or ask the user.`);
   }
 
   // 3. test lock — destructive commands against locked tests

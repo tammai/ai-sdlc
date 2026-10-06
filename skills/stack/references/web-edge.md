@@ -35,4 +35,4 @@ Next: `pnpm create cloudflare@latest <name> --framework=next` (OpenNext) → sha
 ## CLAUDE.md snippet
 - Stack: Nuxt 4 SPA (ssr:false) + Nitro server routes on Cloudflare Workers; D1 via Drizzle, KV, R2. UI: Nuxt UI + Tailwind v4.
 - Server code only in server/api; validate with Zod from shared/; bindings via server/utils helpers.
-- Never edit server/db/migrations by hand — `pnpm drizzle-kit generate`. Remote D1/secrets/deploy are human-gated.
+- Never edit server/db/migrations by hand — `pnpm drizzle-kit generate`. Applying D1 migrations remotely, changing Worker secrets and production deploys need a human (prod gate).
