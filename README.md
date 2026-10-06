@@ -10,7 +10,7 @@ A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook]
 /plugin marketplace add tammai/ai-sdlc
 /plugin install ai-sdlc@ai-sdlc
 ```
-Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR flows.
+Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR flows. **Works on a Claude subscription — no API key.** Review, babysitting, triage and evals run in your own session; GitHub automation is opt-in via `/ai-sdlc:setup ci` using a `claude setup-token` subscription token (or an API key).
 
 ## Quick start
 

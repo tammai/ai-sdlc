@@ -15,7 +15,7 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
    - Proof: verify summary (from verify.md), verifier verdict, screenshots for UI
    - Review: Important found/fixed/disputed (from review.md)
    - Risk tier, rollback (from plan.md)
-4. **Babysit to green:** watch checks (`gh pr checks --watch`). Failing check → read logs (`gh run view --log-failed`), fix the code, verify, push. Review comments you agree with → fix, reply with SHA; disagree → reply with reasoning, leave for the human. If the repo has `.claude/commands/babysit.md`, use it. Stop when only code-owner approval remains. **Never approve or merge your own PR; never force-push; never push to main.**
+4. **Babysit to green:** watch checks (`gh pr checks --watch`). Failing check → read logs (`gh run view --log-failed`), fix the code, verify, push. Review comments you agree with → fix, reply with SHA; disagree → reply with reasoning, leave for the human. If the repo has `.claude/commands/babysit.md`, use it (offer `sdlc scaffold babysit-command` on the first PR — it runs locally, no API key). Stop when only code-owner approval remains. **Never approve or merge your own PR; never force-push; never push to main.**
 5. **Deploy by environment tier** (the guard hook's prod gate enforces the last row):
    | Env | Who | How |
    |---|---|---|

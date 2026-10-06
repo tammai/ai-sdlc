@@ -1,7 +1,10 @@
 ---
 name: setup
-description: Bootstrap a repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md, and optionally agent evals, Claude PR review, build triage and the monitoring loop in CI. Use when ai-sdlc is not yet initialized, or when the user asks to set up / harden the harness.
+description: Bootstrap a repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md, then ask what's being built (web/mobile/desktop, fullstack or separated backend) and record the stack. Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
+argument-hint: "[ci]"
 ---
+
+With argument `ci`: skip to the last section, "Mode: setup ci".
 
 # Setup
 
@@ -24,15 +27,16 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Work in thi
 ## 3. Review policy
 `sdlc scaffold review` → `REVIEW.md`. Add repo specifics to "Do not report" (generated dirs).
 
-## 4. Optional — offer as one multi-select question
-| Option | Command | Needs |
-|---|---|---|
-| Agent evals in CI | `sdlc scaffold evals ci-evals` | `ANTHROPIC_API_KEY` secret; replace the example eval with 3–5 real tasks |
-| Claude PR review + `@claude` fixes | `sdlc scaffold ci-review` | GitHub, `ANTHROPIC_API_KEY`; branch protection requiring code-owner approval |
-| Failed-build triage | `sdlc scaffold ci-triage` | set `workflows:` to the CI workflow name |
-| PR babysitter command | `sdlc scaffold babysit-command` | `gh` |
-| Close-the-loop monitor | `sdlc scaffold ci-monitor` | a metric with a stable baseline; set `vars.AI_SDLC_REPO`; owner in `.sdlc/bands.json` |
-| Managed settings reference | `sdlc scaffold managed-settings` | platform team (regulated orgs) |
+## 4. Local-first — no API key needed
+Don't ask about CI here. Everything in the loop runs inside the user's own Claude Code session on their subscription:
+| Playbook play | Runs locally as |
+|---|---|
+| AI review before merge | **review** skill → `reviewer` / `ui-reviewer` subagents |
+| Babysit PR to green | **ship** skill (reads `gh` checks and comments, fixes, pushes) |
+| Failed-build triage | **ship** skill reads `gh run view --log-failed` |
+| Agent evals | `node evals/run.mjs` — uses the local `claude` login (offered after a few shipped changes, see below) |
+| Close the loop | **triage** skill runs `sdlc detect` on demand |
+Tell the user in one line: "Runs on your Claude subscription — no API key. CI automation is optional: `/ai-sdlc:setup ci`."
 
 ## 5. What are we building? (always, unless `.sdlc/stack.json` already exists)
 Ask with **one** `AskUserQuestion` call holding two questions. If the repo already contains an app (package.json with nuxt/next, go.mod, pubspec.yaml, src-tauri/), put "(detected)" on the matching options and list them first.
@@ -52,3 +56,10 @@ Don't scaffold the app here: scaffolding is the first change. Offer it: "Want me
 ## 6. Finish
 - Recommend branch protection on main: PR required, code-owner approval, required checks = the verify commands. Agents never push to main (the prod gate also asks on `git push … main`).
 - Show what was created, and what still needs a human (secrets, branch protection). Suggest committing as `chore: adopt ai-sdlc`.
+
+## Mode: `/ai-sdlc:setup ci` (only when asked)
+CI automation runs Claude without a person present, so it needs a credential stored as a GitHub secret. Ask which one with AskUserQuestion:
+- **Subscription token (Recommended)** — the user runs `claude setup-token` locally (Pro/Max), then `gh secret set CLAUDE_CODE_OAUTH_TOKEN` and pastes it. CI usage counts against that person's plan limits; use a team member's token they're comfortable sharing with the repo's workflows.
+- **API key** — `gh secret set ANTHROPIC_API_KEY` (pay-as-you-go). In each scaffolded workflow, swap the commented auth line.
+Never ask the user to paste the token into this session — they set the secret themselves (suggest `! gh secret set CLAUDE_CODE_OAUTH_TOKEN`).
+Then offer, as one multi-select: Claude PR review + `@claude` (`sdlc scaffold ci-review`; needs branch protection with code-owner approval), agent evals in CI (`sdlc scaffold evals ci-evals`), failed-build triage (`sdlc scaffold ci-triage`; set `workflows:` to the CI workflow's name), close-the-loop monitor (`sdlc scaffold ci-monitor`; needs a deployed app and a metric with history), managed-settings reference (regulated orgs). Mention cost: each run consumes plan usage or API spend; the monitor only invokes Claude on a 2σ+ breach.

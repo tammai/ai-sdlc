@@ -19,7 +19,7 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
         run: gh run view ${{ github.event.workflow_run.id }} --log-failed > build.log || true
       - name: Triage
-        env: { ANTHROPIC_API_KEY: '${{ secrets.ANTHROPIC_API_KEY }}' }
+        env: { CLAUDE_CODE_OAUTH_TOKEN: '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' }   # or ANTHROPIC_API_KEY
         run: >
           claude -p "Read build.log. Identify the most likely cause, say whether the failure looks flaky or real,
           and write a three-line summary for the PR thread. No preamble." --allowedTools "Read,Grep" > triage.md
