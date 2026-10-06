@@ -10,7 +10,9 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
 
 If `.sdlc/stack.json` exists, the stack is decided — read it and the matching reference, don't re-litigate. Changing it is a tier-L change with an ADR (`sdlc stack … --force` after approval).
 
-If the surfaces and backend aren't known yet, ask them exactly as in the **setup** skill §5 (one AskUserQuestion: Surfaces multi-select web/mobile/desktop + Backend fullstack/separated) and record with `sdlc stack --surfaces … --backend …`. Step 1 below is how you choose the *recommendation* — and how you decide yourself when the user says "you decide".
+**Existing project** (`sdlc inspect` finds apps): don't choose a stack — record the one that's there with `sdlc stack --detect` (see **setup** §5a). Profiles then guide new code only in matching apps; moving an existing app onto a profile is a tier-L change with an ADR.
+
+For a **new** project: if the surfaces and backend aren't known yet, ask them exactly as in the **setup** skill §5 (one AskUserQuestion: Surfaces multi-select web/mobile/desktop + Backend fullstack/separated) and record with `sdlc stack --surfaces … --backend …`. Step 1 below is how you choose the *recommendation* — and how you decide yourself when the user says "you decide".
 
 ## 1. Decide (from the intent/spec; ask only if a signal below is genuinely unknown)
 

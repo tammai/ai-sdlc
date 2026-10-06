@@ -3,6 +3,27 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [0.2.1] — 2026-10-06
+
+Installing on an existing project now keeps its stack.
+
+### Added
+- **`sdlc inspect`.** Detects existing apps per folder (Nuxt, Next, Go, Flutter, Tauri, Node, Python, PHP, Ruby, JVM, Rust) and whether each matches a stack profile.
+- **`sdlc stack --detect [--format]`.** Records the existing stack instead of choosing a new one, and adds only the presets that fit:
+  - protected generated paths, only where those folders exist;
+  - production-gate patterns for apps that match a profile;
+  - the per-file formatter, only with `--format` and only when the project already uses eslint.
+- **`sdlc baseline`.** Runs every verify command once and marks checks that already fail as *known-red*. `sdlc verify` reports known-red checks but doesn't enforce them, so the Stop gate never makes Claude fix a build that was already broken. Re-run it after fixing a check to start enforcing it.
+
+### Changed
+- **Verify commands come from the project itself.** `sdlc init` builds them from the project's own scripts with its own package manager (npm, pnpm, yarn, bun), per app folder in monorepos. It never adds scripts that don't exist.
+- **Setup handles existing projects.** It runs `inspect` first. For an existing project it confirms what was detected, asks whether to turn the formatter on, then runs `stack --detect` and `baseline`. It no longer asks the new-app questions there.
+- **`sdlc stack --surfaces/--components` refuses on a repo that already contains an app**, unless you pass `--force`.
+
+### Fixed
+- **README:** it said the hooks only apply after setup. The secrets guard and the production-deploy prompt are active in every session where the plugin is enabled; the README now says so and recommends project-scope installs for trying the plugin out.
+- **Stack presets on existing projects** no longer add commands for missing scripts or use the wrong package manager (e.g. `pnpm run typecheck` in an npm project).
+
 ## [0.2.0] — 2026-10-06
 
 ### Added
@@ -61,5 +82,6 @@ After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai
 - **Scaffolds:** `CLAUDE.md`, `REVIEW.md`, `DESIGN.md`, agent eval runner, CI workflows, `/babysit` command, managed-settings reference.
 - MIT license.
 
+[0.2.1]: https://github.com/tammai/ai-sdlc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tammai/ai-sdlc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tammai/ai-sdlc/releases/tag/v0.1.0

@@ -10,13 +10,16 @@ A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook]
 /plugin marketplace add tammai/ai-sdlc
 /plugin install ai-sdlc@ai-sdlc
 ```
+When the install dialog asks for a scope, pick **project** (this repo only) to try it out; **user** scope turns the plugin on in every repo you open.
+
 Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR flows. **Works on a Claude subscription — no API key.** Review, babysitting, triage and evals run in your own session; GitHub automation is opt-in via `/ai-sdlc:setup ci` using a `claude setup-token` subscription token (or an API key).
 
 ## Quick start
 
 ```text
-/ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md, optional CI,
-                                   # then asks: web / mobile / desktop? fullstack or separated backend?
+/ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md
+                                   # new repo: asks web / mobile / desktop, fullstack or separated backend
+                                   # existing repo: keeps its stack, baselines checks that already fail
 /ai-sdlc:vibe add a claims status page for customers
 /ai-sdlc:fix login fails when email has a plus sign
 /ai-sdlc:status
@@ -76,7 +79,17 @@ Setup asks two questions — **which surfaces** (web, mobile, desktop) and **ful
 | Stop `stop-gate.mjs` | Sends Claude back once to run `sdlc verify` before it reports done |
 | SessionStart | Re-hydrates the active change and its next step |
 
-The hooks only apply in repos with `.sdlc/config.json`. The plan gate only applies while a change is active (`sdlc deactivate` turns it off for out-of-band edits).
+**What's active where:**
+- **Every session where the plugin is enabled**, set up or not: the secrets guard (blocks `.env`, keys, credentials) and the production-deploy prompt.
+- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on) and the session-start summary.
+- **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
+
+## Existing projects
+Setup detects what's already there (`sdlc inspect`) and keeps it. It doesn't ask the new-app questions or restructure anything.
+- **Verify commands** come from the project's own scripts (package.json, Makefile, go.mod, pubspec.yaml, pyproject.toml…), run with its own package manager (npm, pnpm, yarn or bun). It never adds a script the project doesn't define.
+- **Stack profiles** only add protected generated paths that actually exist and deploy-gate patterns. Apps with no matching profile (Laravel, Django, Rails…) keep their own conventions.
+- **The formatter** is off unless you agree.
+- **`sdlc baseline`** marks checks that already fail as *known-red*. `sdlc verify` reports them but doesn't enforce them, so Claude is never pushed to fix a red build it didn't cause. Fix them as small changes and re-run `sdlc baseline` to start enforcing them.
 
 ## CLI
 `node scripts/sdlc.mjs help`: `init · scaffold · adr · stack · route · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.

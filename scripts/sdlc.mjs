@@ -9,6 +9,7 @@ import {
   STAGES, DEFAULT_CONFIG, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
   readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIER_TO_COMPLEXITY, routeAgent
 } from './lib.mjs';
+import { detectProject, detectedVerify, packageManager, globExists } from './detect.mjs';
 
 const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATES = path.join(PLUGIN, 'templates');
@@ -44,31 +45,7 @@ function activeOrArg(cfg) {
 
 // ---------------------------------------------------------------- init ---
 function detectVerify() {
-  const has = (p) => fs.existsSync(path.join(root, p));
-  const cmds = [];
-  if (has('Makefile')) {
-    const mk = fs.readFileSync(path.join(root, 'Makefile'), 'utf8');
-    for (const t of ['build', 'lint', 'test']) if (new RegExp(`^${t}:`, 'm').test(mk)) cmds.push({ name: t, cmd: `make ${t}` });
-    if (cmds.length) return cmds;
-  }
-  if (has('package.json')) {
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    const pm = has('pnpm-lock.yaml') ? 'pnpm' : has('yarn.lock') ? 'yarn' : has('bun.lockb') || has('bun.lock') ? 'bun' : 'npm';
-    for (const t of ['typecheck', 'lint', 'build', 'test']) {
-      if (pkg.scripts?.[t]) cmds.push({ name: t, cmd: t === 'test' && pm === 'npm' ? 'npm test' : `${pm} run ${t}` });
-    }
-    return cmds;
-  }
-  if (has('go.mod')) return [{ name: 'build', cmd: 'go build ./...' }, { name: 'vet', cmd: 'go vet ./...' }, { name: 'test', cmd: 'go test ./...' }];
-  if (has('Cargo.toml')) return [{ name: 'build', cmd: 'cargo build' }, { name: 'test', cmd: 'cargo test' }];
-  if (has('pubspec.yaml')) return [{ name: 'analyze', cmd: 'flutter analyze' }, { name: 'test', cmd: 'flutter test' }];
-  if (has('pyproject.toml') || has('requirements.txt')) {
-    const py = has('pyproject.toml') ? fs.readFileSync(path.join(root, 'pyproject.toml'), 'utf8') : '';
-    if (/ruff/.test(py)) cmds.push({ name: 'lint', cmd: 'ruff check .' });
-    cmds.push({ name: 'test', cmd: 'pytest -q' });
-    return cmds;
-  }
-  return cmds;
+  return detectedVerify(root);
 }
 
 function init() {
@@ -249,10 +226,16 @@ function verify() {
     const r = spawnSync(v.cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
     const out = `${r.stdout || ''}${r.stderr || ''}${r.error ? `\n${r.error.message}` : ''}`;
     const ok = r.status === 0;
-    results.push({ ...v, ok, code: r.status, secs: ((Date.now() - t0) / 1000).toFixed(1), out });
-    console.log(`${ok ? 'PASS' : 'FAIL'}  ${v.name}  (${v.cmd})  ${results.at(-1).secs}s`);
-    if (!ok) { console.log(tail(out, 60)); if (!f.all) break; }
+    // a check that was already red before ai-sdlc (sdlc baseline) is reported, not enforced
+    const knownRed = !ok && v.baseline === 'red';
+    results.push({ ...v, ok: ok || knownRed, knownRed, code: r.status, secs: ((Date.now() - t0) / 1000).toFixed(1), out });
+    const label = ok ? 'PASS' : knownRed ? 'KNOWN-RED' : 'FAIL';
+    console.log(`${label}  ${v.name}  (${v.cmd})  ${results.at(-1).secs}s`);
+    if (ok && v.baseline === 'red') console.log(`      ${v.name} is green now — run \`sdlc baseline\` to start enforcing it`);
+    if (!ok && !knownRed) { console.log(tail(out, 60)); if (!f.all) break; }
   }
+  const known = results.filter((r) => r.knownRed);
+  if (known.length) console.log(`(${known.length} check(s) were already failing before ai-sdlc and are not enforced: ${known.map((r) => r.name).join(', ')})`);
   const passed = results.every((r) => r.ok) && (!only || results.length === only.size);
   const full = passed && !only;
 
@@ -265,13 +248,55 @@ function verify() {
       attempts, first_pass: prev.first_pass || (full ? String(attempts === 1) : ''), last_run: nowIso(), run_by: 'agent-session'
     };
     const body = ['# Verification evidence', '', `Change: ${st.active} · run ${attempts} · ${meta.last_run}`, '',
-      ...results.flatMap((r) => [`## ${r.name} — ${r.ok ? 'PASS' : `FAIL (exit ${r.code})`} · ${r.secs}s`, '', '```', `$ ${r.cmd}`, tail(r.out, 25), '```', ''])];
+      ...results.flatMap((r) => [`## ${r.name} — ${r.knownRed ? `KNOWN-RED baseline (exit ${r.code}), not enforced` : r.ok ? 'PASS' : `FAIL (exit ${r.code})`} · ${r.secs}s`, '', '```', `$ ${r.cmd}`, tail(r.out, 25), '```', ''])];
     fs.writeFileSync(file, `---\n${Object.entries(meta).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n${body.join('\n')}`);
     if (full) saveState(root, { ...st, dirty: false, lastVerify: meta.last_run });
     console.log(`evidence → ${toRel(root, file)}`);
   }
-  console.log(full ? 'VERIFY: all green' : passed ? 'VERIFY: selected checks green (run without args for the full gate)' : 'VERIFY: FAILED — fix the code, not the test');
+  console.log(full ? (known.length ? `VERIFY: green — ${known.length} known-red baseline check(s) not enforced` : 'VERIFY: all green') : passed ? 'VERIFY: selected checks green (run without args for the full gate)' : 'VERIFY: FAILED — fix the code, not the test');
   process.exit(passed ? 0 : 1);
+}
+
+// ------------------------------------------------------------- baseline ---
+// Run every verify command once on the current tree. Checks that already fail are marked
+// baseline:red so the verify gate (and the Stop hook) only enforce what was green before.
+function baseline() {
+  need();
+  const cfgFile = path.join(root, '.sdlc', 'config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  if (!cfg.verify?.length) die('no verify commands to baseline');
+  const red = [];
+  for (const v of cfg.verify) {
+    const r = spawnSync(v.cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
+    if (r.status === 0) {
+      delete v.baseline; delete v.baselineAt; delete v.baselineReason;
+      console.log(`green  ${v.name}  (${v.cmd})`);
+      continue;
+    }
+    const out = `${r.stdout || ''}${r.stderr || ''}${r.error ? r.error.message : ''}`;
+    const missing = r.status === 127 || /not recognized|not found|missing script|ENOENT/i.test(out);
+    Object.assign(v, { baseline: 'red', baselineAt: nowIso(), baselineReason: missing ? 'tool or script missing' : `exit ${r.status}` });
+    red.push(v);
+    console.log(`RED    ${v.name}  (${v.cmd})  — ${v.baselineReason}`);
+    console.log(tail(out, 8).replace(/^/gm, '       '));
+  }
+  fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
+  console.log(red.length
+    ? `baseline: ${red.length} check(s) already failing — reported but not enforced until fixed (${red.map((v) => v.name).join(', ')})`
+    : 'baseline: all green — every check is enforced');
+}
+
+// --------------------------------------------------------------- inspect ---
+function inspect() {
+  const d = detectProject(root);
+  if (f.json) { console.log(JSON.stringify(d, null, 2)); return; }
+  if (!d.existing) { console.log('no app detected — new project (use sdlc stack --surfaces … --backend …)'); return; }
+  for (const a of d.apps) {
+    const fw = a.framework && a.framework !== a.kind ? ` (${a.framework})` : '';
+    console.log(`${a.dir.padEnd(16)} ${a.kind}${fw}${a.cloudflare ? ' on Cloudflare' : ''}  → ${a.profile ? `profile ${a.profile}` : 'no profile'}`);
+    for (const v of a.verify) console.log(`${' '.repeat(19)}${v.name}: ${v.cmd}`);
+  }
+  if (d.rootMake.length) console.log(`root Makefile drives verify: ${d.rootMake.map((v) => v.cmd).join(', ')}`);
 }
 
 // ------------------------------------------------------------ test lock ---
@@ -424,7 +449,57 @@ function stack() {
   need();
   const profiles = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'skills', 'stack', 'profiles.json'), 'utf8')).components;
   const stackFile = path.join(root, '.sdlc', 'stack.json');
+  const sub = (str, dir) => str.replaceAll('cd {dir} && ', dir === '.' ? '' : `cd ${dir} && `).replaceAll('{dir}/', dir === '.' ? '' : `${dir}/`).replaceAll('{dir}', dir);
+  const union = (a = [], b = []) => [...new Set([...a, ...b])];
+  if (fs.existsSync(stackFile) && !f.force && (f.detect || f.surfaces || f.components)) {
+    die('.sdlc/stack.json exists — the stack is decided. Changing it is a tier-L change with an ADR; re-run with --force when that is approved.');
+  }
+
+  // --detect: an existing project keeps its stack. Record what's there; add only presets that fit.
+  if (f.detect) {
+    const d = detectProject(root);
+    if (!d.existing) die('no existing app detected — for a new app use --surfaces … --backend …');
+    const cfgFile = path.join(root, '.sdlc', 'config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+    const detected = detectedVerify(root);
+    if (!cfg.verify?.length || f.force) cfg.verify = detected;
+    else for (const v of detected) if (!cfg.verify.some((e) => e.name === v.name)) cfg.verify.push(v);
+    const matched = d.apps.filter((a) => a.profile && profiles[a.profile]);
+    const added = matched.flatMap((a) => profiles[a.profile].protectedPaths.map((p) => sub(p, a.dir))).filter((g) => globExists(root, g));
+    cfg.protectedPaths = union(cfg.protectedPaths, added);
+    cfg.prodPatternsExtra = union(cfg.prodPatternsExtra, matched.flatMap((a) => profiles[a.profile].prodPatterns));
+    if (f.format) {
+      const runner = (dir) => ({ npm: 'npx', pnpm: 'pnpm exec', yarn: 'yarn', bun: 'bunx' })[packageManager(root, path.join(root, dir))] || 'npx';
+      cfg.formatOnEdit = matched.map((a) => {
+        const fo = profiles[a.profile].formatOnEdit;
+        if (!fo) return null;
+        if (/eslint/.test(fo.cmd)) {
+          const pkg = JSON.parse(fs.readFileSync(path.join(root, a.dir, 'package.json'), 'utf8'));
+          if (!{ ...pkg.dependencies, ...pkg.devDependencies }.eslint && !pkg.devDependencies?.['@nuxt/eslint']) return null;
+        }
+        return { glob: sub(fo.glob, a.dir), cmd: sub(fo.cmd.replace('pnpm exec', runner(a.dir)), a.dir) };
+      }).filter(Boolean);
+    }
+    fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
+    const record = {
+      mode: 'existing',
+      apps: d.apps.map(({ verify: _v, ...a }) => ({ ...a, reference: a.profile ? `skills/stack/references/${profiles[a.profile].reference}` : null })),
+      components: matched.map((a) => ({ name: a.profile, dir: a.dir })),
+      ui: d.apps.find((a) => a.ui)?.ui === 'react' ? 'React' : d.apps.some((a) => a.ui) ? 'Vue/Nuxt' : null,
+      decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null
+    };
+    fs.writeFileSync(stackFile, JSON.stringify(record, null, 2) + '\n');
+    console.log(JSON.stringify({
+      apps: d.apps.map((a) => `${a.dir} → ${a.kind}${a.profile ? ` (profile ${a.profile})` : ' (no profile — conventions from CLAUDE.md)'}`),
+      verify: cfg.verify.map((v) => v.cmd), protectedAdded: added, formatOnEdit: cfg.formatOnEdit || 'off'
+    }, null, 2));
+    return;
+  }
+
   // --surfaces web,mobile,desktop --backend fullstack|separated → components (the setup questions)
+  if ((f.surfaces || f.components) && !f.force && detectProject(root).existing) {
+    die('this repo already contains an app — use `sdlc stack --detect` (keeps the existing stack). Use --force only to add new-app presets on purpose.');
+  }
   let surfaces = null;
   let backend = null;
   if (f.surfaces) {
@@ -449,21 +524,18 @@ function stack() {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
     die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react] [--dirs name=dir,…] [--force]`);
   }
-  if (fs.existsSync(stackFile) && !f.force) die('.sdlc/stack.json exists — the stack is decided. Changing it is a tier-L change with an ADR; re-run with --force when that is approved.');
   const names = String(f.components).split(',').map((s) => s.trim()).filter(Boolean);
   for (const n of names) if (!profiles[n]) die(`unknown component ${n}`);
   const ui = f.ui || 'vue';
   if (!['vue', 'react'].includes(ui)) die('--ui must be vue or react');
   const dirOverrides = Object.fromEntries(String(f.dirs || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
   const comps = names.map((n) => ({ name: n, dir: dirOverrides[n] || (names.length === 1 ? '.' : profiles[n].defaultDir) }));
-  const sub = (str, dir) => str.replaceAll('cd {dir} && ', dir === '.' ? '' : `cd ${dir} && `).replaceAll('{dir}/', dir === '.' ? '' : `${dir}/`).replaceAll('{dir}', dir);
 
   const cfgFile = path.join(root, '.sdlc', 'config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
   const verify = comps.flatMap((c) => (profiles[c.name].verify[ui] || profiles[c.name].verify.any).map((v) => ({ ...v, cmd: sub(v.cmd, c.dir) })));
   if (!cfg.verify?.length || f.force) cfg.verify = verify;
   else for (const v of verify) if (!cfg.verify.some((e) => e.name === v.name)) cfg.verify.push(v);
-  const union = (a = [], b = []) => [...new Set([...a, ...b])];
   cfg.protectedPaths = union(cfg.protectedPaths, comps.flatMap((c) => profiles[c.name].protectedPaths.map((p) => sub(p, c.dir))));
   cfg.prodPatternsExtra = union(cfg.prodPatternsExtra, comps.flatMap((c) => profiles[c.name].prodPatterns));
   const fmt = comps.map((c) => profiles[c.name].formatOnEdit && { glob: sub(profiles[c.name].formatOnEdit.glob, c.dir), cmd: sub(profiles[c.name].formatOnEdit.cmd, c.dir) }).filter(Boolean);
@@ -501,6 +573,8 @@ function route() {
 // ----------------------------------------------------------------- help ---
 const HELP = `ai-sdlc — AI-native SDLC artifact chain
 
+  inspect [--json]                   detect existing apps, their stack profile and verify commands
+  baseline                           run verify once; mark already-failing checks known-red (not enforced)
   init [--force]                     create .sdlc/config.json (auto-detects verify cmds) + ${DEFAULT_CONFIG.artifactsDir}/
   scaffold <what...> [--force]       ${Object.keys(SCAFFOLD).join(' | ')}
   new "<title>" [--tier S|M|L] [--source human|monitor|scan|incident|review] [--fix] [--no-activate]
@@ -516,13 +590,14 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   metrics [--json]                   playbook leading/lagging indicators from the chain + git
   detect [--bands file] [--series file]  rolling-baseline + Western Electric band check
   adr ["<title>"] [--supersedes NNNN] | adr --accept|--reject|--deprecate NNNN [--by name]
-  stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]
+  stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]   (new app)
+  stack --detect [--format]          existing app: keep its stack, add only presets that fit
   stack --components a,b [--ui vue|react] [--dirs name=dir]  record stack + merge presets into config
   route [role...] [--complexity simple|normal|complex]  subagent + model/effort for the active tier
 Common flag: --id <change-id> to target a non-active change.`;
 
 const COMMANDS = {
-  init, scaffold, adr, stack, route, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
+  init, inspect, baseline, scaffold, adr, stack, route, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
   approve: () => setStatus('approved'), reject: () => setStatus('rejected'), reopen: () => setStatus('draft'),
   'lock-tests': lockTests, 'unlock-tests': unlockTests, help: () => console.log(HELP)
 };

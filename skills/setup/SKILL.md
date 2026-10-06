@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Bootstrap a repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md, then ask what's being built (web/mobile/desktop, fullstack or separated backend) and record the stack. Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
+description: Bootstrap a new or existing repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md. Existing projects keep their stack (detected, verify from their own scripts, already-failing checks baselined); new projects are asked what's being built (web/mobile/desktop, fullstack or separated backend). Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
 argument-hint: "[ci]"
 ---
 
@@ -10,12 +10,15 @@ With argument `ci`: skip to the last section, "Mode: setup ci".
 
 Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Work in this order; each step is useful on its own (the playbook's "starting plays").
 
+## 0. New or existing?
+`sdlc inspect` — lists detected apps (folder, framework, matching stack profile or "no profile") and the verify commands built from each app's **own** scripts with its **own** package manager. "no app detected" = new project. This decides §5.
+
 ## 1. Core (always)
-1. `sdlc init` — writes `.sdlc/config.json` (auto-detected `verify` commands), `.sdlc/.gitignore` (`local/`), `docs/sdlc/README.md`.
-2. Open `.sdlc/config.json` and make `verify` right: every entry must exit non-zero on failure and run without prompts. Order: fast → slow (typecheck, lint, build, test). Run `sdlc verify` once. If anything fails on a clean tree, fix the command (not the code) or tell the user the baseline is red. If there's no app yet, leave `verify` empty — §5 fills it from the stack.
+1. `sdlc init` — writes `.sdlc/config.json` (verify commands from detection; never scripts the project doesn't define), `.sdlc/.gitignore` (`local/`), `docs/sdlc/README.md`. It never touches existing source files.
+2. Check `verify` in `.sdlc/config.json`: every entry must exit non-zero on failure and run without prompts. Order: fast → slow (typecheck, lint, build, test). If the project runs checks differently (a root Makefile, `turbo`, `nx`), replace the entries with those commands. New project with no app yet: leave `verify` empty — §5 fills it.
 3. Fill the rest of config with the user only where it matters:
-   - `protectedPaths`: generated code (`src/gen/**`, `**/*.g.dart`, `internal/db/sqlc/**`, `api/openapi.gen.ts`), frozen packages, vendored code.
-   - `formatOnEdit`: file-scoped formatter, e.g. `npx prettier --write {file}`, `gofmt -w {file}`, `dart format {file}`. Keep it fast.
+   - `protectedPaths`: generated code that exists in this repo (`src/gen/**`, `**/*.g.dart`, `internal/db/sqlc/**`, `api/openapi.gen.ts`), frozen packages, vendored code. Never protect hand-written files.
+   - `formatOnEdit`: off unless the user agrees (it rewrites each edited file). File-scoped and fast, e.g. `npx prettier --write {file}`, `gofmt -w {file}`, `dart format {file}`.
    - `prodGate`: `ask` (default — the user approves in the permission prompt) or `deny` (requires `RELEASE_APPROVAL=<ticket>` in the launching shell).
    - Override `prodPatterns` only to add the repo's real deploy commands.
 
@@ -38,8 +41,19 @@ Don't ask about CI here. Everything in the loop runs inside the user's own Claud
 | Close the loop | **triage** skill runs `sdlc detect` on demand |
 Tell the user in one line: "Runs on your Claude subscription — no API key. CI automation is optional: `/ai-sdlc:setup ci`."
 
-## 5. What are we building? (always, unless `.sdlc/stack.json` already exists)
-Ask with **one** `AskUserQuestion` call holding two questions. If the repo already contains an app (package.json with nuxt/next, go.mod, pubspec.yaml, src-tauri/), put "(detected)" on the matching options and list them first.
+## 5a. Existing project (`sdlc inspect` found apps) — keep the stack
+Don't ask the new-app questions; the code already answered them. One `AskUserQuestion` call:
+- **"Is this what's in the repo?"** (header `Detected`) — options: **Yes** / **Not quite** (then ask which folders/frameworks are wrong and fix `verify` by hand). Put the `sdlc inspect` summary in the question text.
+- **"Run a formatter on every file Claude edits?"** (header `Formatter`) — **No (Recommended for repos that aren't already formatter-clean)** / **Yes** — explain it may reformat whole files and create noisy diffs.
+
+Then:
+1. `sdlc stack --detect` (add `--format` if they said yes). It records the apps in `.sdlc/stack.json` (`mode: existing`), merges the detected verify commands, adds protected generated paths and deploy-gate patterns **only** for apps that match a profile and paths that exist, and adds no other presets. Apps with "no profile" (Laravel, Django, Rails, plain Node…) keep their own conventions — put them in CLAUDE.md.
+2. `sdlc baseline` — runs every verify command once. Checks already failing (missing tool, missing script, broken tests) are marked known-red: reported by `sdlc verify` but not enforced, so the Stop gate never makes Claude fix a red build it didn't cause. Show the user the red list and offer a tier-S change to make each one green (then `sdlc baseline` again enforces it).
+3. Stack profiles' references (`${CLAUDE_PLUGIN_ROOT}/skills/stack/references/`) are guidance for **new** code in matching apps — never a reason to restructure existing code. Restructuring is its own tier-L change with an ADR.
+4. CLAUDE.md "Stack" section: describe what's there (from inspect), not the profile.
+
+## 5b. New project (no app detected) — what are we building?
+Ask with **one** `AskUserQuestion` call holding two questions.
 1. **"Which apps are you building?"** — header `Surfaces`, `multiSelect: true`:
    - **Web** — browser app (Nuxt + Nuxt UI, or Next + shadcn/ui; SPA)
    - **Mobile** — iOS + Android (Flutter)
@@ -55,7 +69,8 @@ Don't scaffold the app here: scaffolding is the first change. Offer it: "Want me
 
 ## 6. Finish
 - Recommend branch protection on main: PR required, code-owner approval, required checks = the verify commands. Agents never push to main (the prod gate also asks on `git push … main`).
-- Show what was created, and what still needs a human (secrets, branch protection). Suggest committing as `chore: adopt ai-sdlc`.
+- Show what was created, the known-red checks (if any), and what still needs a human (secrets, branch protection). Suggest committing as `chore: adopt ai-sdlc`.
+- Note in one line: the plugin's secrets guard and production-deploy prompt are active in every session where the plugin is enabled, set up or not; the plan gate, verify gate and formatter only act in repos set up like this one.
 
 ## Mode: `/ai-sdlc:setup ci` (only when asked)
 CI automation runs Claude without a person present, so it needs a credential stored as a GitHub secret. Ask which one with AskUserQuestion:
