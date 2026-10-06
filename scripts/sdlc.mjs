@@ -424,10 +424,32 @@ function stack() {
   need();
   const profiles = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'skills', 'stack', 'profiles.json'), 'utf8')).components;
   const stackFile = path.join(root, '.sdlc', 'stack.json');
+  // --surfaces web,mobile,desktop --backend fullstack|separated → components (the setup questions)
+  let surfaces = null;
+  let backend = null;
+  if (f.surfaces) {
+    surfaces = String(f.surfaces).split(',').map((s) => s.trim()).filter(Boolean);
+    for (const s of surfaces) if (!['web', 'mobile', 'desktop'].includes(s)) die(`unknown surface ${s} (web|mobile|desktop)`);
+    backend = f.backend;
+    if (!['fullstack', 'separated'].includes(backend)) die('--backend must be fullstack or separated');
+    const set = new Set();
+    if (backend === 'separated') {
+      // one contract-first Go API + Postgres serves every client
+      if (surfaces.includes('web')) set.add('bff-web');
+      set.add('go-api');
+    } else if (surfaces.includes('web') || surfaces.includes('mobile')) {
+      // fullstack: the Cloudflare app is the backend; mobile/desktop call its /api routes
+      set.add('edge-web');
+    } // desktop-only fullstack: Tauri's Rust side is the whole backend (local SQLite), no server
+    if (surfaces.includes('mobile')) set.add('flutter');
+    if (surfaces.includes('desktop')) set.add('tauri');
+    f.components = [...set].join(',');
+  }
   if (!f.components) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react] [--dirs name=dir,…] [--force]`);
   }
+  if (fs.existsSync(stackFile) && !f.force) die('.sdlc/stack.json exists — the stack is decided. Changing it is a tier-L change with an ADR; re-run with --force when that is approved.');
   const names = String(f.components).split(',').map((s) => s.trim()).filter(Boolean);
   for (const n of names) if (!profiles[n]) die(`unknown component ${n}`);
   const ui = f.ui || 'vue';
@@ -449,6 +471,7 @@ function stack() {
   fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
 
   const record = {
+    surfaces: surfaces || undefined, backend: backend || undefined,
     components: comps.map((c) => ({ ...c, title: profiles[c.name].title, reference: `skills/stack/references/${profiles[c.name].reference}` })),
     ui: ui === 'vue' ? 'Vue/Nuxt + Nuxt UI + Tailwind' : 'React/Next + shadcn/ui + Tailwind',
     ssr: false, decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null
@@ -493,6 +516,7 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   metrics [--json]                   playbook leading/lagging indicators from the chain + git
   detect [--bands file] [--series file]  rolling-baseline + Western Electric band check
   adr ["<title>"] [--supersedes NNNN] | adr --accept|--reject|--deprecate NNNN [--by name]
+  stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]
   stack --components a,b [--ui vue|react] [--dirs name=dir]  record stack + merge presets into config
   route [role...] [--complexity simple|normal|complex]  subagent + model/effort for the active tier
 Common flag: --id <change-id> to target a non-active change.`;

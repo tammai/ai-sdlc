@@ -3,7 +3,7 @@
   "components": {
     "edge-web": {
       "title": "Nuxt 4 (or Next) full-stack on Cloudflare Workers — D1 + KV + R2, SPA mode",
-      "defaultDir": ".",
+      "defaultDir": "web",
       "reference": "web-edge.md",
       "verify": {
         "vue": [

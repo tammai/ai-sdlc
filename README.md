@@ -15,7 +15,8 @@ Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR
 ## Quick start
 
 ```text
-/ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md, optional CI
+/ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md, optional CI,
+                                   # then asks: web / mobile / desktop? fullstack or separated backend?
 /ai-sdlc:vibe add a claims status page for customers
 /ai-sdlc:fix login fails when email has a plus sign
 /ai-sdlc:status
@@ -58,7 +59,14 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 | Mobile | **Flutter** (Riverpod, go_router, Dio + generated client) over the Go API |
 | Desktop | **Tauri v2** with a Nuxt UI (or React + shadcn/ui) SPA; Rust commands as the BFF |
 
-`sdlc stack --components …` records the decision in `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
+Setup asks two questions — **which surfaces** (web, mobile, desktop) and **fullstack vs separated backend** — and `sdlc stack --surfaces web,mobile --backend fullstack|separated` maps them to components:
+
+| Backend | Web | + Mobile | + Desktop |
+|---|---|---|---|
+| fullstack | `edge-web` | `flutter` → edge-web `/api` | `tauri` (desktop-only: local-first Rust + SQLite) |
+| separated | `bff-web` + `go-api` | `flutter` + `go-api` | `tauri` + `go-api` |
+
+`sdlc stack` records the decision in `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
 
 ## Guardrails (hooks)
 | Hook | What it does |

@@ -8,7 +8,9 @@ argument-hint: "[what the app is, who uses it, which surfaces]"
 
 Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
 
-If `.sdlc/stack.json` exists, the stack is decided — read it and the matching reference, don't re-litigate. Changing it is a tier-L change with an ADR.
+If `.sdlc/stack.json` exists, the stack is decided — read it and the matching reference, don't re-litigate. Changing it is a tier-L change with an ADR (`sdlc stack … --force` after approval).
+
+If the surfaces and backend aren't known yet, ask them exactly as in the **setup** skill §5 (one AskUserQuestion: Surfaces multi-select web/mobile/desktop + Backend fullstack/separated) and record with `sdlc stack --surfaces … --backend …`. Step 1 below is how you choose the *recommendation* — and how you decide yourself when the user says "you decide".
 
 ## 1. Decide (from the intent/spec; ask only if a signal below is genuinely unknown)
 
@@ -18,8 +20,8 @@ If `.sdlc/stack.json` exists, the stack is decided — read it and the matching 
 - background work fits Workers limits (Queues, Cron Triggers, short jobs) — no long-running workers, no heavy reporting/analytics queries
 **Otherwise `bff-web` + `go-api`** (multi-client, transactional domain, row locks, long jobs, complex reporting, separate backend team, or on-prem/self-hosted requirement).
 
-**Mobile** → `flutter` + `go-api` (the contract is shared). A thin companion app reading an existing edge-web API is allowed only with an ADR.
-**Desktop** → `tauri`. Add `go-api` if it needs server sync, multi-user data or shared business rules.
+**Mobile** → `flutter` + `go-api` by default (the contract is shared and versioned). With **fullstack**, Flutter calls the edge-web app's `/api` routes — fine for a companion app; keep those routes versioned (`/api/v1`) and backward compatible for old app versions, and move to separated when the mobile app becomes a primary client.
+**Desktop** → `tauri`. Desktop-only + fullstack = local-first app (Rust + SQLite, no server). Add `go-api` (separated) if it needs server sync, multi-user data or shared business rules; with fullstack + web it calls the edge-web `/api`.
 
 **UI variant** (one per repo, all surfaces): **Vue/Nuxt + Nuxt UI** by default — Nitro's first-class Cloudflare preset, one UI kit across web and desktop. **React/Next + shadcn/ui** when the repo/team is already React or a must-have library is React-only. Tailwind v4 either way. **SSR disabled** everywhere (SPA; server code lives in API/server routes only).
 
