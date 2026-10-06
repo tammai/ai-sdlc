@@ -1,13 +1,17 @@
 {
   "name": "ai-sdlc",
   "description": "AI-native SDLC plugin for Claude Code",
-  "owner": { "name": "Tam Mai", "email": "tam.mai@bigin.vn" },
+  "owner": {
+    "name": "Tam Mai",
+    "email": "tam.mai@bigin.vn"
+  },
   "plugins": [
     {
       "name": "ai-sdlc",
       "source": "./",
-      "description": "Vibe coding for developers on the AI-native SDLC playbook: intent → spec → plan → verify → review → ship, opinionated stacks, deterministic guardrails.",
-      "license": "MIT"
+      "description": "Vibe coding for developers on the AI-native SDLC playbook: intent → design → spec → plan → verify → review → ship. Runs on a Claude subscription; opinionated stacks; deterministic guardrails.",
+      "license": "MIT",
+      "version": "0.2.0"
     }
   ]
 }

@@ -90,3 +90,7 @@ Approving intent and spec (product owner), approving the plan (engineer or tech 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).

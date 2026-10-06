@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-sdlc",
-  "version": "0.1.0",
-  "description": "Vibe coding for developers, on rails: the AI-native SDLC playbook as a Claude Code plugin. Ideas become a committed intent → spec → plan → verified build → independent review → gated ship chain, with opinionated stack profiles (Nuxt/Next on Cloudflare, Nuxt/Next BFF + Go/Postgres, Flutter, Tauri), risk-tiered ceremony, deterministic hooks (plan gate, test lock, secrets, production gate, verify-before-done) and a closed maintenance loop.",
+  "version": "0.2.0",
+  "description": "Vibe coding for developers on the AI-native SDLC playbook. Ideas become a committed intent → design → spec → plan → verified build → independent review → gated ship chain. Runs on a Claude subscription (no API key). Opinionated stacks (Nuxt/Next on Cloudflare, BFF + Go/Postgres, Flutter, Tauri), risk-tiered ceremony and model routing, deterministic hooks (plan gate, test lock, secrets, production gate, verify-before-done), and a closed maintenance loop.",
   "author": {
     "name": "Tam Mai",
     "email": "tam.mai@bigin.vn"
@@ -14,14 +14,20 @@
     "sdlc",
     "ai-native-sdlc",
     "vibe-coding",
+    "claude-code-plugin",
     "plan-mode",
     "hooks",
-    "evals",
+    "guardrails",
     "code-review",
+    "system-design",
+    "adr",
+    "ui-ux",
+    "evals",
     "nuxt",
     "nextjs",
     "cloudflare",
     "go",
+    "postgres",
     "flutter",
     "tauri"
   ]
