@@ -12,6 +12,7 @@
 - Out of scope (visual / UX):
 
 ## 2. Visual theme & atmosphere
+- Vibe: <preset | custom (base: preset)> — <picked | inferred from …>[; brand anchor: …] (format and examples: uiux/references/vibes.md)
 - Mood (3 words):
 - Density: comfortable | compact
 - Signature detail (the one memorable thing):

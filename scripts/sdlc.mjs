@@ -34,8 +34,26 @@ function flags(args) {
 const f = flags(argv);
 const die = (msg, code = 1) => { console.error(`ai-sdlc: ${msg}`); process.exit(code); };
 const need = () => { if (!isInitialized(root)) die('not initialized — run `sdlc init` (or /ai-sdlc:setup) first'); };
-const render = (text, vars) => text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
-const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'change';
+// A value in the frontmatter block is quoted when plain YAML would misread it (`title: Stack: Nuxt 4` is invalid); the body is left as is.
+const yamlValue = (v) => {
+  const s = String(v ?? '');
+  return s && /:(\s|$)|\s#|^[\s>|*&!%@`'"\-?,[\]{}#]|\s$/.test(s) ? JSON.stringify(s) : s;
+};
+const render = (text, vars) => {
+  const fill = (t) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
+  const m = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  if (!m) return fill(text);
+  const fm = m[0].replace(/^([A-Za-z0-9_-]+:[ \t]*)\{\{(\w+)\}\}[ \t]*$/gm, (_, head, k) => head + yamlValue(vars[k]));
+  return fill(fm) + fill(text.slice(m[0].length));
+};
+// A slug of at most 48 characters, cut at a word boundary (never mid-word).
+const slugify = (s) => {
+  const full = s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (full.length <= 48) return full || 'change';
+  const cut = full.slice(0, 48);
+  const trimmed = full[48] === '-' ? cut : cut.slice(0, cut.lastIndexOf('-') > 16 ? cut.lastIndexOf('-') : 48);
+  return trimmed.replace(/-$/, '');
+};
 const today = () => new Date().toISOString().slice(0, 10);
 
 function activeOrArg(cfg) {
@@ -490,6 +508,18 @@ function stack() {
     die('.sdlc/stack.json exists — the stack is decided. Changing it is a tier-L change with an ADR; re-run with --force when that is approved.');
   }
 
+  // --adr alone: link the ADR to the stack that is already recorded. The ADR is written after the stack is chosen,
+  // so this must not need --force (which would also reset verify and the formatter).
+  if (f.adr && !f.detect && !f.surfaces && !f.components) {
+    if (!fs.existsSync(stackFile)) die('no .sdlc/stack.json yet — record the stack first (sdlc stack --surfaces … --backend …), then link its ADR');
+    if (!fs.existsSync(path.join(root, String(f.adr)))) die(`ADR not found: ${f.adr} (create it with: sdlc adr "<decision title>")`);
+    const rec = JSON.parse(fs.readFileSync(stackFile, 'utf8'));
+    rec.adr = String(f.adr);
+    fs.writeFileSync(stackFile, JSON.stringify(rec, null, 2) + '\n');
+    console.log(`linked ${f.adr} to .sdlc/stack.json`);
+    return;
+  }
+
   // --detect: an existing project keeps its stack. Record what's there; add only presets that fit.
   if (f.detect) {
     const d = detectProject(root);
@@ -539,8 +569,9 @@ function stack() {
   //   --choice templates        → "From templates": the team's stack (Nuxt on the web, Vue desktop, Flutter)
   // Backend: fullstack (the edge app is the backend) | separated (new Go API) | existing (an API you don't own → BFF)
   const PICKS = {
-    templates: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
-    claude: { 'edge-web': 'react-hono', 'spa-web': 'react', 'bff-web': 'react', tauri: 'react', mobile: 'expo' }
+    // Static sites are Nuxt (SSG) whichever choice was made, and a --ui override never changes them.
+    templates: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter', 'site-landing': 'vue', 'site-marketing': 'vue' },
+    claude: { 'edge-web': 'react-hono', 'spa-web': 'react', 'bff-web': 'react', tauri: 'react', mobile: 'expo', 'site-landing': 'vue', 'site-marketing': 'vue' }
   };
   let surfaces = null;
   let backend = null;
@@ -554,11 +585,22 @@ function stack() {
   let compList;
   if (f.surfaces) {
     surfaces = String(f.surfaces).split(',').map((x) => x.trim()).filter(Boolean);
-    for (const x of surfaces) if (!['web', 'mobile', 'desktop'].includes(x)) die(`unknown surface ${x} (web|mobile|desktop)`);
-    backend = f.backend;
-    if (!['fullstack', 'separated', 'existing-own', 'existing'].includes(backend)) die('--backend must be fullstack, separated, existing-own (an API the team owns and can change) or existing (an API the team does not control)');
+    for (const x of surfaces) if (!['web', 'mobile', 'desktop', 'site'].includes(x)) die(`unknown surface ${x} (web|mobile|desktop|site)`);
+    // site = a static marketing/landing site (SSG, Nuxt on both stack choices). It has no backend of its own.
+    const siteOnly = surfaces.length > 0 && surfaces.every((x) => x === 'site');
+    if (surfaces.includes('site') && !['landing', 'marketing'].includes(f.site)) die('--site must be landing (a few static pages) or marketing (Nuxt Content blog + pages, media on R2) when the surfaces include site');
+    if (f.site && !surfaces.includes('site')) die('--site only applies when --surfaces includes site');
+    if (siteOnly) {
+      if (f.backend && f.backend !== 'none') die('a site has no backend: omit --backend (or pass none). To add one, list an app surface too, e.g. --surfaces web,site.');
+      backend = 'none';
+    } else {
+      backend = f.backend;
+      if (!['fullstack', 'separated', 'existing-own', 'existing'].includes(backend)) die('--backend must be fullstack, separated, existing-own (an API the team owns and can change) or existing (an API the team does not control)');
+    }
     compList = [];
-    if (backend === 'separated') {
+    if (siteOnly) {
+      // nothing else to build
+    } else if (backend === 'separated') {
       // a new contract-first Go API owns auth + sessions for every client; the web SPA reaches it same-origin via a passthrough Worker
       if (surfaces.includes('web')) compList.push('spa-web');
       compList.push('go-api');
@@ -573,12 +615,13 @@ function stack() {
     } // desktop-only fullstack: Tauri's Rust side is the whole backend (local SQLite)
     if (surfaces.includes('mobile')) compList.push(picks.mobile);
     if (surfaces.includes('desktop')) compList.push('tauri');
+    if (surfaces.includes('site')) compList.push(`site-${f.site}`);
   } else if (f.components) {
     compList = String(f.components).split(',').map((x) => x.trim()).filter(Boolean);
   }
   if (!compList) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|templates] [--api-url URL]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|templates] [--api-url URL]\n   or: sdlc stack --surfaces site --site landing|marketing   (a static site; --surfaces may also list the app surfaces, with their --backend)\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
   }
   for (const n of compList) if (!profiles[n]) die(`unknown component ${n}`);
   // desktop next to a Nuxt web app → Nuxt desktop extending the shared layer (packages/ui-layer);
@@ -602,12 +645,13 @@ function stack() {
   const UI_LABEL = { vue: 'Vue/Nuxt + Nuxt UI + Tailwind', react: 'React + shadcn/ui + Tailwind', 'react-hono': 'React + shadcn/ui + Tailwind, Hono API' };
   const record = {
     mode: 'new', choice, surfaces: surfaces || undefined, backend: backend || undefined, apiUrl: f['api-url'] || undefined,
-    components: comps.map((c) => ({ ...c, title: profiles[c.name].title, reference: `skills/stack/references/${profiles[c.name].reference}` })),
+    // `render: prerender` marks a static site: SSR is on at build time only (nuxt generate), never at runtime.
+    components: comps.map((c) => ({ ...c, title: profiles[c.name].title, reference: `skills/stack/references/${profiles[c.name].reference}`, ...(profiles[c.name].render ? { render: profiles[c.name].render } : {}) })),
     ui: UI_LABEL[comps.find((c) => c.ui)?.ui] || null,
-    ssr: false, decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null
+    ssr: comps.every((c) => profiles[c.name].render === 'prerender') ? 'prerender' : false, decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null
   };
   fs.writeFileSync(stackFile, JSON.stringify(record, null, 2) + '\n');
-  console.log(`wrote .sdlc/stack.json (${choice}): ${comps.map((c) => `${c.name}${c.ui ? `[${c.ui}]` : ''}@${c.dir}`).join(', ')}\nverify: ${cfg.verify.map((v) => v.name).join(', ')}`);
+  console.log(`wrote .sdlc/stack.json (${choice}): ${comps.map((c) => `${c.name}${c.ui ? `[${c.ui}]` : ''}@${c.dir}`).join(', ')}\nverify: ${cfg.verify.map((v) => v.name).join(', ')}\nformatter on edit: ${cfg.formatOnEdit?.length ? cfg.formatOnEdit.map((x) => x.cmd).join(' ; ') + '  (turn off: set formatOnEdit to null in .sdlc/config.json)' : 'off'}`);
 }
 
 // ---------------------------------------------------------------- route ---
@@ -711,7 +755,7 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   inspect [--json]                   detect existing apps, their stack profile and verify commands
   baseline                           run verify once; mark already-failing checks known-red (not enforced)
   init [--force]                     create .sdlc/config.json (auto-detects verify cmds) + ${DEFAULT_CONFIG.artifactsDir}/
-  scaffold-app [component...] [--name n] [--ui vue|react] [--dir d] [--no-install] [--no-verify]
+  scaffold-app [component...] [--name n] [--title "Display Name"] [--ui vue|react] [--dir d] [--no-install] [--no-verify]
                                      copy a full app template for the recorded stack, install, verify green
   scaffold <what...> [--force]       ${Object.keys(SCAFFOLD).join(' | ')}
   new "<title>" [--tier S|M|L] [--source human|monitor|scan|incident|review] [--fix] [--no-activate]
@@ -728,6 +772,8 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   detect [--bands file] [--series file]  rolling-baseline + Western Electric band check
   adr ["<title>"] [--supersedes NNNN] | adr --accept|--reject|--deprecate NNNN [--by name]
   stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]   (new app)
+  stack --surfaces site --site landing|marketing                                       (new static site, Nuxt SSG on Cloudflare)
+  stack --adr <file>                 link the stack ADR to the recorded stack (no --force needed)
   stack --detect [--format]          existing app: keep its stack, add only presets that fit
   stack --components a,b [--ui vue|react] [--dirs name=dir]  record stack + merge presets into config
   route [role...] [--complexity simple|normal|complex] [--implementer-model m]

@@ -14,7 +14,7 @@ Pick the mode from the request:
 
 ## Mode A — Design contract (`design-md`; also runs automatically the first time UI work happens and DESIGN.md is missing)
 1. `sdlc scaffold design-md` → `DESIGN.md`. Fill it from what exists: component library config (Nuxt UI `app.config.ts` + `main.css` `@theme`, shadcn `components.json` + CSS variables, Flutter `ThemeData`), existing colors/fonts/spacing in code, logo/brand assets.
-2. Missing essentials → ask **one** message with at most 4 questions: overall feel (e.g. calm/utilitarian, warm/friendly, bold/editorial, dense/pro), accent color, typeface (or "use the library default"), motion (none / subtle / expressive). Skip any the user already answered.
+2. If §2 already has a `Vibe:` line (setup §5c asks it for new projects), the feel, accent and typeface are decided: use `REF/vibes.md` and don't ask again. Otherwise ask **one** message with at most 4 questions: overall feel (pick one preset in `REF/vibes.md`, or let Claude infer it; "clean and modern" is not a feel), accent color or brand anchor (a brand anchor means the custom route there), typeface (or "use the library default"), motion (none / subtle / expressive). Skip any the user already answered, and record the result as the `Vibe:` line.
 3. Tokens go into the library's mechanism, never parallel to it (`REF/platforms.md`). Commit DESIGN.md with the tokens.
 
 ## Mode B — Design a screen/flow (tier M/L UI changes, before the spec; tier S → inline in the plan)

@@ -1,0 +1,22 @@
+{
+  // Assets-only Worker: no code runs per request, static files are served from Cloudflare's network.
+  // `pnpm build` writes the site to .output/public; `pnpm dev:worker` builds, then serves it with `wrangler dev`.
+  // Deploy: `wrangler deploy --env staging` is the preview; `wrangler deploy --env production` is a human step.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".output/public",
+    // Nuxt links to /about and writes about/index.html: serve it at /about (no redirect), and send /about/ to /about.
+    // Unknown paths get .output/public/404.html with a 404 status.
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+
+  // `wrangler deploy --env <name>` deploys a separate Worker (and URL) per environment.
+  "env": {
+    "staging": { "name": "__APP_NAME__-staging" },
+    "production": { "name": "__APP_NAME__-production" }
+  }
+}

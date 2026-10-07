@@ -1,0 +1,39 @@
+{
+  // One Worker = the static site (served from Cloudflare's network, no code per request) + /media/* streamed from R2.
+  // `pnpm build` writes the site to .output/public; `pnpm dev:worker` builds, seeds the local R2 from media/, then runs `wrangler dev`.
+  // Deploy: `wrangler deploy --env staging` is the preview; `wrangler deploy --env production` is a human step.
+  // Create each bucket once (`wrangler r2 bucket create <name>`) before the first remote deploy.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    // Nuxt links to /about and writes about/index.html: serve it at /about (no redirect), and send /about/ to /about.
+    // Unknown paths get .output/public/404.html with a 404 status.
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page",
+    // Only /media/* runs the Worker first; every page and asset is served without invoking it (free, and fast).
+    "run_worker_first": ["/media/*"]
+  },
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "__APP_NAME__-media" }],
+  // Browser cache for media. Keys are chosen by authors, so the default is moderate; use versioned keys
+  // (logo.v2.png) and raise this to "public, max-age=31536000, immutable" when you want long-lived caching.
+  "vars": { "MEDIA_CACHE_CONTROL": "public, max-age=3600, stale-while-revalidate=86400" },
+
+  // `wrangler deploy --env <name>`: bindings and vars are NOT inherited, so each env redeclares them.
+  "env": {
+    "staging": {
+      "name": "__APP_NAME__-staging",
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "__APP_NAME__-media-staging" }],
+      "vars": { "MEDIA_CACHE_CONTROL": "public, max-age=3600, stale-while-revalidate=86400" }
+    },
+    "production": {
+      "name": "__APP_NAME__-production",
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "__APP_NAME__-media-production" }],
+      "vars": { "MEDIA_CACHE_CONTROL": "public, max-age=3600, stale-while-revalidate=86400" }
+    }
+  }
+}

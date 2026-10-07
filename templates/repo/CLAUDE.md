@@ -15,7 +15,7 @@
 - Run locally: <cmd>
 
 ## Verifying your work
-- Run `sdlc verify` (runs build, lint and test from .sdlc/config.json) before reporting any task complete, and paste the result.
+- Run `sdlc verify` (runs the verify commands in .sdlc/config.json) before reporting any task complete, and paste the result.
 - Never skip, delete or weaken a failing test. If a test fails, fix the code, not the test.
 - UI changes: take a screenshot and compare with the mock/spec before reporting done.
 

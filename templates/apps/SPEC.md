@@ -28,6 +28,12 @@ Dotfiles that git or npm treat specially are stored with a leading underscore an
 ```
 `install`/`postInstall`/`verify`/`dev` commands run inside the component dir. `verify` names are prefixed with the component dir name when several components exist (e.g. `web-test`).
 
+## Static sites (`site-*` templates)
+Sites follow the same layout and rules 1, 2, 5 and 6 below, with two documented exceptions:
+- **Rendering (rule 4).** A site runs `ssr: true` with `nuxt generate`: pages are prerendered at build time, there is no runtime server rendering and no Nitro routes. `profiles.json` marks these profiles `"render": "prerender"` and `sdlc stack` records it per component.
+- **No notes slice (rule 3).** There is no API to put a slice behind. Instead a site ships: a page/component test, a check that every nav link has a page, and a build that fails on a broken internal link. `site-marketing` also ships the blog (list + post), the validated frontmatter schema, the `/media/*` Worker test against a stub R2 bucket, and one sample media key.
+Verify stays `typecheck · lint · test · build`, offline.
+
 ## Placeholders (text files only)
 - `__APP_NAME__` — kebab-case name (package names, wrangler name, Go module last segment, Tauri identifier tail)
 - `__APP_TITLE__` — human title (page title, window title)

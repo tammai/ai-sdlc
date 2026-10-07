@@ -15,7 +15,10 @@ export const TEMPLATE_IDS = {
   'go-api': { any: 'go-api' },
   flutter: { any: 'flutter' },
   expo: { any: 'expo' },
-  tauri: { vue: 'tauri-vue', nuxt: 'tauri-nuxt', react: 'tauri-react' }
+  tauri: { vue: 'tauri-vue', nuxt: 'tauri-nuxt', react: 'tauri-react' },
+  // Static sites (SSG) are Nuxt whichever stack choice was made; they stay out of NUXT_IDS (no shared layer).
+  'site-landing': { any: 'site-landing-nuxt' },
+  'site-marketing': { any: 'site-marketing-nuxt' }
 };
 // Nuxt templates that share code through packages/ui-layer when a repo has more than one Nuxt app.
 const NUXT_IDS = new Set(['edge-web-nuxt', 'spa-web-nuxt', 'bff-web-nuxt', 'tauri-nuxt']);
@@ -34,7 +37,7 @@ function extendLayer(appDir, layerAbs) {
   return true;
 }
 
-const DEFAULT_DIRS = { 'edge-web': 'web', 'spa-web': 'web', 'bff-web': 'web', 'go-api': 'api', flutter: 'mobile', expo: 'mobile', tauri: 'desktop' };
+const DEFAULT_DIRS = { 'edge-web': 'web', 'spa-web': 'web', 'bff-web': 'web', 'go-api': 'api', flutter: 'mobile', expo: 'mobile', tauri: 'desktop', 'site-landing': 'site', 'site-marketing': 'site' };
 
 const kebab = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'app';
 const title = (s) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -154,7 +157,8 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
       if (!fs.existsSync(cm)) fs.copyFileSync(path.join(plugin, 'templates', 'repo', 'CLAUDE.md'), cm);
       {
         let md = fs.readFileSync(cm, 'utf8');
-        if (/^## Stack[^\n]*\n/m.test(md)) md = md.replace(/^## Stack[^\n]*\n(<!--[^]*?-->\n)?/m, (h) => `${h}${block}\n`);
+        // keep the heading, drop the template's placeholder comment (it says the section is still to be filled)
+        if (/^## Stack[^\n]*\n/m.test(md)) md = md.replace(/^(## Stack[^\n]*\n)(<!--[^]*?-->\n)?/m, (_, head) => `${head}${block}\n`);
         else md += `\n## Stack\n${block}`;
         fs.writeFileSync(cm, md);
       }
@@ -165,8 +169,11 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
     const cd = dir === '.' ? '' : `cd ${dir.split(path.sep).join('/')} && `;
     const verify = meta.verify.map((v) => ({ name: prefix ? `${prefix}-${v.name}` : v.name, cmd: cd + v.cmd }));
     const cfg = loadConfigRaw();
-    const mine = (n) => (prefix ? n.startsWith(`${prefix}-`) : verify.some((v) => v.name === n) || ['typecheck', 'lint', 'test', 'build'].includes(n));
-    cfg.verify = [...(cfg.verify || []).filter((v) => !mine(v.name)), ...verify];
+    // An existing entry is replaced when it has the same name or runs the same command, whatever the preset named it
+    // (the stack presets and the template can name the same check differently, e.g. `site-test` vs `test`).
+    const sameCheck = (e) => verify.some((v) => v.name === e.name || v.cmd === e.cmd);
+    const mine = (e) => sameCheck(e) || (prefix ? e.name.startsWith(`${prefix}-`) : ['typecheck', 'lint', 'test', 'build'].includes(e.name));
+    cfg.verify = [...(cfg.verify || []).filter((e) => !mine(e)), ...verify];
     saveConfigRaw(cfg);
 
     let installed = true;

@@ -1,0 +1,34 @@
+{
+  "id": "site-landing-nuxt",
+  "profile": "site-landing",
+  "ui": "vue",
+  "title": "Nuxt 4 static landing site (SSG) on Cloudflare Workers static assets — a few pages, Nuxt UI, no backend",
+  "toolchains": [
+    "node>=22.21",
+    "pnpm>=10"
+  ],
+  "install": [
+    "pnpm install --frozen-lockfile"
+  ],
+  "postInstall": [],
+  "verify": [
+    {
+      "name": "typecheck",
+      "cmd": "pnpm run typecheck"
+    },
+    {
+      "name": "lint",
+      "cmd": "pnpm run lint"
+    },
+    {
+      "name": "test",
+      "cmd": "pnpm run test"
+    },
+    {
+      "name": "build",
+      "cmd": "pnpm run build"
+    }
+  ],
+  "dev": "pnpm dev",
+  "verified": "2026-10-07"
+}

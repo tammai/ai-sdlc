@@ -307,6 +307,82 @@
       },
       "prodPatterns": []
     },
+    "site-landing": {
+      "title": "Static landing site — Nuxt 4 SSG (nuxt generate) + Nuxt UI, a few pages, served as static assets by a Cloudflare Worker, no backend",
+      "defaultDir": "site",
+      "reference": "site-static.md",
+      "render": "prerender",
+      "verify": {
+        "any": [
+          {
+            "name": "site-typecheck",
+            "cmd": "cd {dir} && pnpm run typecheck"
+          },
+          {
+            "name": "site-lint",
+            "cmd": "cd {dir} && pnpm run lint"
+          },
+          {
+            "name": "site-test",
+            "cmd": "cd {dir} && pnpm run test"
+          },
+          {
+            "name": "site-build",
+            "cmd": "cd {dir} && pnpm run build"
+          }
+        ]
+      },
+      "protectedPaths": [
+        "{dir}/.nuxt/**",
+        "{dir}/.output/**",
+        "{dir}/dist/**"
+      ],
+      "formatOnEdit": {
+        "glob": "{dir}/**/*.{ts,vue,js,mjs}",
+        "cmd": "cd {dir} && pnpm exec eslint --fix {file}"
+      },
+      "prodPatterns": []
+    },
+    "site-marketing": {
+      "title": "Static marketing site — Nuxt 4 SSG + Nuxt UI + Nuxt Content (blog and Markdown pages), media served from R2 by a small Worker, on Cloudflare",
+      "defaultDir": "site",
+      "reference": "site-static.md",
+      "render": "prerender",
+      "verify": {
+        "any": [
+          {
+            "name": "site-typecheck",
+            "cmd": "cd {dir} && pnpm run typecheck"
+          },
+          {
+            "name": "site-lint",
+            "cmd": "cd {dir} && pnpm run lint"
+          },
+          {
+            "name": "site-test",
+            "cmd": "cd {dir} && pnpm run test"
+          },
+          {
+            "name": "site-build",
+            "cmd": "cd {dir} && pnpm run build"
+          }
+        ]
+      },
+      "protectedPaths": [
+        "{dir}/.nuxt/**",
+        "{dir}/.output/**",
+        "{dir}/.data/**",
+        "{dir}/dist/**"
+      ],
+      "formatOnEdit": {
+        "glob": "{dir}/**/*.{ts,vue,js,mjs}",
+        "cmd": "cd {dir} && pnpm exec eslint --fix {file}"
+      },
+      "prodPatterns": [
+        "\\bwrangler\\s+r2\\b.*\\b(delete|put)\\b(?!.*--local)",
+        "\\bwrangler\\s+r2\\s+bucket\\s+(create|delete)\\b"
+      ]
+    },
     "expo": {
       "title": "Expo (React Native) — expo-router, TanStack Query, typed client from the contract, bearer tokens in SecureStore",
       "defaultDir": "mobile",

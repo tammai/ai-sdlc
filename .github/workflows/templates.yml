@@ -33,6 +33,8 @@ jobs:
           - { id: spa-web-nuxt, component: spa-web, ui: vue, dir: web }
           - { id: spa-web-react, component: spa-web, ui: react, dir: web }
           - { id: expo, component: expo, ui: vue, dir: mobile }
+          - { id: site-landing-nuxt, component: site-landing, ui: vue, dir: site }
+          - { id: site-marketing-nuxt, component: site-marketing, ui: vue, dir: site }
     services:
       postgres:
         image: postgres:17
@@ -78,7 +80,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: nuxt-web+desktop (shared layer), surfaces: 'web,desktop', backend: fullstack, choice: templates }
+          - { name: nuxt-web+desktop (shared layer), surfaces: 'web,desktop', backend: fullstack, choice: templates, expect: 'packages/ui-layer' }
+          - { name: web+marketing site (separate Nuxt projects), surfaces: 'web,site', site: marketing, backend: fullstack, choice: templates, expect: 'web site' }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -95,6 +98,9 @@ jobs:
           mkdir -p "$T" && cd "$T" && git init -q
           export CLAUDE_PROJECT_DIR="$T"
           node "$GITHUB_WORKSPACE/scripts/sdlc.mjs" init
-          node "$GITHUB_WORKSPACE/scripts/sdlc.mjs" stack --choice ${{ matrix.choice }} --surfaces ${{ matrix.surfaces }} --backend ${{ matrix.backend }}
+          sitef=""; [ -n "${{ matrix.site }}" ] && sitef="--site ${{ matrix.site }}"
+          node "$GITHUB_WORKSPACE/scripts/sdlc.mjs" stack --choice ${{ matrix.choice }} --surfaces ${{ matrix.surfaces }} --backend ${{ matrix.backend }} $sitef
           node "$GITHUB_WORKSPACE/scripts/sdlc.mjs" scaffold-app --name ci-app
-          test -d packages/ui-layer
+          for d in ${{ matrix.expect }}; do test -d "$d" || { echo "missing $d"; exit 1; }; done
+          # a site is its own Nuxt project: it never joins the shared layer
+          if [ -n "$sitef" ]; then test ! -d packages/ui-layer || { echo "site must not create packages/ui-layer"; exit 1; }; fi

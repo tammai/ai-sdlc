@@ -1,0 +1,28 @@
+# Nuxt / Nitro build output
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Dependencies
+node_modules
+
+# Cloudflare local state and secrets
+.wrangler
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Logs, editors, OS
+logs
+*.log
+.DS_Store
+.fleet
+.idea
+
+# Local env files
+.env
+.env.*
+!.env.example

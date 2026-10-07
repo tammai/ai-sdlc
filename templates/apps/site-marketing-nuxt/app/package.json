@@ -1,0 +1,47 @@
+{
+  "name": "__APP_NAME__-site",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.25.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  },
+  "engines": {
+    "node": ">=22.21"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "dev:worker": "nuxt generate && pnpm media:seed && wrangler dev",
+    "build": "nuxt generate",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck && tsc -p worker/tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "media:seed": "node scripts/media-seed.mjs"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.140",
+    "@nuxt/content": "^3.16.1",
+    "@nuxt/ui": "^4.11.3",
+    "@nuxtjs/sitemap": "^8.6.1",
+    "nuxt": "^4.6.0",
+    "tailwindcss": "^4.3.3",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "@nuxt/test-utils": "^4.3.3",
+    "@types/node": "^22.19.0",
+    "@vue/test-utils": "^2.5.1",
+    "eslint": "^9.39.0",
+    "happy-dom": "^20.14.5",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3",
+    "vue-tsc": "^3.3.12",
+    "wrangler": "^4.148.0"
+  }
+}

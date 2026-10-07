@@ -59,9 +59,15 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 ## Stacks (`/ai-sdlc:stack`)
 For a new app, setup asks three questions, plus a fourth when there is no backend yet:
 1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or build **from templates** (the team's stack).
-2. **Apps:** web, mobile and/or desktop.
+2. **Apps:** web, mobile, desktop and/or a **website** (a static landing page or marketing site). A website alone needs no backend, so questions 3 and 4 don't apply.
 3. **Existing API?** No (build the backend too) · yes, our own API we can change · yes, an API we don't control. Always asked.
 4. **Backend** (only when nothing exists): building from templates asks fullstack vs a separate Go API. When Claude chooses, it asks what the backend needs (payments/multi-tenant, jobs/integrations/reporting, scale/separate team, or a simple app) and decides from that.
+
+After the stack is recorded and before the app is scaffolded, setup asks one more question for a new app: the **UI vibe**.
+- **Vibe:** let Claude choose from what the app is (the default), or pick **Crisp & technical**, **Warm & friendly** or **Editorial & bold**. **Dark & atmospheric** (AI and media apps) is reached through Other or by inference, never as the default.
+- **Brand anchor:** a hex colour, a font or a reference site switches to a custom palette on the nearest preset.
+- The result goes into `DESIGN.md` (a `Vibe:` line, real colour, type, radius and motion values) and, when you scaffold, into the template's token files. The `uiux` skill reads it from then on and doesn't ask again. Existing projects are not asked.
+- Presets and rules: `skills/uiux/references/vibes.md`. The decision model is borrowed from [Hallmark](https://github.com/nutlope/hallmark) (MIT); its landing-page catalog is not.
 
 | Backend | From templates | Claude's choice (default) |
 |---|---|---|
@@ -71,6 +77,7 @@ For a new app, setup asks three questions, plus a fourth when there is no backen
 | **Existing API** you don't control | `bff-web-nuxt`: the BFF keeps that API's tokens/keys server-side | `bff-web-next` |
 | + Mobile | `flutter` | `expo` |
 | + Desktop | `tauri-nuxt` next to a Nuxt web app (shares `packages/ui-layer`); `tauri-vue` when desktop is the only app | `tauri-react` |
+| + Website | `site-landing-nuxt` or `site-marketing-nuxt` | the same: sites are Nuxt on both choices |
 
 How the pieces fit:
 - **No BFF in front of your own API.** The Go API sets an httpOnly session cookie for the web (with CSRF protection) and issues bearer tokens to mobile and desktop.
@@ -95,6 +102,8 @@ Setup offers to create the app from full, working templates in `templates/apps/`
 | `spa-web-nuxt` / `spa-web-react` | Static SPA + a passthrough Worker (`/api/*` → Go API); sign-in screens driven by `/v1/auth/providers`; route guard; typed client from the contract |
 | `go-api` | chi + oapi-codegen strict server, sqlc + pgx, goose, Postgres in Docker; auth with cookie sessions + bearer tokens, password (argon2id), magic link, OIDC with PKCE, refresh rotation with reuse detection, CSRF, rate limits; notes scoped per user |
 | `bff-web-nuxt` / `bff-web-next` | BFF for an existing API: server-held session, CSRF check, typed client |
+| `site-landing-nuxt` | Static landing site: Nuxt 4 SSG + Nuxt UI, home/about/contact/privacy, one place for copy and nav (`app/data/site.ts`), per-page SEO, sitemap, security headers. Served as static assets by a Cloudflare Worker (assets-only, no code per request); a broken internal link fails the build |
+| `site-marketing-nuxt` | Static marketing site: the landing template plus Nuxt Content 3 (Markdown pages and a blog, frontmatter validated at build) and **media in R2**: a small Worker serves `/media/*` (GET/HEAD, ranges, ETag/304, colo cache, SVG sandboxed) while pages stay free static assets. Tests cover the Worker against a stub bucket and the content files |
 | `flutter` / `expo` | Mobile client of the Go API: bearer tokens in secure storage, notes screens (Expo also: single-flight refresh, OIDC with PKCE, magic-link deep links) |
 | `tauri-nuxt` / `tauri-vue` / `tauri-react` | Tauri v2 with Rust commands as the BFF, local SQLite, least-privilege capabilities, strict CSP, typed `invoke` wrapper |
 
@@ -104,11 +113,13 @@ Setup offers to create the app from full, working templates in `templates/apps/`
 - installs, writes the verify commands, and adds stack notes to CLAUDE.md;
 - runs verify.
 
-On existing projects it only adds new components into empty folders. `.github/workflows/templates.yml` scaffolds and verifies every template and a web + desktop combination weekly on Linux. It needs no Claude token.
+On existing projects it only adds new components into empty folders. `.github/workflows/templates.yml` scaffolds and verifies every template, a web + desktop combination and a web + marketing-site combination weekly on Linux. It needs no Claude token.
 
 Known limits:
 - **Nuxt 4.6 templates need Node ≥ 22.21.** On older Node 22, `nuxt generate` fails.
 - **Windows paths:** keep project paths short on Windows. Cloudflare's local runtime (workerd) and Expo's Hermes compiler fail beyond the 260-character path limit. WSL also works.
+- **`nuxt generate` on native Windows:** every Nuxt template that prerenders (the SPA templates and both sites) failed with `500 Server Error` on all routes when we built it on Windows, including the untouched `spa-web-nuxt`, from a short path too. Linux, macOS and WSL are fine; build there.
+- **Site templates** leave the account-side steps to a human: creating the R2 buckets, uploading real media, setting `NUXT_PUBLIC_SITE_URL` and the production deploy. They have no form backend (contact is a `mailto:` link) and no i18n or RSS. Nuxt Content indexes with Node's built-in `node:sqlite`, which Node ≥ 22.21 provides.
 - **edge-web-next** builds on Linux, macOS or WSL. OpenNext needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
 - **flutter** was written without a local Flutter SDK; CI proves it on Linux. Its lockfile is created on first install.
 - **The BFF templates' login** is a dev stub; replace it with your API's real auth.
