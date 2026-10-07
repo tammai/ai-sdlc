@@ -6,7 +6,7 @@ After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai
 ## [Unreleased]
 
 ### Changed
-- **"Let Claude choose" is the first and default stack option** in setup. The team's stack is now the "From templates" option (`--choice templates`; `team` and `default` still work as aliases). `sdlc stack` without `--choice` uses Claude's picks.
+- **"Let Claude choose" is the first and default stack option** in setup. The team's stack is now the "From templates" option (`--choice templates`, replacing `--choice default`). `sdlc stack` without `--choice` uses Claude's picks.
 - **Setup always asks whether the app uses an existing backend API**, on both paths. Before, the "Let Claude choose" path assumed there was none. The answers are:
   - no (build the backend);
   - our own API we can change (new `--backend existing-own`: SPA + passthrough Worker pointed at it, no BFF, no new Go API);

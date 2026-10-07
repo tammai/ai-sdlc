@@ -513,7 +513,7 @@ function stack() {
   }
   // Stack choice:
   //   --choice claude (default) → Claude's own picks (React + Hono at the edge, React SPA, Expo, Tauri + React)
-  //   --choice templates        → "From templates": the team's stack (Nuxt on the web, Vue desktop, Flutter); 'team' and 'default' are aliases
+  //   --choice templates        → "From templates": the team's stack (Nuxt on the web, Vue desktop, Flutter)
   // Backend: fullstack (the edge app is the backend) | separated (new Go API) | existing (an API you don't own → BFF)
   const PICKS = {
     templates: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
@@ -521,7 +521,7 @@ function stack() {
   };
   let surfaces = null;
   let backend = null;
-  const choice = ({ default: 'templates', team: 'templates' })[f.choice] || f.choice || 'claude';
+  const choice = f.choice || 'claude';
   if (!PICKS[choice]) die('--choice must be claude or templates');
   const picks = { ...PICKS[choice] };
   if (f.ui) { // explicit UI override for every web/desktop component
