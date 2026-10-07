@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-sdlc",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Vibe coding for developers on the AI-native SDLC playbook. Ideas become a committed intent → design → spec → plan → verified build → independent review → gated ship chain. Runs on a Claude subscription (no API key). Opinionated stacks (Nuxt/Next on Cloudflare, BFF + Go/Postgres, Flutter, Tauri), risk-tiered ceremony and model routing, deterministic hooks (plan gate, test lock, secrets, production gate, verify-before-done), and a closed maintenance loop.",
   "author": {
     "name": "Tam Mai",
