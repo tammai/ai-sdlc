@@ -18,7 +18,7 @@ Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR
 
 ```text
 /ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md
-                                   # new repo: let Claude choose (default) or team templates; web / mobile / desktop; backend
+                                   # new repo: let Claude choose (default) or from templates; web / mobile / desktop; backend
                                    # existing repo: keeps its stack, baselines checks that already fail
 /ai-sdlc:vibe add a claims status page for customers
 /ai-sdlc:fix login fails when email has a plus sign
@@ -56,12 +56,12 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 
 ## Stacks (`/ai-sdlc:stack`)
 For a new app, setup asks three things:
-1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or use the **team templates**.
+1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or build **from templates** (the team's stack).
 2. **Apps:** web, mobile and/or desktop.
 3. **Existing API?** No (build the backend too) · yes, our own API we can change · yes, an API we don't control. Always asked.
-4. **Backend** (only when nothing exists): asked for the team templates; when Claude chooses, it decides.
+4. **Backend** (only when nothing exists): asked when building from templates; when Claude chooses, it decides.
 
-| Backend | Team templates | Claude's choice (default) |
+| Backend | From templates | Claude's choice (default) |
 |---|---|---|
 | **Fullstack**: the edge app is the backend | `edge-web-nuxt`: Nuxt 4 on Cloudflare Workers (D1/KV/R2, Drizzle) | `edge-web-hono-react`: Vite + React SPA and a Hono API in one Worker |
 | **New separate backend**: a Go API owns accounts and sessions for every client | `spa-web-nuxt` (Nuxt `ssr:false` + passthrough Worker) + `go-api` | `spa-web-react` (Vite + React + passthrough Worker) + `go-api` |

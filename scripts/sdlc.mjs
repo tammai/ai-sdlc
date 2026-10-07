@@ -513,16 +513,16 @@ function stack() {
   }
   // Stack choice:
   //   --choice claude (default) → Claude's own picks (React + Hono at the edge, React SPA, Expo, Tauri + React)
-  //   --choice team             → the team's templates (Nuxt on the web, Vue desktop, Flutter); 'default' is an alias
+  //   --choice templates        → "From templates": the team's stack (Nuxt on the web, Vue desktop, Flutter); 'team' and 'default' are aliases
   // Backend: fullstack (the edge app is the backend) | separated (new Go API) | existing (an API you don't own → BFF)
   const PICKS = {
-    team: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
+    templates: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
     claude: { 'edge-web': 'react-hono', 'spa-web': 'react', 'bff-web': 'react', tauri: 'react', mobile: 'expo' }
   };
   let surfaces = null;
   let backend = null;
-  const choice = ({ default: 'team' })[f.choice] || f.choice || 'claude';
-  if (!PICKS[choice]) die('--choice must be claude or team');
+  const choice = ({ default: 'templates', team: 'templates' })[f.choice] || f.choice || 'claude';
+  if (!PICKS[choice]) die('--choice must be claude or templates');
   const picks = { ...PICKS[choice] };
   if (f.ui) { // explicit UI override for every web/desktop component
     if (!['vue', 'react', 'react-hono'].includes(f.ui)) die('--ui must be vue, react or react-hono');
@@ -555,7 +555,7 @@ function stack() {
   }
   if (!compList) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|team] [--api-url URL]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|templates] [--api-url URL]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
   }
   for (const n of compList) if (!profiles[n]) die(`unknown component ${n}`);
   // desktop next to a Nuxt web app → Nuxt desktop extending the shared layer (packages/ui-layer);
