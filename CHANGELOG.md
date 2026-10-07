@@ -3,7 +3,7 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
-## [Unreleased]
+## [0.4.1] — 2026-10-07
 
 ### Changed
 - **"Let Claude choose" is the first and default stack option** in setup. The team's stack is now the "From templates" option (`--choice templates`, replacing `--choice default`). `sdlc stack` without `--choice` uses Claude's picks.
@@ -14,7 +14,7 @@ After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai
 - **`--api-url`** is recorded in `.sdlc/stack.json` and used by `scaffold-app` for the contract server, the SPA dev proxy and the Worker's local `ORIGIN_URL`.
 
 ### Fixed
-- **Setup's stack table** had its "claude" and "team" columns swapped.
+- **Setup's stack table** had its two choice columns swapped.
 
 ## [0.4.0] — 2026-10-07
 
@@ -166,6 +166,7 @@ Installing on an existing project now keeps its stack.
 - **Scaffolds:** `CLAUDE.md`, `REVIEW.md`, `DESIGN.md`, agent eval runner, CI workflows, `/babysit` command, managed-settings reference.
 - MIT license.
 
+[0.4.1]: https://github.com/tammai/ai-sdlc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/tammai/ai-sdlc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tammai/ai-sdlc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/tammai/ai-sdlc/compare/v0.2.0...v0.2.1
