@@ -3,7 +3,7 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
-## [Unreleased]
+## [0.6.0] — 2026-10-07
 
 ### Added
 - **Setup asks for the UI vibe** on a new project, after the stack is recorded and before the scaffold offer (§5c). One call, two questions:
