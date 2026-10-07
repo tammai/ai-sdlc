@@ -78,7 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: nuxt-web+desktop (shared layer), surfaces: 'web,desktop', backend: fullstack, choice: default }
+          - { name: nuxt-web+desktop (shared layer), surfaces: 'web,desktop', backend: fullstack, choice: team }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

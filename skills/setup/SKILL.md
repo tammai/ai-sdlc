@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Bootstrap a new or existing repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md. Existing projects keep their stack (detected, verify from their own scripts, already-failing checks baselined); new projects choose the default templates or let Claude choose, which apps to build, and the backend (fullstack, new separate Go API, or an existing API behind a BFF). Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
+description: Bootstrap a new or existing repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md. Existing projects keep their stack (detected, verify from their own scripts, already-failing checks baselined); new projects let Claude choose the stack (the default) or use the team templates, choose which apps to build, and the backend (fullstack, new separate Go API, or an existing API behind a BFF). Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
 argument-hint: "[ci]"
 ---
 
@@ -55,20 +55,20 @@ Then:
 ## 5b. New project (no app detected) — what are we building?
 **First call** — one `AskUserQuestion` with two questions:
 1. **"How should the stack be chosen?"** — header `Stack`, single select:
-   - **Use the default templates** — the team's standard stack: Vue + Nuxt UI on web and desktop (Nuxt on the web, Vite + Vue in the desktop app), Flutter on mobile, Go + Postgres for a separate backend.
-   - **Let Claude choose** — Claude picks what it's most confident building and verifying for this app: React + shadcn/ui on web and desktop (Hono API at the edge for simple apps), Expo on mobile, Go + Postgres for a separate backend.
+   - **Let Claude choose (Recommended)** — always the first option and the default. Claude picks what it's most confident building and verifying for this app: React + shadcn/ui on web and desktop (Hono API at the edge for simple apps), Expo on mobile, Go + Postgres for a separate backend.
+   - **Use the team templates** — the team's standard stack: Vue + Nuxt UI on web and desktop (Nuxt on the web, Vite + Vue in the desktop app), Flutter on mobile, Go + Postgres for a separate backend.
 2. **"Which apps are you building?"** — header `Surfaces`, `multiSelect: true`: **Web** (browser SPA) · **Mobile** (iOS + Android) · **Desktop** (Windows/macOS/Linux, Tauri v2).
 
 **Backend:**
-- **Default templates →** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
+- **Team templates →** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
   - **Fullstack (one app)** — the Cloudflare app (Workers + D1/KV/R2) is the web app and the API. CRUD, internal tools, content, dashboards; one team. Mobile/desktop call its `/api`; desktop-only = local-first Tauri (Rust + SQLite).
   - **New separate backend** — a Go API (OpenAPI contract-first, Postgres, hosted on AWS/GCP/DO/any VPS) owns accounts and sessions for every client; the web SPA reaches it through a passthrough Worker on its own origin (no BFF). Several clients, transactional domains, jobs, heavy reporting, separate frontend team.
   - **Existing API** — an API the team doesn't control. The web app gets a BFF (Nuxt server) that keeps the API's tokens or keys server-side; mobile/desktop call the API directly.
   Mark one "(Recommended)": existing if the user mentioned an API they consume; separate backend when web is combined with mobile/desktop, or for payments/multi-tenant/integrations/jobs; fullstack otherwise.
 - **Let Claude choose →** don't ask; decide the backend yourself with the same rules (ask one short question only if you don't know whether an existing API is involved), and say the choice in one line with its reason.
 
-Then run `sdlc stack --choice <default|claude> --surfaces <comma list> --backend <fullstack|separated|existing>`. It maps the answers to components and records them in `.sdlc/stack.json`:
-| Backend | default | claude |
+Then run `sdlc stack --choice <claude|team> --surfaces <comma list> --backend <fullstack|separated|existing>` (omitting `--choice` means `claude`). It maps the answers to components and records them in `.sdlc/stack.json`:
+| Backend | claude (default) | team |
 |---|---|---|
 | fullstack | `edge-web` (Nuxt) | `edge-web` (React + Hono) |
 | separated | `spa-web` (Nuxt SPA + passthrough Worker) + `go-api` | `spa-web` (React SPA + passthrough Worker) + `go-api` |

@@ -1,6 +1,6 @@
 ---
 name: stack
-description: Decide and record the tech stack for a new app or surface — the team's default templates (Nuxt on Cloudflare, Nuxt SPA + Go API + Postgres, Flutter, Tauri + Vue) or Claude's own picks (React + Hono at the edge, React SPA + Go API, Expo, Tauri + React); a BFF only in front of an existing API; SSR off everywhere. Writes .sdlc/stack.json, merges verify/protected-path/deploy-gate presets into .sdlc/config.json, and an ADR. Use when starting a new app, adding a surface (mobile/desktop/API), or when a spec needs a stack choice; or /ai-sdlc:stack.
+description: Decide and record the tech stack for a new app or surface — Claude's own picks by default (React + Hono at the edge, React SPA + Go API, Expo, Tauri + React) or the team templates (Nuxt on Cloudflare, Nuxt SPA + Go API + Postgres, Flutter, Tauri + Vue); a BFF only in front of an existing API; SSR off everywhere. Writes .sdlc/stack.json, merges verify/protected-path/deploy-gate presets into .sdlc/config.json, and an ADR. Use when starting a new app, adding a surface (mobile/desktop/API), or when a spec needs a stack choice; or /ai-sdlc:stack.
 argument-hint: "[what the app is, who uses it, which surfaces]"
 ---
 
@@ -12,7 +12,7 @@ If `.sdlc/stack.json` exists, the stack is decided — read it and the matching 
 
 **Existing project** (`sdlc inspect` finds apps): don't choose a stack — record the one that's there with `sdlc stack --detect` (see **setup** §5a). Profiles then guide new code only in matching apps; moving an existing app onto a profile is a tier-L change with an ADR.
 
-For a **new** project: ask exactly as in the **setup** skill §5b (default templates vs "Let Claude choose", surfaces, and — for default templates — the backend), then record with `sdlc stack --choice … --surfaces … --backend …`. Step 1 below is how you recommend a backend, and how you decide when the user lets Claude choose.
+For a **new** project: ask exactly as in the **setup** skill §5b ("Let Claude choose" first and recommended, or the team templates; surfaces; and — for team templates — the backend), then record with `sdlc stack --choice … --surfaces … --backend …`. Step 1 below is how you recommend a backend, and how you decide when the user lets Claude choose.
 
 ## 1. Decide (from the intent/spec; ask only if a signal below is genuinely unknown)
 
@@ -25,7 +25,7 @@ For a **new** project: ask exactly as in the **setup** skill §5b (default templ
 **Desktop** → `tauri` (Vue + Nuxt UI default / React for Claude's choice). Desktop-only + fullstack = local-first (Rust + SQLite). Add `go-api` (separated) for server sync or multi-user data.
 
 **UI** (one per repo, all surfaces), SSR off everywhere, Tailwind v4:
-- **Default templates:** Vue + Nuxt UI everywhere — one UI kit across web and desktop. **Web is always Nuxt** (`edge-web`, `spa-web` with `ssr: false`, `bff-web`): one project layout across web repos — file routing, layouts, route middleware, modules — whether or not its server is used. **Desktop is Vite + Vue** (`tauri`): the Tauri webview needs only a static frontend, with file routing via Vue Router's file-based routing.
+- **Team templates:** Vue + Nuxt UI everywhere — one UI kit across web and desktop. **Web is always Nuxt** (`edge-web`, `spa-web` with `ssr: false`, `bff-web`): one project layout across web repos — file routing, layouts, route middleware, modules — whether or not its server is used. **Desktop is Vite + Vue** (`tauri`): the Tauri webview needs only a static frontend, with file routing via Vue Router's file-based routing.
 - **Claude's choice:** React + shadcn/ui; Vite SPA (no Next — SSR is off), Hono API at the edge for fullstack apps, Expo on mobile. Reasons: models write and review React most reliably; shadcn components live in the repo where they can be edited; one UI language across web, desktop and mobile; fewer moving parts than Next on Cloudflare.
 
 ## 2. Record

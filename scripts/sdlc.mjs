@@ -512,17 +512,17 @@ function stack() {
     die('this repo already contains an app — use `sdlc stack --detect` (keeps the existing stack). Use --force only to add new-app presets on purpose.');
   }
   // Stack choice:
-  //   --choice default → the owner's default templates (Nuxt on web/desktop, Flutter on mobile)
-  //   --choice claude  → Claude's own picks (React + Hono at the edge, React SPA, Expo, Tauri + React)
+  //   --choice claude (default) → Claude's own picks (React + Hono at the edge, React SPA, Expo, Tauri + React)
+  //   --choice team             → the team's templates (Nuxt on the web, Vue desktop, Flutter); 'default' is an alias
   // Backend: fullstack (the edge app is the backend) | separated (new Go API) | existing (an API you don't own → BFF)
   const PICKS = {
-    default: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
+    team: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
     claude: { 'edge-web': 'react-hono', 'spa-web': 'react', 'bff-web': 'react', tauri: 'react', mobile: 'expo' }
   };
   let surfaces = null;
   let backend = null;
-  const choice = f.choice || 'default';
-  if (!PICKS[choice]) die('--choice must be default or claude');
+  const choice = ({ default: 'team' })[f.choice] || f.choice || 'claude';
+  if (!PICKS[choice]) die('--choice must be claude or team');
   const picks = { ...PICKS[choice] };
   if (f.ui) { // explicit UI override for every web/desktop component
     if (!['vue', 'react', 'react-hono'].includes(f.ui)) die('--ui must be vue, react or react-hono');
@@ -552,7 +552,7 @@ function stack() {
   }
   if (!compList) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing [--choice default|claude]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing [--choice claude|team]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
   }
   for (const n of compList) if (!profiles[n]) die(`unknown component ${n}`);
   // desktop next to a Nuxt web app → Nuxt desktop extending the shared layer (packages/ui-layer);
