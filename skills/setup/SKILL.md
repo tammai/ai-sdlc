@@ -64,7 +64,18 @@ Then:
    - **Yes, an API we don't control.** Third-party, another department's, or legacy. Web gets a BFF that keeps that API's tokens or keys server-side; mobile and desktop call it directly.
 
 **Backend, only when the answer to 3 is "No, build the backend too":**
-- **Let Claude choose:** decide fullstack or a new separate backend yourself with the rules below. Say the choice in one line with its reason.
+- **Let Claude choose:** a second `AskUserQuestion` about the facts that drive the decision. Don't ask which architecture; Claude still decides.
+  **"What will the backend need?"** (header `Needs`, `multiSelect: true`)
+  - **Payments, multi-tenant or sensitive data**: money, several customer organisations, or regulated/personal data.
+  - **Background jobs, integrations or heavy reporting**: scheduled or long-running work, third-party syncs, analytics queries.
+  - **Large scale or a separate backend team**: many users or heavy writes, or the backend is owned by other people.
+  - **None of these, a simple app**: CRUD, an internal tool, content or a dashboard.
+
+  Decide:
+  - **separated** (new Go API) if any of the first three is picked, or web is combined with mobile or desktop;
+  - **fullstack** otherwise.
+
+  Say the choice in one line with its reason (e.g. "Separate Go API: payments + a mobile app need one contract and row-level transactions"), and record the picked needs in the stack ADR. If the user's description already answers this unambiguously, skip the question and say what you inferred.
 - **From templates:** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
   - **Fullstack (one app).** The Cloudflare app (Workers + D1/KV/R2) is the web app and the API. CRUD, internal tools, content, dashboards; one team. Mobile/desktop call its `/api`; desktop-only = local-first Tauri (Rust + SQLite).
   - **New separate backend.** A Go API (OpenAPI contract-first, Postgres, hosted on AWS/GCP/DO/any VPS) owns accounts and sessions for every client. The web SPA reaches it through a passthrough Worker on its own origin (no BFF). For several clients, transactional domains, jobs, heavy reporting, or a separate frontend team.

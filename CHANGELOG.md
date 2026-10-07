@@ -3,6 +3,11 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [Unreleased]
+
+### Changed
+- **"Let Claude choose" now asks what the backend needs** before deciding fullstack vs a separate Go API, when the app builds its own backend. The options are payments/multi-tenant/sensitive data, jobs/integrations/reporting, scale or a separate backend team, or a simple app. Claude decides from the answers and records them in the stack ADR. Before, it guessed.
+
 ## [0.4.1] — 2026-10-07
 
 ### Changed

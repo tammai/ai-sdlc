@@ -59,7 +59,7 @@ For a new app, setup asks three things:
 1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or build **from templates** (the team's stack).
 2. **Apps:** web, mobile and/or desktop.
 3. **Existing API?** No (build the backend too) · yes, our own API we can change · yes, an API we don't control. Always asked.
-4. **Backend** (only when nothing exists): asked when building from templates; when Claude chooses, it decides.
+4. **Backend** (only when nothing exists): building from templates asks fullstack vs a separate Go API. When Claude chooses, it asks what the backend needs (payments/multi-tenant, jobs/integrations/reporting, scale/separate team, or a simple app) and decides from that.
 
 | Backend | From templates | Claude's choice (default) |
 |---|---|---|
