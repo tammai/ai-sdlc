@@ -16,7 +16,7 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
    - Proposed outcome: user-observable, not a solution design. "Customers see claim status, next step and expected date in the portal" — not "add a StatusPanel component".
    - Affected users and systems: include every surface (web/mobile/desktop) and the services/data stores touched.
    - Constraints: security, privacy, perf, deadlines, "existing auth only".
-   - Open questions: only real ones, each with who can answer it.
+   - Open questions: only real ones, each as `- [ ] question — owner: <who>`. When one is answered, tick it with the decision: `- [x] question → decision (by <who>)`. Intent can be approved with questions still open, but `sdlc approve spec` (and `approve plan` for tier S) is blocked until they are ticked — `sdlc ready` lists what is left.
    - Keep it under one screen.
 5. Show it to the user: the Problem + Outcome lines, the tier, and open questions. Ask: approve, or correct?
 6. On approval: `sdlc approve intent --by "<name>"`. On "no, we won't do this": `sdlc reject intent --reason "<why>"` (the rejection is part of the record and the survival-rate metric).

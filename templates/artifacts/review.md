@@ -4,6 +4,9 @@ artifact: review
 status: draft
 tier: {{tier}}
 reviewer: reviewer-subagent
+implemented_by:
+reviewed_by:
+independence:
 created: {{created}}
 approved_by:
 approved_at:

@@ -197,10 +197,59 @@ export function chainStatus(root, cfg, id) {
   else if (st('verify') !== 'passed') next = 'build';
   else if (tier !== 'S' && st('review') !== 'approved') next = 'review';
   else next = 'ship';
-  return { id, dir, tier, docs, status: Object.fromEntries(Object.keys(docs).map((k) => [k, st(k)])), next };
+  const open = openItems(docs.intent?.body, 'Open questions').length + openItems(docs.spec?.body, 'Concerns').length;
+  return { id, dir, tier, docs, open, status: Object.fromEntries(Object.keys(docs).map((k) => [k, st(k)])), next };
 }
 
 export function planApproved(root, cfg, id) {
   const plan = readDoc(path.join(changeDir(root, cfg, id), 'plan.md'));
   return plan?.meta.status === 'approved';
+}
+
+// --- gates: advisory → soft → hard ---------------------------------------
+// off: skipped · advisory: reported, never blocks · soft: blocks unless `--override "<reason>"`
+// (the reason is recorded in the artifact) · hard: blocks, no override.
+export const GATE_LEVELS = ['off', 'advisory', 'soft', 'hard'];
+export const DEFAULT_GATES = { ready: 'soft', independence: 'soft' };
+export function gateLevel(cfg, name) {
+  const v = cfg.gates?.[name];
+  return GATE_LEVELS.includes(v) ? v : DEFAULT_GATES[name] || 'off';
+}
+
+// Cross-model review: for these tiers the reviewer must run on a different model than the implementer.
+// `ladder` is the preference order the reviewer's model is picked from.
+export function crossModelCfg(cfg) {
+  return { tiers: ['L'], ladder: ['opus', 'sonnet'], ...(cfg.crossModelReview || {}) };
+}
+
+// --- definition of ready: no open questions at the intent → spec boundary --
+// Items under the heading are open until ticked: `- [ ] question — owner` is open,
+// `- [x] question → decision (by X)` is resolved. "None" and empty sections are ready.
+const NONE_RE = /^(?:\[\s?\]\s*)?(?:none|n\/a|nothing|no (?:open )?(?:questions?|concerns?)|—|-)\.?$/i;
+export function openItems(body, heading) {
+  const lines = (body || '').replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/);
+  const start = lines.findIndex((l) => new RegExp(`^##\\s+${heading}\\b`, 'i').test(l));
+  if (start < 0) return [];
+  const open = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^##\s/.test(line)) break;
+    if (!line.trim() || /^\s/.test(line)) continue; // blank or continuation of a bullet
+    const bullet = line.match(/^(?:[-*+]|\d+\.)\s+(.*)$/);
+    const text = (bullet ? bullet[1] : line).trim();
+    if (/^\[[xX]\]/.test(text) || NONE_RE.test(text)) continue;
+    open.push(text.replace(/^\[\s?\]\s*/, ''));
+  }
+  return open;
+}
+
+// What stops `kind` (spec or plan) from being approved: unanswered questions in intent.md and,
+// once a spec exists, unresolved Concerns in spec.md.
+export function readinessProblems(root, cfg, id, kind) {
+  const dir = changeDir(root, cfg, id);
+  const intent = readDoc(path.join(dir, 'intent.md'));
+  const spec = readDoc(path.join(dir, 'spec.md'));
+  const out = openItems(intent?.body, 'Open questions').map((q) => `intent.md open question: ${q}`);
+  if (kind === 'plan' && intent?.meta.tier === 'S') return out;
+  out.push(...openItems(spec?.body, 'Concerns').map((q) => `spec.md concern: ${q}`));
+  return out;
 }

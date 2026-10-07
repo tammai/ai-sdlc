@@ -32,7 +32,7 @@ Follow each stage's skill. After each artifact, show the user a ≤10-line summa
    - **spec** skill (M, L) → `spec.md` built on design.md/ui.md → resolve Concerns → user approves.
 3. **plan** skill → `plan.md` → user interrogates → approve. *The plan gate hook blocks code edits until this is approved.*
 4. **build** skill → implement, `sdlc verify` until green, verifier subagent for M/L.
-5. **review** skill (M, L) → independent reviewer subagent → fix Important findings → user approves review.
+5. **review** skill (M, L) → independent reviewer subagent (tier L: on a different model than the implementer) → fix Important findings → user approves review.
 6. **ship** skill → commit chain + code, PR, babysit to green. Production is a human gate.
 7. `sdlc close shipped --pr <url>`.
 

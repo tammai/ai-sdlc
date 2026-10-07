@@ -7,7 +7,8 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   STAGES, DEFAULT_CONFIG, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
-  readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIER_TO_COMPLEXITY, routeAgent
+  readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIERS, TIER_TO_COMPLEXITY, routeAgent,
+  GATE_LEVELS, DEFAULT_GATES, gateLevel, crossModelCfg, readinessProblems, openItems
 } from './lib.mjs';
 import { detectProject, detectedVerify, packageManager, globExists } from './detect.mjs';
 import { scaffoldApp } from './scaffold-app.mjs';
@@ -42,6 +43,22 @@ function activeOrArg(cfg) {
   if (!id) die('no active change (pass --id <id> or run `sdlc activate <id>`)');
   if (!fs.existsSync(changeDir(root, cfg, id))) die(`unknown change ${id}`);
   return id;
+}
+
+// A gate that found `problems`: advisory warns, soft blocks unless --override "<reason>" (returned as
+// frontmatter to record), hard blocks. Returns the frontmatter patch to write on approval.
+function applyGate(cfg, gate, problems, what) {
+  const level = gateLevel(cfg, gate);
+  if (!problems.length || level === 'off') return {};
+  const list = problems.map((p) => `  - ${p}`).join('\n');
+  if (level === 'advisory') { console.error(`ai-sdlc: advisory (${gate} gate, ${what}):\n${list}`); return {}; }
+  const reason = typeof f.override === 'string' ? f.override.trim() : '';
+  if (level === 'soft' && reason) {
+    console.error(`ai-sdlc: ${gate} gate overridden (${what}): ${reason}\n${list}`);
+    return { [`${gate}_override`]: reason };
+  }
+  die(`cannot approve ${what}: ${gate} gate (${level}) found\n${list}\n` +
+    (level === 'soft' ? `Resolve these, or accept the risk with --override "<reason>" (recorded in the artifact).` : 'Resolve these first; this gate is hard.'));
 }
 
 // ---------------------------------------------------------------- init ---
@@ -142,6 +159,7 @@ function setStatus(status) {
   const dir = changeDir(root, cfg, id);
   const file = path.join(dir, `${kind}.md`);
   if (!fs.existsSync(file)) die(`${kind}.md does not exist yet for ${id}`);
+  const gatePatch = {};
   if (status === 'approved') {
     const c = chainStatus(root, cfg, id);
     const specPrereq = ['intent', ...(c.tier === 'L' || c.docs.design ? ['design'] : []), ...(c.docs.ui ? ['ui'] : [])];
@@ -149,8 +167,13 @@ function setStatus(status) {
     const missing = prereq.filter((p) => c.status[p] !== 'approved');
     if (missing.length) die(`cannot approve ${kind}: ${missing.join(', ')} not approved yet (chain order)`);
     if (kind === 'review' && c.status.verify !== 'passed') die('cannot approve review: verification has not passed');
+    Object.assign(gatePatch, applyGate(cfg, 'ready', ['spec', 'plan'].includes(kind) ? readinessProblems(root, cfg, id, kind) : [], `${kind} (definition of ready)`));
+    if (kind === 'review') Object.assign(gatePatch, applyGate(cfg, 'independence', independenceProblems(cfg, c), 'review (reviewer independence)'));
   }
-  const patch = { status };
+  // an override recorded on an earlier approval does not carry over to this one
+  const prior = readDoc(file)?.meta || {};
+  for (const g of Object.keys(DEFAULT_GATES)) if (prior[`${g}_override`] && !gatePatch[`${g}_override`]) gatePatch[`${g}_override`] = '';
+  const patch = { status, ...gatePatch };
   if (status === 'approved') Object.assign(patch, { approved_by: f.by || gitUser(root), approved_at: nowIso() });
   if (status === 'rejected') Object.assign(patch, { rejected_by: f.by || gitUser(root), rejected_at: nowIso(), reason: f.reason || '' });
   writeMeta(file, patch);
@@ -197,12 +220,12 @@ function status() {
   const rows = ids.map((id) => {
     const c = chainStatus(root, cfg, id);
     const outcome = c.docs.intent?.meta.outcome;
-    return { id, active: st.active === id, tier: c.tier, ...c.status, next: outcome ? `closed (${outcome})` : c.next };
+    return { id, active: st.active === id, tier: c.tier, open: c.open, ...c.status, next: outcome ? `closed (${outcome})` : c.next };
   });
   if (f.json) { console.log(JSON.stringify({ active: st.active, dirty: st.dirty, testLock: st.testLock, changes: rows }, null, 2)); return; }
   if (!rows.length) { console.log('no changes yet — `sdlc new "<title>"`'); return; }
   for (const r of rows.filter((r) => f.all || !r.next.startsWith('closed'))) {
-    console.log(`${r.active ? '*' : ' '} ${r.id}  [${r.tier}]  intent:${r.intent}${r.design !== 'missing' ? ` design:${r.design}` : ''}${r.ui !== 'missing' ? ` ui:${r.ui}` : ''} spec:${r.spec} plan:${r.plan} verify:${r.verify} review:${r.review}  → ${r.next}`);
+    console.log(`${r.active ? '*' : ' '} ${r.id}  [${r.tier}]  intent:${r.intent}${r.design !== 'missing' ? ` design:${r.design}` : ''}${r.ui !== 'missing' ? ` ui:${r.ui}` : ''} spec:${r.spec} plan:${r.plan} verify:${r.verify} review:${r.review}${r.open ? `  open:${r.open}` : ''}  → ${r.next}`);
   }
   if (st.active && st.dirty) console.log('  (active change has unverified edits)');
   if (st.testLock?.length) console.log(`  locked tests: ${st.testLock.join(', ')}`);
@@ -590,19 +613,96 @@ function stack() {
 // ---------------------------------------------------------------- route ---
 // Which subagent (model/effort) handles each role for the active change. --complexity overrides
 // for a single step (e.g. the auth step of an M change is complex).
+// Routing is also the provenance record: routing an implementer notes its model for the change, and
+// routing the reviewer stamps who implemented and who reviews into review.md. For tiers in
+// crossModelReview.tiers (default L) the reviewer is routed to a model the implementer did not use.
+function independenceProblems(cfg, c) {
+  if (!crossModelCfg(cfg).tiers.includes(c.tier)) return [];
+  const v = c.docs.review?.meta.independence;
+  if (v === 'cross-model') return [];
+  return [`reviewer independence is ${v ? `"${v}"` : 'not recorded'}; tier ${c.tier} needs a reviewer on a different model than the implementer — dispatch the reviewer as \`sdlc route reviewer\` says (add --implementer-model <m> if the main session implemented)`];
+}
+
 function route() {
   const cfg = loadConfig(root);
+  const id = f.id || loadState(root).active;
+  const chain = id && isInitialized(root) && fs.existsSync(changeDir(root, cfg, id)) ? chainStatus(root, cfg, id) : null;
   let complexity = f.complexity;
   let tier = null;
   if (!complexity) {
-    const id = f.id || loadState(root).active;
-    tier = id && isInitialized(root) ? chainStatus(root, cfg, id).tier : 'M';
+    tier = chain ? chain.tier : 'M';
     complexity = TIER_TO_COMPLEXITY[tier] || 'normal';
   }
   if (!['simple', 'normal', 'complex'].includes(complexity)) die('--complexity must be simple|normal|complex');
   const roles = f._.length ? f._ : Object.keys(ROLES);
   const out = Object.fromEntries(roles.map((r) => [r, routeAgent(r, complexity)]));
-  console.log(JSON.stringify({ tier, complexity, sdlc: `node "${fileURLToPath(import.meta.url)}"`, agents: out }, null, 2));
+  const extra = {};
+
+  if (chain && roles.includes('implementer')) {
+    const st = loadState(root);
+    const seen = st.implementers?.[id] || [];
+    const me = out.implementer;
+    if (!seen.some((x) => x.agent === me.agent && x.model === me.model)) {
+      saveState(root, { ...st, implementers: { ...st.implementers, [id]: [...seen, { agent: me.agent, model: me.model }] } });
+    }
+  }
+
+  if (chain && roles.includes('reviewer') && !f.complexity) {
+    const impl = [...(loadState(root).implementers?.[id] || [])];
+    if (f['implementer-model']) impl.push({ agent: 'main-session', model: String(f['implementer-model']) });
+    const cm = crossModelCfg(cfg);
+    const needs = cm.tiers.includes(chain.tier) && gateLevel(cfg, 'independence') !== 'off';
+    const used = new Set(impl.map((x) => x.model));
+    if (needs && used.size) {
+      const want = cm.ladder.find((m) => !used.has(m));
+      const variant = ROLES.reviewer.find((t) => TIERS[t].model === want);
+      if (variant) out.reviewer = routeAgent('reviewer', variant);
+    }
+    const independence = !impl.length ? 'unverified' : impl.some((x) => x.model === out.reviewer.model) ? 'same-model' : 'cross-model';
+    extra.independence = independence;
+    if (needs && independence !== 'cross-model') {
+      extra.warning = used.size
+        ? `no model in crossModelReview.ladder differs from the implementer's (${[...used].join(', ')})`
+        : 'no implementer was routed for this change, so independence cannot be verified; pass --implementer-model <m> if the main session implemented';
+    }
+    const reviewFile = path.join(chain.dir, 'review.md');
+    if (fs.existsSync(reviewFile)) {
+      const label = (x) => `${x.agent} (${x.model})`;
+      writeMeta(reviewFile, { implemented_by: impl.map(label).join(', ') || 'unknown', reviewed_by: label(out.reviewer), independence });
+    } else extra.note = 'review.md does not exist yet — run `sdlc draft review` first, then route again, so the provenance is recorded';
+  }
+  console.log(JSON.stringify({ tier, complexity, sdlc: `node "${fileURLToPath(import.meta.url)}"`, agents: out, ...extra }, null, 2));
+}
+
+// ---------------------------------------------------------------- gates ---
+// Rollout: start a gate as advisory, move it to soft, then hard once the team trusts it.
+function gates() {
+  need();
+  const cfgFile = path.join(root, '.sdlc', 'config.json');
+  const raw = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  const [verb, name, level] = f._;
+  if (verb === 'set') {
+    if (!DEFAULT_GATES[name]) die(`unknown gate ${name} (one of: ${Object.keys(DEFAULT_GATES).join(', ')})`);
+    if (!GATE_LEVELS.includes(level)) die(`level must be one of: ${GATE_LEVELS.join(', ')}`);
+    fs.writeFileSync(cfgFile, JSON.stringify({ ...raw, gates: { ...raw.gates, [name]: level } }, null, 2) + '\n');
+  } else if (verb) die('usage: sdlc gates [set <ready|independence> <off|advisory|soft|hard>]');
+  const cfg = loadConfig(root);
+  for (const g of Object.keys(DEFAULT_GATES)) console.log(`${g.padEnd(13)} ${gateLevel(cfg, g)}`);
+  const cm = crossModelCfg(cfg);
+  console.log(`cross-model review tiers: ${cm.tiers.join(', ') || 'none'} (ladder ${cm.ladder.join(' > ')})`);
+  console.log('levels: off · advisory (warn) · soft (blocks; --override "<reason>" is recorded) · hard (blocks)');
+}
+
+// ---------------------------------------------------------------- ready ---
+function ready() {
+  need();
+  const cfg = loadConfig(root);
+  const id = activeOrArg(cfg);
+  const problems = readinessProblems(root, cfg, id, 'spec');
+  if (f.json) { console.log(JSON.stringify({ id, ready: !problems.length, open: problems })); return; }
+  console.log(problems.length
+    ? `${id}: NOT ready — ${problems.length} open:\n${problems.map((p) => `  - ${p}`).join('\n')}`
+    : `${id}: ready — no open questions or concerns`);
 }
 
 // ----------------------------------------------------------------- help ---
@@ -630,11 +730,15 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]   (new app)
   stack --detect [--format]          existing app: keep its stack, add only presets that fit
   stack --components a,b [--ui vue|react] [--dirs name=dir]  record stack + merge presets into config
-  route [role...] [--complexity simple|normal|complex]  subagent + model/effort for the active tier
+  route [role...] [--complexity simple|normal|complex] [--implementer-model m]
+                                     subagent + model/effort for the active tier; records who implements and reviews
+  ready                              open questions (intent.md) and Concerns (spec.md) that block approval
+  gates [set <ready|independence> <off|advisory|soft|hard>]   gate rollout levels
+  approve ... --override "<reason>"  accept a soft gate's finding; the reason is recorded in the artifact
 Common flag: --id <change-id> to target a non-active change.`;
 
 const COMMANDS = {
-  init, inspect, baseline, 'scaffold-app': scaffoldAppCmd, scaffold, adr, stack, route, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
+  init, inspect, baseline, 'scaffold-app': scaffoldAppCmd, scaffold, adr, stack, route, gates, ready, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
   approve: () => setStatus('approved'), reject: () => setStatus('rejected'), reopen: () => setStatus('draft'),
   'lock-tests': lockTests, 'unlock-tests': unlockTests, help: () => console.log(HELP)
 };

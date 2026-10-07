@@ -26,7 +26,8 @@ Author: {{author}}. Source: {{source}}. Status: draft.
 <!-- Security, compliance, performance, budget, deadlines, "must not change X". -->
 
 ## Open questions
-<!-- Things the product owner or a policy owner must answer before spec. -->
+<!-- Things the product owner or a policy owner must answer before spec. One per line: `- [ ] question — owner: <who>`.
+     Tick it with the answer when decided: `- [x] question → decision (by <who>)`. `sdlc approve spec` waits for every box to be ticked. -->
 
 ## Risk tier
 <!-- {{tier}} — S: tiny, local, reversible (skip spec) · M: normal feature · L: cross-cutting, data/auth/payments, migrations, public API. Say why. -->

@@ -34,6 +34,7 @@ Reads: intent.md. Status: draft.
 <!-- Each project/org skill or CLAUDE.md rule that constrained this spec and how. -->
 
 ## Concerns (resolve before plan)
-<!-- Policy conflicts, unsatisfiable constraints, open questions that block. Name the owner who must decide. Empty = none. -->
+<!-- Policy conflicts, unsatisfiable constraints, open questions that block. Name the owner who must decide. Empty = none.
+     `- [ ] concern — owner: <who>`, ticked `- [x] concern → decision (by <who>)` when resolved; `sdlc approve spec` waits for every box. -->
 
 ## Out of scope

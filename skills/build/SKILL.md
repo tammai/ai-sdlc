@@ -10,7 +10,7 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
 Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill. (The guard hook blocks edits otherwise.)
 
 ## 1. Route
-`sdlc route implementer verifier` → JSON with the subagent type, model and effort for this change's tier, plus the absolute `sdlc` command. Routing policy:
+`sdlc route implementer verifier` → JSON with the subagent type, model and effort for this change's tier, plus the absolute `sdlc` command. Routing also records which model implements the change, which is how the review stage later proves the reviewer is independent. Routing policy:
 
 | Change tier | Complexity | Subagents run on |
 |---|---|---|

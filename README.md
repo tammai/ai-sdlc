@@ -12,7 +12,7 @@ A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook]
 ```
 When the install dialog asks for a scope, pick **project** (this repo only) to try it out; **user** scope turns the plugin on in every repo you open.
 
-Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR flows. **Works on a Claude subscription — no API key.** Review, babysitting, triage and evals run in your own session; GitHub automation is opt-in via `/ai-sdlc:setup ci` using a `claude setup-token` subscription token (or an API key).
+Requires Node ≥ 18 for the plugin itself (hooks and CLI have zero dependencies; the app templates need Node ≥ 22, see [Known limits](#app-templates-sdlc-scaffold-app)) and git; `gh` for PR flows. **Works on a Claude subscription — no API key.** Review, babysitting, triage and evals run in your own session; GitHub automation is opt-in via `/ai-sdlc:setup ci` using a `claude setup-token` subscription token (or an API key).
 
 ## Quick start
 
@@ -52,10 +52,12 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 | normal | tier M | Sonnet / high | `implementer`, `reviewer`, `researcher`, `verifier`, `architect-reviewer`, `ui-reviewer` |
 | complex | tier L, or a risky step (`--complexity complex`) | Opus / medium | `implementer-complex`, `reviewer-complex`, `researcher-complex`, `architect-reviewer-complex`, `ui-reviewer-complex` |
 
+For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a model different from the implementer's (see [Gates](#gates-and-how-strictly-they-apply)), which with the default ladder means `reviewer` (Sonnet / high).
+
 `sdlc route [role]` resolves the agent for the active change. Each role has one source definition in `agents-src/`. After editing one, regenerate the tier variants with `node scripts/build-agents.mjs`.
 
 ## Stacks (`/ai-sdlc:stack`)
-For a new app, setup asks three things:
+For a new app, setup asks three questions, plus a fourth when there is no backend yet:
 1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or build **from templates** (the team's stack).
 2. **Apps:** web, mobile and/or desktop.
 3. **Existing API?** No (build the backend too) · yes, our own API we can change · yes, an API we don't control. Always asked.
@@ -75,8 +77,9 @@ How the pieces fit:
   - Sign-in methods: password, optional magic link, and OIDC providers. Native apps use PKCE.
   - The SPA reaches the API on its own origin through a Cloudflare Worker that only forwards `/api/*`.
   - The API runs on AWS, GCP, DigitalOcean or any VPS. A full BFF in front of your own API needs an ADR.
-- **Nuxt on the web, everywhere.** You get one project layout (file routing, layouts, middleware), with SSR off.
-- **Desktop matches the web app.** When there's also a Nuxt web app, desktop is Nuxt and both extend a shared layer (theme, components, composables). Desktop on its own is Vite + Vue with file-based routing.
+- **One UI framework per choice.** From templates it is Nuxt on the web (file routing, layouts, middleware, SSR off). Letting Claude choose gives Vite + React on the web and Tauri + React on desktop.
+- **Desktop matches the web app (from templates).** When there's also a Nuxt web app, desktop is Nuxt and both extend a shared layer (theme, components, composables). Desktop on its own is Vite + Vue with file-based routing.
+- **Override the UI framework** with `--ui vue|react|react-hono` on `sdlc stack`. `--ui react` on a fullstack app uses `edge-web-next` (Next.js on Cloudflare via OpenNext) in place of the Nuxt or Hono edge app.
 
 `sdlc stack --choice … --surfaces … --backend …` records the decision in `.sdlc/stack.json`. It also merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
 
@@ -124,6 +127,21 @@ Known limits:
 - **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on) and the session-start summary.
 - **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
 
+## Gates and how strictly they apply
+Two checks sit on the approval commands, next to the hooks. Each has a level, so a team can start gentle and tighten:
+
+| Level | Behaviour |
+|---|---|
+| `off` | skipped |
+| `advisory` | the finding is printed; approval goes through |
+| `soft` (default) | approval is refused unless the human accepts the risk with `--override "<reason>"`; the reason is written into the artifact |
+| `hard` | approval is refused, no override |
+
+- **Definition of ready (`ready`).** `sdlc approve spec` (and `approve plan` for tier S) waits until every open question in `intent.md` and every Concern in `spec.md` is ticked: `- [ ] question — owner: PO` → `- [x] question → decision (by PO)`. Intent itself can still be approved with questions open. `sdlc ready` lists what is left; `sdlc status` shows `open:N`.
+- **Reviewer independence (`independence`).** For tier L (`crossModelReview.tiers`), the reviewer must run on a different model than the implementer. `sdlc route` records which model was routed as implementer, picks the reviewer from `crossModelReview.ladder` (default `["opus","sonnet"]`: an opus implementer gets a sonnet reviewer), and stamps `implemented_by`, `reviewed_by` and `independence` into `review.md`. `approve review` refuses unless it says `cross-model`. Put a stronger model first in the ladder if you have one. If the main session implemented, pass `--implementer-model <m>`.
+
+`sdlc gates` shows the levels; `sdlc gates set ready advisory` changes one. The plan gate and verify-on-stop hooks are unchanged (always hard when on).
+
 ## Existing projects
 Setup detects what's already there (`sdlc inspect`) and keeps it. It doesn't ask the new-app questions or restructure anything.
 - **Verify commands** come from the project's own scripts (package.json, Makefile, go.mod, pubspec.yaml, pyproject.toml…), run with its own package manager (npm, pnpm, yarn or bun). It never adds a script the project doesn't define.
@@ -132,7 +150,7 @@ Setup detects what's already there (`sdlc inspect`) and keeps it. It doesn't ask
 - **`sdlc baseline`** marks checks that already fail as *known-red*. `sdlc verify` reports them but doesn't enforce them, so Claude is never pushed to fix a red build it didn't cause. Fix them as small changes and re-run `sdlc baseline` to start enforcing them.
 
 ## CLI
-`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
+`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · gates · ready · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
 
 ## Scaffolds (`sdlc scaffold …`)
 `claude-md`, `review` (REVIEW.md), `evals` (worktree-isolated agent eval runner), `ci-evals`, `ci-review` (claude-code-action review + `@claude`), `ci-triage` (failed-build triage), `ci-monitor` (detect → diagnose → intent PR), `babysit-command`, `design-md` (DESIGN.md contract), `managed-settings` (regulated-org reference).

@@ -14,5 +14,7 @@ Every change lives in `<YYYY-MM-DD>-<slug>/` and commits one artifact per stage.
 
 Tiers: **S** skips spec and review.md (PR review still applies) · **M** full chain · **L** full chain, tech-lead approvals, all review passes.
 
+Definition of ready: `sdlc approve spec` waits until every open question in `intent.md` and every Concern in `spec.md` is ticked (`- [x] … → decision`). Tier L reviews must come from a different model than the implementer (`independence: cross-model` in `review.md`). Both are gates with a level (off · advisory · soft · hard, see `sdlc gates`); a soft gate can be overridden with `--override "<reason>"`, recorded in the artifact.
+
 Approval = frontmatter `status: approved` + `approved_by` + `approved_at`, committed. Git history is the audit trail.
 `adr/` holds architecture decisions (stack choices). Incidents and monitoring findings come back in as new `intent.md` files with `source: monitor|incident|scan`.

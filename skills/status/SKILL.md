@@ -13,4 +13,5 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
    - intent→spec / spec→plan: hours, not weeks
    - spec rework after plan, plan deviations: rare; rising = specs/plans too shallow → spend more on interrogation
    - first-pass verify rate: rising = CLAUDE.md, skills and plans are getting better; falling = add evals / learn entries
-3. Offer the single most useful next action (usually: resume the active change with /ai-sdlc:vibe).
+3. `open:N` on a change row means N unticked open questions or Concerns; they block `sdlc approve spec`. `sdlc gates` shows how strictly each gate is enforced (off · advisory · soft · hard).
+4. Offer the single most useful next action (usually: resume the active change with /ai-sdlc:vibe).

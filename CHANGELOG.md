@@ -3,6 +3,17 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [Unreleased]
+
+### Added
+- **Definition of ready at the intent → spec boundary.** `sdlc approve spec` (and `approve plan` for tier S) is refused while `intent.md` has unticked open questions or `spec.md` has unticked Concerns. Items use checkboxes: `- [ ] question — owner` → `- [x] question → decision (by who)`. New `sdlc ready`; `sdlc status` shows `open:N`.
+- **Reviewer independence for tier L.** `sdlc route` records the model routed as implementer, picks a reviewer on a different model from `crossModelReview.ladder` (default opus > sonnet) and stamps `implemented_by` / `reviewed_by` / `independence` into `review.md`. `approve review` refuses unless it is `cross-model`. `route reviewer --implementer-model <m>` for work done in the main session.
+- **Gate levels: off · advisory · soft · hard** for the two new gates (`gates.ready`, `gates.independence`, both `soft` by default). `soft` accepts `--override "<reason>"`, recorded as `<gate>_override` in the artifact. New `sdlc gates [set <gate> <level>]`.
+
+### Notes
+- With the default ladder, a tier L review runs on Sonnet/high because the L implementer is Opus. Reorder or extend `crossModelReview.ladder` to change that.
+- Borrowed in spirit from the AI-SDLC Framework's Definition-of-Ready gate, cross-harness review and advisory → mandatory gates. Not borrowed: the multi-task orchestrator, DSSE attestations, other agent harnesses.
+
 ## [0.4.2] — 2026-10-07
 
 ### Changed
