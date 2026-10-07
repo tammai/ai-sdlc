@@ -13,21 +13,25 @@ import (
 )
 
 const createNote = `-- name: CreateNote :one
-INSERT INTO notes (title, body)
-VALUES ($1, $2)
-RETURNING id, title, body, created_at
+
+INSERT INTO notes (owner_id, title, body)
+VALUES ($1, $2, $3)
+RETURNING id, owner_id, title, body, created_at
 `
 
 type CreateNoteParams struct {
-	Title string
-	Body  string
+	OwnerID uuid.UUID
+	Title   string
+	Body    string
 }
 
+// Every notes query is scoped by owner_id: never add one that is not.
 func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error) {
-	row := q.db.QueryRow(ctx, createNote, arg.Title, arg.Body)
+	row := q.db.QueryRow(ctx, createNote, arg.OwnerID, arg.Title, arg.Body)
 	var i Note
 	err := row.Scan(
 		&i.ID,
+		&i.OwnerID,
 		&i.Title,
 		&i.Body,
 		&i.CreatedAt,
@@ -36,21 +40,28 @@ func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, e
 }
 
 const listNotesAfter = `-- name: ListNotesAfter :many
-SELECT id, title, body, created_at
+SELECT id, owner_id, title, body, created_at
 FROM notes
-WHERE (created_at, id) < ($1::timestamptz, $2::uuid)
+WHERE owner_id = $1
+  AND (created_at, id) < ($2::timestamptz, $3::uuid)
 ORDER BY created_at DESC, id DESC
-LIMIT $3
+LIMIT $4
 `
 
 type ListNotesAfterParams struct {
+	OwnerID        uuid.UUID
 	AfterCreatedAt time.Time
 	AfterID        uuid.UUID
 	PageLimit      int32
 }
 
 func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) ([]Note, error) {
-	rows, err := q.db.Query(ctx, listNotesAfter, arg.AfterCreatedAt, arg.AfterID, arg.PageLimit)
+	rows, err := q.db.Query(ctx, listNotesAfter,
+		arg.OwnerID,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +71,7 @@ func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) 
 		var i Note
 		if err := rows.Scan(
 			&i.ID,
+			&i.OwnerID,
 			&i.Title,
 			&i.Body,
 			&i.CreatedAt,
@@ -75,14 +87,20 @@ func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) 
 }
 
 const listNotesFirstPage = `-- name: ListNotesFirstPage :many
-SELECT id, title, body, created_at
+SELECT id, owner_id, title, body, created_at
 FROM notes
+WHERE owner_id = $1
 ORDER BY created_at DESC, id DESC
-LIMIT $1
+LIMIT $2
 `
 
-func (q *Queries) ListNotesFirstPage(ctx context.Context, pageLimit int32) ([]Note, error) {
-	rows, err := q.db.Query(ctx, listNotesFirstPage, pageLimit)
+type ListNotesFirstPageParams struct {
+	OwnerID   uuid.UUID
+	PageLimit int32
+}
+
+func (q *Queries) ListNotesFirstPage(ctx context.Context, arg ListNotesFirstPageParams) ([]Note, error) {
+	rows, err := q.db.Query(ctx, listNotesFirstPage, arg.OwnerID, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +110,7 @@ func (q *Queries) ListNotesFirstPage(ctx context.Context, pageLimit int32) ([]No
 		var i Note
 		if err := rows.Scan(
 			&i.ID,
+			&i.OwnerID,
 			&i.Title,
 			&i.Body,
 			&i.CreatedAt,

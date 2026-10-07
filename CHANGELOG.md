@@ -3,6 +3,52 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [0.4.0] — 2026-10-07
+
+Stack choice, real auth in the Go API, and no BFF in front of your own API.
+
+### Added
+- **Setup asks how to choose the stack:** "Use the default templates" or "Let Claude choose". `sdlc stack --choice default|claude`.
+- **Backend option for an existing API.** `--backend existing` maps the web app to `bff-web`, a BFF that keeps that API's tokens or keys server-side.
+- **New templates:**
+  - `spa-web-nuxt` / `spa-web-react`: a static SPA plus a passthrough Cloudflare Worker that forwards `/api/*` to the Go API, with no logic. Includes sign-in screens driven by `/v1/auth/providers`, a route guard, and OIDC error handling.
+  - `edge-web-hono-react`: Vite + React SPA with a Hono API and D1 in one Worker, typed end to end with Hono RPC.
+  - `expo`: Expo SDK 57 mobile client.
+    - Sign-in methods: password, magic-link deep links, and OIDC with PKCE.
+    - Tokens: single-flight refresh with rotation, stored in SecureStore.
+    - Also: a sign-up screen.
+  - `tauri-vue`: Vite + Vue desktop with file-based routing (Vue Router 5), for desktop-only apps.
+- **Shared Nuxt layer.** When a Nuxt web app and a Nuxt desktop app are created together (or desktop is added to an existing Nuxt web app), `scaffold-app` creates `packages/ui-layer` and has the new apps extend it. It never edits an existing app; it prints the one-line `extends` change.
+- **Real auth in the `go-api` template**:
+  - **Sessions and tokens:** web gets an httpOnly session cookie with CSRF checks (`X-Requested-With` + Origin allow-list). Native gets opaque bearer tokens with refresh rotation, reuse detection and a 90-day absolute cap.
+  - **Sign-in methods:**
+    - password (argon2id, rehash on login, no account enumeration);
+    - optional magic link (log or SMTP);
+    - OIDC providers (authorization code + PKCE, state, nonce, browser binding, verified-email linking only).
+  - **Native OIDC uses app-side PKCE** (RFC 8252). Production refuses to start with insecure settings.
+  - **Notes are scoped per user.** Rate limits send `Retry-After`. Audit log lines never contain tokens.
+- **Shared contract v0.3.0** describes the full auth API.
+- **New stack profiles and references:** `spa-web` / `web-spa-go.md` and `expo` / `mobile-expo.md`.
+- **CI:** 13 template jobs plus a combination job (Nuxt web + Nuxt desktop with the shared layer).
+
+### Changed
+- **New separate backend:** now `spa-web` + `go-api` (the Go API owns sessions). It was `bff-web` + `go-api`. A full BFF in front of your own API needs an ADR.
+- **Desktop template choice:**
+  - `tauri-nuxt` when there's also a Nuxt web app;
+  - `tauri-vue` when desktop is the only app;
+  - `tauri-react` on Claude's choice.
+- **`scaffold-app`:**
+  - chooses the UI per component from `.sdlc/stack.json`;
+  - adds explicitly named new components to existing projects (into empty folders only);
+  - fills placeholders in template commands.
+- **Nuxt 4.6 templates require Node ≥ 22.21** (`engines` and `template.json`).
+- **The `go-api` test command** is `go test -v ./...`, so CI shows which tests ran or skipped.
+
+### Fixed
+- **tauri-vue:** `build.rs` created Nuxt's `.output/public` instead of `dist`. Verify now regenerates typed routes before typecheck.
+- **expo:** a test hard-coded the scheme `demo-notes://` instead of the app-name placeholder.
+- **Contract:** an unquoted comma split the 202 description in `/v1/auth/magic-link`. Grant fields are documented as camelCase. Native sign-up and OIDC error codes (web and native) are documented.
+
 ## [0.3.0] — 2026-10-07
 
 Full app templates for new projects.
@@ -107,6 +153,7 @@ Installing on an existing project now keeps its stack.
 - **Scaffolds:** `CLAUDE.md`, `REVIEW.md`, `DESIGN.md`, agent eval runner, CI workflows, `/babysit` command, managed-settings reference.
 - MIT license.
 
+[0.4.0]: https://github.com/tammai/ai-sdlc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tammai/ai-sdlc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/tammai/ai-sdlc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tammai/ai-sdlc/compare/v0.1.0...v0.2.0

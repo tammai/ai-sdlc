@@ -9,12 +9,32 @@ const BINARY = /\.(png|jpe?g|gif|webp|ico|icns|woff2?|ttf|otf|zip|gz|jar|keystor
 const KEEP_IN_EMPTY = new Set(['.git', '.sdlc', '.claude', 'docs', 'CLAUDE.md', 'REVIEW.md', 'DESIGN.md', 'README.md', 'LICENSE', '.gitignore', '.gitattributes', '.github', 'contracts']);
 
 export const TEMPLATE_IDS = {
-  'edge-web': { vue: 'edge-web-nuxt', react: 'edge-web-next' },
+  'edge-web': { vue: 'edge-web-nuxt', react: 'edge-web-next', 'react-hono': 'edge-web-hono-react' },
+  'spa-web': { vue: 'spa-web-nuxt', react: 'spa-web-react' },
   'bff-web': { vue: 'bff-web-nuxt', react: 'bff-web-next' },
   'go-api': { any: 'go-api' },
   flutter: { any: 'flutter' },
-  tauri: { vue: 'tauri-nuxt', react: 'tauri-react' }
+  expo: { any: 'expo' },
+  tauri: { vue: 'tauri-vue', nuxt: 'tauri-nuxt', react: 'tauri-react' }
 };
+// Nuxt templates that share code through packages/ui-layer when a repo has more than one Nuxt app.
+const NUXT_IDS = new Set(['edge-web-nuxt', 'spa-web-nuxt', 'bff-web-nuxt', 'tauri-nuxt']);
+const LAYER_DIR = 'packages/ui-layer';
+
+// Add `extends: ['<relative path to the layer>']` to a Nuxt app's nuxt.config.ts (idempotent).
+function extendLayer(appDir, layerAbs) {
+  const cfg = path.join(appDir, 'nuxt.config.ts');
+  if (!fs.existsSync(cfg)) return false;
+  const text = fs.readFileSync(cfg, 'utf8');
+  if (/\bextends\s*:/.test(text)) return text.includes('ui-layer');
+  const rel = path.relative(appDir, layerAbs).split(path.sep).join('/');
+  const out = text.replace(/defineNuxtConfig\(\{\r?\n/, (m) => `${m}  // shared theme, components and composables (see ${LAYER_DIR}/README.md)\n  extends: ['${rel}'],\n`);
+  if (out === text) return false;
+  fs.writeFileSync(cfg, out);
+  return true;
+}
+
+const DEFAULT_DIRS = { 'edge-web': 'web', 'spa-web': 'web', 'bff-web': 'web', 'go-api': 'api', flutter: 'mobile', expo: 'mobile', tauri: 'desktop' };
 
 const kebab = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'app';
 const title = (s) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -64,11 +84,13 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
   const appsDir = path.join(plugin, 'templates', 'apps');
   const stackFile = path.join(root, '.sdlc', 'stack.json');
   const stack = fs.existsSync(stackFile) ? JSON.parse(fs.readFileSync(stackFile, 'utf8')) : null;
-  if (stack?.mode === 'existing' && !flags.force) die('this repo has an existing app (stack mode: existing) — scaffold-app is for new apps. Use --force to add a new component anyway.');
+  // Existing projects: only explicitly named new components, each into an empty folder (checked below).
+  if (stack?.mode === 'existing' && !args.length) die('this repo has an existing app — name the new component to add, e.g. "sdlc scaffold-app tauri --dir desktop". Existing apps are never re-scaffolded.');
 
-  const ui = flags.ui || (stack?.ui && /react/i.test(stack.ui) ? 'react' : 'vue');
-  let comps = args.length ? args.map((n) => ({ name: n })) : (stack?.components || []).map((c) => ({ name: c.name, dir: c.dir }));
-  if (!comps.length) die('nothing to scaffold — run `sdlc stack --surfaces … --backend …` first, or pass a component: edge-web | bff-web | go-api | flutter | tauri');
+  // UI per component: --ui wins, then the choice recorded by `sdlc stack`, then Vue (the default templates)
+  const recorded = Object.fromEntries((stack?.components || []).map((c) => [c.name, c]));
+  let comps = args.length ? args.map((n) => ({ name: n, dir: recorded[n]?.dir })) : (stack?.components || []).map((c) => ({ name: c.name, dir: c.dir }));
+  if (!comps.length) die(`nothing to scaffold — run "sdlc stack --surfaces … --backend …" first, or pass a component: ${Object.keys(TEMPLATE_IDS).join(' | ')}`);
   const multi = (stack?.components?.length || comps.length) > 1;
   const name = kebab(flags.name || path.basename(root));
   const vars = {
@@ -79,16 +101,32 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
     API_URL: flags['api-url'] || 'http://localhost:8080'
   };
 
-  const results = [];
-  for (const c of comps) {
+  // Resolve every component's template first, so we know whether Nuxt apps will share a layer.
+  const uiOf = (c) => flags.ui || recorded[c.name]?.ui || 'vue';
+  const existingNuxt = (stack?.apps || []).filter((a) => a.framework === 'nuxt');
+  const nuxtWeb = comps.some((o) => ['edge-web', 'spa-web', 'bff-web'].includes(o.name) && uiOf(o) === 'vue') || existingNuxt.length > 0;
+  const resolveId = (c) => {
     const ids = TEMPLATE_IDS[c.name];
     if (!ids) die(`unknown component ${c.name}`);
-    const id = ids[ui] || ids.any;
+    let ui = uiOf(c);
+    // desktop next to a Nuxt web app (new or existing) → Nuxt desktop, so both share the layer
+    if (c.name === 'tauri' && !flags.ui && ui === 'vue' && nuxtWeb) ui = 'nuxt';
+    const id = ids[ui] || ids[ui === 'react-hono' ? 'react' : ui] || ids.any;
+    if (!id) die(`no ${ui} template for ${c.name} (available: ${Object.keys(ids).join(', ')})`);
+    return id;
+  };
+  const plannedIds = comps.map(resolveId);
+  const useLayer = plannedIds.filter((i) => NUXT_IDS.has(i)).length + existingNuxt.length > 1;
+  const layerAbs = path.join(root, LAYER_DIR);
+
+  const results = [];
+  for (const [ci, c] of comps.entries()) {
+    const id = plannedIds[ci];
     const tdir = path.join(appsDir, id);
     if (!fs.existsSync(path.join(tdir, 'template.json'))) die(`template ${id} is not available in this plugin version`);
     // placeholders are filled in template.json too, so install/verify commands can use the app name
     const meta = JSON.parse(fs.readFileSync(path.join(tdir, 'template.json'), 'utf8').replace(/__(APP_NAME|APP_TITLE|APP_SNAKE|GO_MODULE|API_URL)__/g, (_, k) => vars[k]));
-    const dir = flags.dir && comps.length === 1 ? flags.dir : c.dir || (multi ? { 'edge-web': 'web', 'bff-web': 'web', 'go-api': 'api', flutter: 'mobile', tauri: 'desktop' }[c.name] : '.');
+    const dir = flags.dir && comps.length === 1 ? flags.dir : c.dir || (multi ? DEFAULT_DIRS[c.name] : '.');
     const target = path.resolve(root, dir);
 
     if (fs.existsSync(target)) {
@@ -100,6 +138,10 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
     if (fs.existsSync(path.join(tdir, 'root'))) copyTree(path.join(tdir, 'root'), root, vars, { overwrite: false });
     for (const shared of meta.shared || []) copyTree(path.join(appsDir, '_shared', shared), path.join(root, shared), vars, { overwrite: false });
     if (app.skipped.length) console.log(`kept existing: ${app.skipped.join(', ')}`);
+    if (useLayer && NUXT_IDS.has(id)) {
+      if (!fs.existsSync(layerAbs)) copyTree(path.join(appsDir, '_shared', 'nuxt-layer'), layerAbs, vars, { overwrite: false });
+      if (extendLayer(target, layerAbs)) console.log(`${dir}/nuxt.config.ts extends ${LAYER_DIR}`);
+    }
 
     // CLAUDE.md: merge the template's stack notes under "## Stack"
     const frag = path.join(target, 'CLAUDE.stack.md');
@@ -135,6 +177,13 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
     }
     results.push({ component: c.name, template: id, dir, files: app.written.length, installed, verify: green === null ? 'skipped' : green ? 'green' : 'FAILED', dev: meta.dev, toolchains: meta.toolchains });
   }
-  console.log('\n' + JSON.stringify({ app: vars.APP_NAME, results }, null, 2));
+  // existing Nuxt apps are never edited here: tell the user how to opt them into the shared layer
+  for (const a of useLayer ? existingNuxt : []) {
+    const cfg = path.join(root, a.dir, 'nuxt.config.ts');
+    if (fs.existsSync(cfg) && fs.readFileSync(cfg, 'utf8').includes('ui-layer')) continue;
+    const rel = path.relative(path.join(root, a.dir), layerAbs).split(path.sep).join('/');
+    console.log(`\nNext (tier S change): add extends: ['${rel}'] to ${a.dir}/nuxt.config.ts, then move shared theme/components into ${LAYER_DIR}.`);
+  }
+  console.log('\n' + JSON.stringify({ app: vars.APP_NAME, layer: useLayer ? LAYER_DIR : null, results }, null, 2));
   if (results.some((r) => r.verify === 'FAILED' || !r.installed)) process.exit(1);
 }

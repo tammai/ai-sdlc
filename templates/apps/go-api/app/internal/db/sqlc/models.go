@@ -10,9 +10,71 @@ import (
 	"github.com/google/uuid"
 )
 
+type AuthCode struct {
+	CodeHash      []byte
+	UserID        uuid.UUID
+	CodeChallenge string
+	ExpiresAt     time.Time
+	UsedAt        *time.Time
+	CreatedAt     time.Time
+}
+
+type Identity struct {
+	Provider  string
+	Subject   string
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}
+
+type MagicLink struct {
+	TokenHash []byte
+	Email     string
+	Client    string
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
 type Note struct {
 	ID        uuid.UUID
+	OwnerID   uuid.UUID
 	Title     string
 	Body      string
 	CreatedAt time.Time
+}
+
+type OidcState struct {
+	StateHash       []byte
+	Provider        string
+	CodeVerifier    string
+	Nonce           string
+	Client          string
+	Redirect        string
+	ClientChallenge string
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+}
+
+type Session struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	Kind             string
+	TokenHash        []byte
+	RefreshHash      []byte
+	ExpiresAt        time.Time
+	RefreshExpiresAt *time.Time
+	CreatedAt        time.Time
+	LastUsedAt       time.Time
+	RevokedAt        *time.Time
+	UserAgent        string
+	Ip               string
+}
+
+type User struct {
+	ID              uuid.UUID
+	Email           string
+	Name            string
+	PasswordHash    *string
+	EmailVerifiedAt *time.Time
+	CreatedAt       time.Time
 }

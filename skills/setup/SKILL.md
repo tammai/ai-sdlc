@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Bootstrap a new or existing repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md. Existing projects keep their stack (detected, verify from their own scripts, already-failing checks baselined); new projects are asked what's being built (web/mobile/desktop, fullstack or separated backend). Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
+description: Bootstrap a new or existing repository for the AI-native SDLC — .sdlc/config.json with verify commands, the docs/sdlc artifact chain, a one-page CLAUDE.md with a verification block, REVIEW.md. Existing projects keep their stack (detected, verify from their own scripts, already-failing checks baselined); new projects choose the default templates or let Claude choose, which apps to build, and the backend (fullstack, new separate Go API, or an existing API behind a BFF). Local-first on the user's Claude subscription; `setup ci` adds optional GitHub automation (PR review, evals, build triage, monitor) with a subscription token or API key. Use when ai-sdlc is not yet initialized, when asked to set up / harden the harness, or for /ai-sdlc:setup [ci].
 argument-hint: "[ci]"
 ---
 
@@ -53,17 +53,28 @@ Then:
 4. CLAUDE.md "Stack" section: describe what's there (from inspect), not the profile.
 
 ## 5b. New project (no app detected) — what are we building?
-Ask with **one** `AskUserQuestion` call holding two questions.
-1. **"Which apps are you building?"** — header `Surfaces`, `multiSelect: true`:
-   - **Web** — browser app (Nuxt + Nuxt UI, or Next + shadcn/ui; SPA)
-   - **Mobile** — iOS + Android (Flutter)
-   - **Desktop** — Windows/macOS/Linux (Tauri v2)
-2. **"How should the backend be set up?"** — header `Backend`, single select:
-   - **Fullstack (one app)** — a Nuxt/Next app on Cloudflare Workers with D1, KV and R2 is both the web app and the API. Best for CRUD, internal tools, content and dashboards with one team. Mobile/desktop clients call its `/api` routes. Desktop-only: the Tauri Rust side is the whole backend (local SQLite).
-   - **Separated backend** — Go API (OpenAPI contract-first, Postgres in Docker) shared by every client; the web app is a thin BFF. Best for several clients, transactional domains, long-running jobs, heavy reporting or self-hosting.
-   Recommend one in the option label with "(Recommended)": separated when 2+ surfaces include mobile or desktop together with web, or the user mentioned payments/multi-tenant/integrations/jobs; fullstack otherwise.
+**First call** — one `AskUserQuestion` with two questions:
+1. **"How should the stack be chosen?"** — header `Stack`, single select:
+   - **Use the default templates** — the team's standard stack: Vue + Nuxt UI on web and desktop (Nuxt on the web, Vite + Vue in the desktop app), Flutter on mobile, Go + Postgres for a separate backend.
+   - **Let Claude choose** — Claude picks what it's most confident building and verifying for this app: React + shadcn/ui on web and desktop (Hono API at the edge for simple apps), Expo on mobile, Go + Postgres for a separate backend.
+2. **"Which apps are you building?"** — header `Surfaces`, `multiSelect: true`: **Web** (browser SPA) · **Mobile** (iOS + Android) · **Desktop** (Windows/macOS/Linux, Tauri v2).
 
-Then run `sdlc stack --surfaces <comma list, lowercase> --backend <fullstack|separated>` (add `--ui react` only if the repo is already React or the user asks for React/shadcn). It maps the answers to components (fullstack → `edge-web` [+ `flutter`] [+ `tauri`]; separated → `go-api` [+ `bff-web`] [+ `flutter`] [+ `tauri`]), writes `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`. Then continue with the **stack** skill from "§2 Record" step 1 (ADR) and step 3 (CLAUDE.md "Stack" section) — the decision itself is made.
+**Backend:**
+- **Default templates →** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
+  - **Fullstack (one app)** — the Cloudflare app (Workers + D1/KV/R2) is the web app and the API. CRUD, internal tools, content, dashboards; one team. Mobile/desktop call its `/api`; desktop-only = local-first Tauri (Rust + SQLite).
+  - **New separate backend** — a Go API (OpenAPI contract-first, Postgres, hosted on AWS/GCP/DO/any VPS) owns accounts and sessions for every client; the web SPA reaches it through a passthrough Worker on its own origin (no BFF). Several clients, transactional domains, jobs, heavy reporting, separate frontend team.
+  - **Existing API** — an API the team doesn't control. The web app gets a BFF (Nuxt server) that keeps the API's tokens or keys server-side; mobile/desktop call the API directly.
+  Mark one "(Recommended)": existing if the user mentioned an API they consume; separate backend when web is combined with mobile/desktop, or for payments/multi-tenant/integrations/jobs; fullstack otherwise.
+- **Let Claude choose →** don't ask; decide the backend yourself with the same rules (ask one short question only if you don't know whether an existing API is involved), and say the choice in one line with its reason.
+
+Then run `sdlc stack --choice <default|claude> --surfaces <comma list> --backend <fullstack|separated|existing>`. It maps the answers to components and records them in `.sdlc/stack.json`:
+| Backend | default | claude |
+|---|---|---|
+| fullstack | `edge-web` (Nuxt) | `edge-web` (React + Hono) |
+| separated | `spa-web` (Nuxt SPA + passthrough Worker) + `go-api` | `spa-web` (React SPA + passthrough Worker) + `go-api` |
+| existing | `bff-web` (Nuxt BFF) | `bff-web` (Next BFF) |
+| + mobile / + desktop | `flutter` / `tauri` (Vue) | `expo` / `tauri` (React) |
+`--ui vue|react` overrides the web/desktop UI for the default choice when the user asks for it. Then continue with the **stack** skill from "§2 Record" step 1 (ADR — for "Let Claude choose", the ADR records Claude's reasons) and step 3 (CLAUDE.md "Stack" section).
 
 Then offer to scaffold: "Want me to create the app now from the ai-sdlc templates?" On yes: `sdlc scaffold-app --name <app-name>` (see the **stack** skill §3). It's a fixed, verified template, so it doesn't need the intent→plan chain; it must end with verify green. Then suggest committing, and `/ai-sdlc:vibe` for the first feature.
 

@@ -508,60 +508,80 @@ function stack() {
     return;
   }
 
-  // --surfaces web,mobile,desktop --backend fullstack|separated → components (the setup questions)
-  if ((f.surfaces || f.components) && !f.force && detectProject(root).existing) {
+    if ((f.surfaces || f.components) && !f.force && detectProject(root).existing) {
     die('this repo already contains an app — use `sdlc stack --detect` (keeps the existing stack). Use --force only to add new-app presets on purpose.');
   }
+  // Stack choice:
+  //   --choice default → the owner's default templates (Nuxt on web/desktop, Flutter on mobile)
+  //   --choice claude  → Claude's own picks (React + Hono at the edge, React SPA, Expo, Tauri + React)
+  // Backend: fullstack (the edge app is the backend) | separated (new Go API) | existing (an API you don't own → BFF)
+  const PICKS = {
+    default: { 'edge-web': 'vue', 'spa-web': 'vue', 'bff-web': 'vue', tauri: 'vue', mobile: 'flutter' },
+    claude: { 'edge-web': 'react-hono', 'spa-web': 'react', 'bff-web': 'react', tauri: 'react', mobile: 'expo' }
+  };
   let surfaces = null;
   let backend = null;
+  const choice = f.choice || 'default';
+  if (!PICKS[choice]) die('--choice must be default or claude');
+  const picks = { ...PICKS[choice] };
+  if (f.ui) { // explicit UI override for every web/desktop component
+    if (!['vue', 'react', 'react-hono'].includes(f.ui)) die('--ui must be vue, react or react-hono');
+    for (const k of ['edge-web', 'spa-web', 'bff-web', 'tauri']) picks[k] = f.ui === 'react-hono' && k !== 'edge-web' ? 'react' : f.ui;
+  }
+  let compList;
   if (f.surfaces) {
-    surfaces = String(f.surfaces).split(',').map((s) => s.trim()).filter(Boolean);
-    for (const s of surfaces) if (!['web', 'mobile', 'desktop'].includes(s)) die(`unknown surface ${s} (web|mobile|desktop)`);
+    surfaces = String(f.surfaces).split(',').map((x) => x.trim()).filter(Boolean);
+    for (const x of surfaces) if (!['web', 'mobile', 'desktop'].includes(x)) die(`unknown surface ${x} (web|mobile|desktop)`);
     backend = f.backend;
-    if (!['fullstack', 'separated'].includes(backend)) die('--backend must be fullstack or separated');
-    const set = new Set();
+    if (!['fullstack', 'separated', 'existing'].includes(backend)) die('--backend must be fullstack, separated or existing');
+    compList = [];
     if (backend === 'separated') {
-      // one contract-first Go API + Postgres serves every client
-      if (surfaces.includes('web')) set.add('bff-web');
-      set.add('go-api');
+      // a new contract-first Go API owns auth + sessions for every client; the web SPA reaches it same-origin via a passthrough Worker
+      if (surfaces.includes('web')) compList.push('spa-web');
+      compList.push('go-api');
+    } else if (backend === 'existing') {
+      // an API the team doesn't control: the BFF keeps its tokens/keys server-side and owns the browser session
+      if (surfaces.includes('web')) compList.push('bff-web');
     } else if (surfaces.includes('web') || surfaces.includes('mobile')) {
-      // fullstack: the Cloudflare app is the backend; mobile/desktop call its /api routes
-      set.add('edge-web');
-    } // desktop-only fullstack: Tauri's Rust side is the whole backend (local SQLite), no server
-    if (surfaces.includes('mobile')) set.add('flutter');
-    if (surfaces.includes('desktop')) set.add('tauri');
-    f.components = [...set].join(',');
+      compList.push('edge-web'); // fullstack: the Cloudflare app is the backend; native clients call its /api
+    } // desktop-only fullstack: Tauri's Rust side is the whole backend (local SQLite)
+    if (surfaces.includes('mobile')) compList.push(picks.mobile);
+    if (surfaces.includes('desktop')) compList.push('tauri');
+  } else if (f.components) {
+    compList = String(f.components).split(',').map((x) => x.trim()).filter(Boolean);
   }
-  if (!f.components) {
+  if (!compList) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing [--choice default|claude]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
   }
-  const names = String(f.components).split(',').map((s) => s.trim()).filter(Boolean);
-  for (const n of names) if (!profiles[n]) die(`unknown component ${n}`);
-  const ui = f.ui || 'vue';
-  if (!['vue', 'react'].includes(ui)) die('--ui must be vue or react');
+  for (const n of compList) if (!profiles[n]) die(`unknown component ${n}`);
+  // desktop next to a Nuxt web app → Nuxt desktop extending the shared layer (packages/ui-layer);
+  // desktop-only stays Vite + Vue
+  if (compList.includes('tauri') && picks.tauri === 'vue' && compList.some((n) => ['edge-web', 'spa-web', 'bff-web'].includes(n) && picks[n] === 'vue')) picks.tauri = 'nuxt';
   const dirOverrides = Object.fromEntries(String(f.dirs || '').split(',').filter(Boolean).map((kv) => kv.split('=')));
-  const comps = names.map((n) => ({ name: n, dir: dirOverrides[n] || (names.length === 1 ? '.' : profiles[n].defaultDir) }));
+  const comps = compList.map((n) => ({ name: n, dir: dirOverrides[n] || (compList.length === 1 ? '.' : profiles[n].defaultDir), ...(picks[n] ? { ui: picks[n] } : {}) }));
+  const presetKey = (c) => ({ 'react-hono': 'react', nuxt: 'vue' })[c.ui] || c.ui || 'vue';
 
   const cfgFile = path.join(root, '.sdlc', 'config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
-  const verify = comps.flatMap((c) => (profiles[c.name].verify[ui] || profiles[c.name].verify.any).map((v) => ({ ...v, cmd: sub(v.cmd, c.dir) })));
+  const verify = comps.flatMap((c) => (profiles[c.name].verify[presetKey(c)] || profiles[c.name].verify.any).map((v) => ({ ...v, cmd: sub(v.cmd, c.dir) })));
   if (!cfg.verify?.length || f.force) cfg.verify = verify;
   else for (const v of verify) if (!cfg.verify.some((e) => e.name === v.name)) cfg.verify.push(v);
-  cfg.protectedPaths = union(cfg.protectedPaths, comps.flatMap((c) => profiles[c.name].protectedPaths.map((p) => sub(p, c.dir))));
+  cfg.protectedPaths = union(cfg.protectedPaths, comps.flatMap((c) => profiles[c.name].protectedPaths.map((pp) => sub(pp, c.dir))));
   cfg.prodPatternsExtra = union(cfg.prodPatternsExtra, comps.flatMap((c) => profiles[c.name].prodPatterns));
   const fmt = comps.map((c) => profiles[c.name].formatOnEdit && { glob: sub(profiles[c.name].formatOnEdit.glob, c.dir), cmd: sub(profiles[c.name].formatOnEdit.cmd, c.dir) }).filter(Boolean);
   if (!cfg.formatOnEdit || f.force) cfg.formatOnEdit = fmt;
   fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
 
+  const UI_LABEL = { vue: 'Vue/Nuxt + Nuxt UI + Tailwind', react: 'React + shadcn/ui + Tailwind', 'react-hono': 'React + shadcn/ui + Tailwind, Hono API' };
   const record = {
-    surfaces: surfaces || undefined, backend: backend || undefined,
+    mode: 'new', choice, surfaces: surfaces || undefined, backend: backend || undefined,
     components: comps.map((c) => ({ ...c, title: profiles[c.name].title, reference: `skills/stack/references/${profiles[c.name].reference}` })),
-    ui: ui === 'vue' ? 'Vue/Nuxt + Nuxt UI + Tailwind' : 'React/Next + shadcn/ui + Tailwind',
+    ui: UI_LABEL[comps.find((c) => c.ui)?.ui] || null,
     ssr: false, decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null
   };
   fs.writeFileSync(stackFile, JSON.stringify(record, null, 2) + '\n');
-  console.log(`wrote .sdlc/stack.json and merged presets into .sdlc/config.json\nverify: ${cfg.verify.map((v) => v.name).join(', ')}`);
+  console.log(`wrote .sdlc/stack.json (${choice}): ${comps.map((c) => `${c.name}${c.ui ? `[${c.ui}]` : ''}@${c.dir}`).join(', ')}\nverify: ${cfg.verify.map((v) => v.name).join(', ')}`);
 }
 
 // ---------------------------------------------------------------- route ---

@@ -14,20 +14,23 @@ import (
 	"__GO_MODULE__/internal/notes"
 )
 
-// fakeRepo is an in-memory notes.Repo. Notes are kept newest first, like the real query.
+// fakeRepo is an in-memory, owner-scoped notes.Repo. Notes are kept newest first, like the real query.
 type fakeRepo struct {
 	notes []notes.Note
 	err   error
 	calls int
 }
 
-func (f *fakeRepo) Create(_ context.Context, n notes.NewNote) (notes.Note, error) {
+var owner = uuid.MustParse("00000000-0000-4000-8000-000000000001")
+
+func (f *fakeRepo) Create(_ context.Context, ownerID uuid.UUID, n notes.NewNote) (notes.Note, error) {
 	f.calls++
 	if f.err != nil {
 		return notes.Note{}, f.err
 	}
 	note := notes.Note{
 		ID:        uuid.New(),
+		OwnerID:   ownerID,
 		Title:     n.Title,
 		Body:      n.Body,
 		CreatedAt: time.Date(2026, 1, 1, 0, 0, len(f.notes), 0, time.UTC),
@@ -36,13 +39,16 @@ func (f *fakeRepo) Create(_ context.Context, n notes.NewNote) (notes.Note, error
 	return note, nil
 }
 
-func (f *fakeRepo) List(_ context.Context, after *notes.Cursor, limit int) ([]notes.Note, error) {
+func (f *fakeRepo) List(_ context.Context, ownerID uuid.UUID, after *notes.Cursor, limit int) ([]notes.Note, error) {
 	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}
 	var out []notes.Note
 	for _, n := range f.notes {
+		if n.OwnerID != ownerID {
+			continue
+		}
 		if after != nil && !n.CreatedAt.Before(after.CreatedAt) {
 			continue
 		}
@@ -81,7 +87,7 @@ func TestServiceCreate(t *testing.T) {
 			var logs bytes.Buffer
 			svc := notes.NewService(repo, slog.New(slog.NewJSONHandler(&logs, nil)))
 
-			got, err := svc.Create(context.Background(), tt.in)
+			got, err := svc.Create(context.Background(), owner, tt.in)
 
 			var ve *notes.ValidationError
 			switch tt.wantErr {
@@ -133,7 +139,7 @@ func TestServiceListValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := notes.NewService(&fakeRepo{}, nil)
-			_, err := svc.List(context.Background(), tt.limit, tt.cursor)
+			_, err := svc.List(context.Background(), owner, tt.limit, tt.cursor)
 			var ve *notes.ValidationError
 			if tt.ok && err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -150,7 +156,7 @@ func TestServiceListPagination(t *testing.T) {
 	svc := notes.NewService(repo, nil)
 	ctx := context.Background()
 	for _, title := range []string{"one", "two", "three", "four", "five"} {
-		if _, err := svc.Create(ctx, notes.NewNote{Title: title}); err != nil {
+		if _, err := svc.Create(ctx, owner, notes.NewNote{Title: title}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -159,7 +165,7 @@ func TestServiceListPagination(t *testing.T) {
 	cursor := ""
 	pages := 0
 	for {
-		page, err := svc.List(ctx, ptr(2), cursor)
+		page, err := svc.List(ctx, owner, ptr(2), cursor)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,9 +196,9 @@ func TestServiceListExactPageHasNoCursor(t *testing.T) {
 	svc := notes.NewService(repo, nil)
 	ctx := context.Background()
 	for _, title := range []string{"a", "b"} {
-		_, _ = svc.Create(ctx, notes.NewNote{Title: title})
+		_, _ = svc.Create(ctx, owner, notes.NewNote{Title: title})
 	}
-	page, err := svc.List(ctx, ptr(2), "")
+	page, err := svc.List(ctx, owner, ptr(2), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,9 +209,35 @@ func TestServiceListExactPageHasNoCursor(t *testing.T) {
 
 func TestServiceListRepoError(t *testing.T) {
 	svc := notes.NewService(&fakeRepo{err: errors.New("boom")}, nil)
-	_, err := svc.List(context.Background(), nil, "")
+	_, err := svc.List(context.Background(), owner, nil, "")
 	var ve *notes.ValidationError
 	if err == nil || errors.As(err, &ve) {
 		t.Fatalf("want non-validation error, got %v", err)
+	}
+}
+
+func TestServiceRequiresOwner(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := notes.NewService(repo, nil)
+	if _, err := svc.Create(context.Background(), uuid.Nil, notes.NewNote{Title: "x"}); !errors.Is(err, notes.ErrNoOwner) {
+		t.Fatalf("create without owner: %v", err)
+	}
+	if _, err := svc.List(context.Background(), uuid.Nil, nil, ""); !errors.Is(err, notes.ErrNoOwner) {
+		t.Fatalf("list without owner: %v", err)
+	}
+	if repo.calls != 0 {
+		t.Fatal("repo called without an owner")
+	}
+}
+
+func TestServiceListIsScopedToOwner(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := notes.NewService(repo, nil)
+	other := uuid.New()
+	_, _ = svc.Create(context.Background(), owner, notes.NewNote{Title: "mine"})
+	_, _ = svc.Create(context.Background(), other, notes.NewNote{Title: "theirs"})
+	page, err := svc.List(context.Background(), owner, nil, "")
+	if err != nil || len(page.Items) != 1 || page.Items[0].Title != "mine" {
+		t.Fatalf("page = %+v, %v", page, err)
 	}
 }

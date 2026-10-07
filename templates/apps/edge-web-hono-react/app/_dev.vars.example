@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local dev (never commit .dev.vars — it is a secret path). No secrets are needed yet.
+# When session auth is added (Better Auth, see worker/middleware/require-user.ts) it needs a signing secret:
+#   local: put it here; staging/production: `wrangler secret put BETTER_AUTH_SECRET` (a human step — secrets are gated)
+# BETTER_AUTH_SECRET=change-me-to-a-random-string-of-32-chars-or-more

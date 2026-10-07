@@ -1,0 +1,29 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Nuxt UI generated declarations (not used: auto-imports are off)
+auto-imports.d.ts
+components.d.ts
+.nuxt-ui
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.sw?
+
+# Environment
+.env
+.env.*
+!.env.example

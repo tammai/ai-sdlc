@@ -18,7 +18,7 @@ Requires Node ≥ 18 (hooks and CLI have zero dependencies) and git; `gh` for PR
 
 ```text
 /ai-sdlc:setup                     # once per repo: config, CLAUDE.md, REVIEW.md
-                                   # new repo: asks web / mobile / desktop, fullstack or separated backend
+                                   # new repo: default templates or let Claude choose; web / mobile / desktop; backend
                                    # existing repo: keeps its stack, baselines checks that already fail
 /ai-sdlc:vibe add a claims status page for customers
 /ai-sdlc:fix login fails when email has a plus sign
@@ -54,39 +54,60 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 
 `sdlc route [role]` resolves the agent for the active change. Each role has one source definition in `agents-src/`. After editing one, regenerate the tier variants with `node scripts/build-agents.mjs`.
 
-## Opinionated stacks (`/ai-sdlc:stack`)
-| Need | Stack |
-|---|---|
-| Simple web app | **Nuxt 4** full-stack on **Cloudflare Workers** (D1 + KV + R2, Drizzle), Nuxt UI, Tailwind v4, `ssr:false`. React variant: Next + shadcn/ui via OpenNext |
-| Complex web app | **Nuxt/Next BFF** (SPA, cookie sessions) → **Go API** (OpenAPI contract-first, oapi-codegen + chi, sqlc + pgx, goose) → **Postgres** in Docker |
-| Mobile | **Flutter** (Riverpod, go_router, Dio + generated client) over the Go API |
-| Desktop | **Tauri v2** with a Nuxt UI (or React + shadcn/ui) SPA; Rust commands as the BFF |
+## Stacks (`/ai-sdlc:stack`)
+For a new app, setup asks three things:
+1. **Stack:** use the team's **default templates**, or **let Claude choose** what it's most confident building and verifying.
+2. **Apps:** web, mobile and/or desktop.
+3. **Backend** (default templates only; Claude decides it on the other path).
 
-Setup asks two questions — **which surfaces** (web, mobile, desktop) and **fullstack vs separated backend** — and `sdlc stack --surfaces web,mobile --backend fullstack|separated` maps them to components:
+| Backend | Default templates | Claude's choice |
+|---|---|---|
+| **Fullstack**: the edge app is the backend | `edge-web-nuxt`: Nuxt 4 on Cloudflare Workers (D1/KV/R2, Drizzle) | `edge-web-hono-react`: Vite + React SPA and a Hono API in one Worker |
+| **New separate backend**: a Go API owns accounts and sessions for every client | `spa-web-nuxt` (Nuxt `ssr:false` + passthrough Worker) + `go-api` | `spa-web-react` (Vite + React + passthrough Worker) + `go-api` |
+| **Existing API** you don't control | `bff-web-nuxt`: the BFF keeps that API's tokens/keys server-side | `bff-web-next` |
+| + Mobile | `flutter` | `expo` |
+| + Desktop | `tauri-nuxt` next to a Nuxt web app (shares `packages/ui-layer`); `tauri-vue` when desktop is the only app | `tauri-react` |
 
-| Backend | Web | + Mobile | + Desktop |
-|---|---|---|---|
-| fullstack | `edge-web` | `flutter` → edge-web `/api` | `tauri` (desktop-only: local-first Rust + SQLite) |
-| separated | `bff-web` + `go-api` | `flutter` + `go-api` | `tauri` + `go-api` |
+How the pieces fit:
+- **No BFF in front of your own API.** The Go API sets an httpOnly session cookie for the web (with CSRF protection) and issues bearer tokens to mobile and desktop.
+  - Sign-in methods: password, optional magic link, and OIDC providers. Native apps use PKCE.
+  - The SPA reaches the API on its own origin through a Cloudflare Worker that only forwards `/api/*`.
+  - The API runs on AWS, GCP, DigitalOcean or any VPS. A full BFF in front of your own API needs an ADR.
+- **Nuxt on the web, everywhere.** You get one project layout (file routing, layouts, middleware), with SSR off.
+- **Desktop matches the web app.** When there's also a Nuxt web app, desktop is Nuxt and both extend a shared layer (theme, components, composables). Desktop on its own is Vite + Vue with file-based routing.
 
-`sdlc stack` records the decision in `.sdlc/stack.json` and merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
+`sdlc stack --choice … --surfaces … --backend …` records the decision in `.sdlc/stack.json`. It also merges each component's verify commands, protected generated paths, formatters and production-gate patterns into `.sdlc/config.json`.
 
 ## App templates (`sdlc scaffold-app`)
-For a new app, setup offers to create it from full, working templates in `templates/apps/`. Each template is generated with the framework's official tooling, pinned with a lockfile, and ships one working **notes** feature (list and create, validation, empty, loading and error states, tests) to copy for real features.
+Setup offers to create the app from full, working templates in `templates/apps/`. Each template:
+- is generated with the framework's official tooling;
+- is pinned with a lockfile;
+- ships one working **notes** feature (list and create, validation, empty, loading and error states, tests) to copy for real features.
 
 | Template | What you get |
 |---|---|
-| `edge-web-nuxt` / `edge-web-next` | Nuxt 4 + Nuxt UI, or Next 16 + shadcn/ui (OpenNext), SPA on Cloudflare Workers, with D1 via Drizzle, KV and R2 bindings, and tests on a local D1 |
-| `bff-web-nuxt` / `bff-web-next` | Nuxt/Next BFF holding a cookie session, CSRF check, and a typed client generated from `contracts/openapi.yaml` |
-| `go-api` | chi + oapi-codegen strict server, sqlc + pgx, goose, JWT/JWKS middleware, problem+json errors, Dockerfile, compose with Postgres; tools run as `go tool` |
-| `tauri-nuxt` / `tauri-react` | Tauri v2 with Rust commands as the BFF, local SQLite, least-privilege capabilities, strict CSP, typed `invoke` wrapper |
-| `flutter` | Material 3, Riverpod, go_router, Dio with an auth interceptor, notes feature against the shared contract |
+| `edge-web-nuxt` / `edge-web-next` / `edge-web-hono-react` | SPA + API on one Cloudflare Worker: D1 via Drizzle, KV and R2 bindings, tests on a local D1 |
+| `spa-web-nuxt` / `spa-web-react` | Static SPA + a passthrough Worker (`/api/*` → Go API); sign-in screens driven by `/v1/auth/providers`; route guard; typed client from the contract |
+| `go-api` | chi + oapi-codegen strict server, sqlc + pgx, goose, Postgres in Docker; auth with cookie sessions + bearer tokens, password (argon2id), magic link, OIDC with PKCE, refresh rotation with reuse detection, CSRF, rate limits; notes scoped per user |
+| `bff-web-nuxt` / `bff-web-next` | BFF for an existing API: server-held session, CSRF check, typed client |
+| `flutter` / `expo` | Mobile client of the Go API: bearer tokens in secure storage, notes screens (Expo also: single-flight refresh, OIDC with PKCE, magic-link deep links) |
+| `tauri-nuxt` / `tauri-vue` / `tauri-react` | Tauri v2 with Rust commands as the BFF, local SQLite, least-privilege capabilities, strict CSP, typed `invoke` wrapper |
 
-`sdlc scaffold-app` copies the templates for the components in `.sdlc/stack.json`, fills in the app name, installs, writes the verify commands, adds stack notes to CLAUDE.md, and runs verify. `.github/workflows/templates.yml` scaffolds and verifies every template weekly on Linux. It needs no Claude token.
+`sdlc scaffold-app` copies the templates for the components in `.sdlc/stack.json`, then:
+- fills in the app name;
+- copies the shared `contracts/openapi.yaml`, `docker-compose.yml` and the Nuxt layer;
+- installs, writes the verify commands, and adds stack notes to CLAUDE.md;
+- runs verify.
+
+On existing projects it only adds new components into empty folders. `.github/workflows/templates.yml` scaffolds and verifies every template and a web + desktop combination weekly on Linux. It needs no Claude token.
 
 Known limits:
+- **Nuxt 4.6 templates need Node ≥ 22.21.** On older Node 22, `nuxt generate` fails.
+- **Windows paths:** keep project paths short on Windows. Cloudflare's local runtime (workerd) and Expo's Hermes compiler fail beyond the 260-character path limit. WSL also works.
 - **edge-web-next** builds on Linux, macOS or WSL. OpenNext needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
 - **flutter** was written without a local Flutter SDK; CI proves it on Linux. Its lockfile is created on first install.
+- **The BFF templates' login** is a dev stub; replace it with your API's real auth.
+- **go-api:** tests don't use `-race` (needs cgo). Rate limits are per instance; add edge rate limiting. There are no email-verification or password-reset endpoints yet.
 
 ## Guardrails (hooks)
 | Hook | What it does |

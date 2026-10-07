@@ -1,0 +1,7 @@
+- Vite + React SPA and a Hono API in ONE Cloudflare Worker (`@cloudflare/vite-plugin`; static assets with SPA fallback, `/api/*` runs the Worker first; no SSR). D1 via Drizzle, KV, R2. UI: shadcn/ui + Tailwind v4, TanStack Query, React Router.
+- Commands: `pnpm dev` · `typecheck` · `lint` · `test` (vitest; offline, D1 emulated by wrangler's local workerd) · `build` · `db:generate` · `db:migrate:local`.
+- Layout: `src/` = SPA only · `worker/` = the only server code (`app.ts` mounts `routes/*`, validate every body/query with Zod from `shared/`, bindings via `c.env.DB|KV|BUCKET`, errors are problem+json) · `worker/db/schema.ts` · `shared/` Zod schemas + types.
+- The SPA calls the API only through the typed Hono client `src/lib/api.ts` (`hc<AppType>`); chain new routes in `worker/app.ts` so `AppType` stays complete. Add shadcn components with `pnpm dlx shadcn@latest add <name>`.
+- Never edit `worker/db/migrations/` by hand — change `schema.ts`, run `pnpm db:generate`, commit the output; apply locally with `pnpm db:migrate:local`.
+- Non-public routes use `requireUser` (`worker/middleware/require-user.ts`, fails closed; Better Auth + D1 Drizzle adapter is the plan); notes are public only as a demo.
+- Applying D1 migrations remotely, `wrangler secret put` and production `wrangler deploy` need a human; `CLOUDFLARE_ENV=staging pnpm build && wrangler deploy` is the preview.

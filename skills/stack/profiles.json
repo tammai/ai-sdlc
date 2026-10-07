@@ -189,7 +189,7 @@
       ]
     },
     "tauri": {
-      "title": "Tauri v2 — Nuxt UI (or React + shadcn/ui) SPA, Rust commands as BFF",
+      "title": "Tauri v2 — Vite + Vue + Nuxt UI (or React + shadcn/ui) SPA, Rust commands as BFF",
       "defaultDir": "desktop",
       "reference": "desktop-tauri.md",
       "verify": {
@@ -240,7 +240,8 @@
       },
       "protectedPaths": [
         "{dir}/src-tauri/gen/**",
-        "{dir}/src-tauri/target/**"
+        "{dir}/src-tauri/target/**",
+        "{dir}/src/typed-router.d.ts"
       ],
       "formatOnEdit": {
         "glob": "{dir}/src-tauri/**/*.rs",
@@ -249,6 +250,93 @@
       "prodPatterns": [
         "\\btauri\\s+signer\\b",
         "\\bgh\\s+release\\s+(create|upload)\\b"
+      ]
+    },
+    "spa-web": {
+      "title": "Static SPA (Nuxt ssr:false + Nuxt UI, or Vite + React + shadcn/ui) served by one Cloudflare Worker that passes /api/* through to the Go API",
+      "defaultDir": "web",
+      "reference": "web-spa-go.md",
+      "verify": {
+        "vue": [
+          {
+            "name": "typecheck",
+            "cmd": "cd {dir} && pnpm run typecheck"
+          },
+          {
+            "name": "lint",
+            "cmd": "cd {dir} && pnpm run lint"
+          },
+          {
+            "name": "test",
+            "cmd": "cd {dir} && pnpm run test"
+          },
+          {
+            "name": "build",
+            "cmd": "cd {dir} && pnpm run build"
+          }
+        ],
+        "react": [
+          {
+            "name": "typecheck",
+            "cmd": "cd {dir} && pnpm run typecheck"
+          },
+          {
+            "name": "lint",
+            "cmd": "cd {dir} && pnpm run lint"
+          },
+          {
+            "name": "test",
+            "cmd": "cd {dir} && pnpm run test"
+          },
+          {
+            "name": "build",
+            "cmd": "cd {dir} && pnpm run build"
+          }
+        ]
+      },
+      "protectedPaths": [
+        "{dir}/app/api/schema.d.ts",
+        "{dir}/src/api/schema.d.ts",
+        "{dir}/.nuxt/**",
+        "{dir}/.output/**",
+        "{dir}/dist/**"
+      ],
+      "formatOnEdit": {
+        "glob": "{dir}/**/*.{ts,tsx,vue,js,mjs}",
+        "cmd": "cd {dir} && pnpm exec eslint --fix {file}"
+      },
+      "prodPatterns": []
+    },
+    "expo": {
+      "title": "Expo (React Native) — expo-router, TanStack Query, typed client from the contract, bearer tokens in SecureStore",
+      "defaultDir": "mobile",
+      "reference": "mobile-expo.md",
+      "verify": {
+        "any": [
+          {
+            "name": "typecheck",
+            "cmd": "cd {dir} && pnpm run typecheck"
+          },
+          {
+            "name": "lint",
+            "cmd": "cd {dir} && pnpm run lint"
+          },
+          {
+            "name": "test",
+            "cmd": "cd {dir} && pnpm run test"
+          }
+        ]
+      },
+      "protectedPaths": [
+        "{dir}/src/api/schema.d.ts"
+      ],
+      "formatOnEdit": {
+        "glob": "{dir}/**/*.{ts,tsx}",
+        "cmd": "cd {dir} && pnpm exec eslint --fix {file}"
+      },
+      "prodPatterns": [
+        "\beass+(submit|update)\b.*(production|--branchs+production)",
+        "\beass+build\b.*--auto-submit"
       ]
     }
   }

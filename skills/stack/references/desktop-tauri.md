@@ -1,6 +1,6 @@
 # Profile: tauri — desktop app, Rust as the BFF
 
-**Stack:** Tauri v2 · frontend = Nuxt 4 SPA (`ssr: false`, `nuxt generate`) + Nuxt UI + Tailwind v4 (default) or Vite + React + shadcn/ui · Rust commands are the BFF: all network, filesystem, secrets and local DB go through them · `reqwest` for the Go API (when present) · `keyring` for tokens · SQLite via `sqlx` (or `tauri-plugin-sql`) for local data · `tauri-plugin-updater` with signed updates.
+**Stack:** Tauri v2 · frontend = Vite + Vue 3 + Nuxt UI (Vite plugin) + Tailwind v4 (default) or Vite + React + shadcn/ui · Rust commands are the BFF: all network, filesystem, secrets and local DB go through them · `reqwest` for the Go API (when present) · `keyring` for tokens · SQLite via `sqlx` (or `tauri-plugin-sql`) for local data · `tauri-plugin-updater` with signed updates.
 
 ## Layout
 ```

@@ -1,14 +1,40 @@
 openapi: 3.1.0
 info:
   title: __APP_TITLE__ API
-  version: 0.1.0
-  description: Contract shared by the Go API, the web BFF and the mobile/desktop clients. Change this first, then regenerate.
+  version: 0.3.0
+  description: |
+    Contract shared by the Go API and every client (web SPA through the Cloudflare edge proxy,
+    mobile and desktop directly). Change this first, then regenerate server and clients.
+
+    Auth model:
+    - Web (browser) uses a first-party session cookie. The SPA reaches the API on its own origin
+      through the edge proxy (`/api/*` → API with the `/api` prefix stripped), so the cookie is
+      same-origin. Every cookie-authenticated request that changes state must send the header
+      `X-Requested-With: fetch`, and its `Origin` must be in the API's allowed origins (CSRF).
+    - Mobile and desktop use opaque bearer tokens from `POST /v1/auth/token` (revocable, stored
+      hashed server-side). Refresh with `grantType: refresh_token`. Native sign-up: `POST /v1/auth/register`
+      (ignore the cookie), then `POST /v1/auth/token` with `grantType: password`.
+    - Local accounts: email + password (argon2id). Magic link is optional (server config).
+    - External identity providers: OIDC authorization code flow handled by the API. The web flow
+      ends with the API setting the session cookie and redirecting to the app. The native flow ends
+      with a redirect to the app's custom scheme carrying a one-time `code`, exchanged with
+      `grantType: authorization_code`. Native clients MUST use PKCE with the API (RFC 8252): send
+      `codeChallenge` (S256) to `/start` and the matching `codeVerifier` with the code exchange, so an
+      app that intercepts the custom-scheme redirect cannot redeem the code. On failure the native redirect carries `error` (an OAuth error
+      code: `access_denied`, `invalid_request` or `server_error`) instead of `code`; the web flow redirects to
+      `/login?error=<code>` with one of `access_denied`, `invalid_state`, `server_error`,
+      `email_not_verified`, `registration_closed`, `no_email`.
+    - `GET /v1/auth/providers` tells clients which methods are enabled, so UIs render only those.
 servers:
   - url: __API_URL__
+security:
+  - cookieAuth: []
+  - bearerAuth: []
 paths:
   /healthz:
     get:
       operationId: healthz
+      tags: [ops]
       security: []
       responses:
         '200':
@@ -20,27 +46,224 @@ paths:
                 required: [status]
                 properties:
                   status: { type: string, enum: [ok] }
+
+  /v1/auth/providers:
+    get:
+      operationId: getAuthProviders
+      tags: [auth]
+      security: []
+      responses:
+        '200':
+          description: Enabled sign-in methods
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthProviders' }
+
+  /v1/auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      security: []
+      description: Create a local account. Returns 403 when self-registration is disabled. Web clients receive a session cookie; native clients ignore it and then call /v1/auth/token with grantType password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created; session cookie set
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/session:
+    post:
+      operationId: createSession
+      tags: [auth]
+      security: []
+      description: Web sign-in with email + password. Sets the session cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordCredentials' }
+      responses:
+        '200':
+          description: Signed in
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      operationId: deleteSession
+      tags: [auth]
+      description: Web sign-out. Revokes the session and clears the cookie.
+      responses:
+        '204':
+          description: Signed out; the session cookie is cleared
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/token:
+    post:
+      operationId: createToken
+      tags: [auth]
+      security: []
+      description: Native clients (mobile, desktop) obtain or refresh opaque bearer tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequest' }
+      responses:
+        '200':
+          description: Tokens issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/token/revoke:
+    post:
+      operationId: revokeToken
+      tags: [auth]
+      security: []
+      description: Native sign-out. Revokes the session behind a refresh token (idempotent).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '204': { description: Revoked }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/magic-link:
+    post:
+      operationId: requestMagicLink
+      tags: [auth]
+      security: []
+      description: Email a one-time sign-in link. Always 202 for a well-formed request (no account enumeration). 404 when magic link is disabled.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                client: { $ref: '#/components/schemas/ClientKind' }
+      responses:
+        '202': { description: 'If the account exists, a link was sent' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/magic-link/verify:
+    post:
+      operationId: verifyMagicLink
+      tags: [auth]
+      security: []
+      description: Web completes a magic-link sign-in (the SPA page reads `token` from the link and posts it). Sets the session cookie. Native clients use /v1/auth/token with grantType magic_link instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: { type: string, minLength: 16, maxLength: 512 }
+      responses:
+        '200':
+          description: Signed in
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/oidc/{provider}/start:
+    get:
+      operationId: startOidc
+      tags: [auth]
+      security: []
+      description: Redirects to the identity provider. `client=web` (default) returns to `redirect` (an app path) with the session cookie set; `client=native` returns to the registered native redirect URI with a one-time `code` (or `error` on failure).
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, pattern: '^[a-z0-9-]{1,32}$' } }
+        - { name: client, in: query, required: false, schema: { $ref: '#/components/schemas/ClientKind' } }
+        - { name: redirect, in: query, required: false, description: 'Web: app-relative path to land on (must start with /)', schema: { type: string, maxLength: 512 } }
+        - { name: codeChallenge, in: query, required: false, description: 'Native (required when client=native): base64url(SHA-256(codeVerifier))', schema: { type: string, minLength: 43, maxLength: 128 } }
+        - { name: codeChallengeMethod, in: query, required: false, description: 'Native: must be S256', schema: { type: string, enum: [S256] } }
+      responses:
+        '302':
+          description: Redirect to the identity provider
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/oidc/{provider}/callback:
+    get:
+      operationId: oidcCallback
+      tags: [auth]
+      security: []
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, pattern: '^[a-z0-9-]{1,32}$' } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '302':
+          description: 'Back to the app (web: session cookie set; native: custom-scheme redirect with a one-time code, or error)'
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            Set-Cookie: { $ref: '#/components/headers/SessionCookie' }
+        default: { $ref: '#/components/responses/Problem' }
+
+  /v1/auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      responses:
+        '200':
+          description: The signed-in user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        default: { $ref: '#/components/responses/Problem' }
+
   /v1/notes:
     get:
       operationId: listNotes
+      tags: [notes]
+      description: The signed-in user's notes, newest first.
       parameters:
-        - name: limit
-          in: query
-          required: false
-          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-        - name: cursor
-          in: query
-          required: false
-          schema: { type: string }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
       responses:
         '200':
-          description: A page of notes, newest first
+          description: A page of notes
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NotePage' }
         default: { $ref: '#/components/responses/Problem' }
     post:
       operationId: createNote
+      tags: [notes]
       requestBody:
         required: true
         content:
@@ -53,13 +276,88 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Note' }
         default: { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
-    bearer:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Web session cookie (httpOnly, Secure, SameSite=Lax). State-changing requests also need `X-Requested-With`.
+    bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      description: Opaque access token from /v1/auth/token (native clients).
+  headers:
+    Location:
+      description: Redirect target
+      schema: { type: string }
+    SessionCookie:
+      description: '`session=<opaque>; Path=/; HttpOnly; Secure; SameSite=Lax`'
+      schema: { type: string }
   schemas:
+    ClientKind:
+      type: string
+      enum: [web, native]
+      default: web
+    AuthProviders:
+      type: object
+      required: [password, registration, magicLink, oidc]
+      properties:
+        password: { type: boolean }
+        registration: { type: boolean, description: Self-registration with email + password is open }
+        magicLink: { type: boolean }
+        oidc:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string }
+              name: { type: string }
+    PasswordCredentials:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 1024 }
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 1024 }
+        name: { type: string, maxLength: 200 }
+    TokenRequest:
+      type: object
+      additionalProperties: false
+      required: [grantType]
+      properties:
+        grantType: { type: string, enum: [password, refresh_token, magic_link, authorization_code] }
+        email: { type: string, format: email, maxLength: 254, description: 'grantType=password' }
+        password: { type: string, maxLength: 1024, description: 'grantType=password' }
+        refreshToken: { type: string, description: 'grantType=refresh_token' }
+        token: { type: string, minLength: 16, maxLength: 512, description: 'grantType=magic_link' }
+        code: { type: string, description: 'grantType=authorization_code (one-time code from the native OIDC redirect)' }
+        codeVerifier: { type: string, minLength: 43, maxLength: 128, description: 'grantType=authorization_code: the PKCE verifier whose S256 challenge was sent to /start' }
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, description: Access token lifetime in seconds }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
     NewNote:
       type: object
       additionalProperties: false
@@ -94,9 +392,7 @@ components:
         detail: { type: string }
   responses:
     Problem:
-      description: Error
+      description: Error (401 unauthenticated, 403 forbidden/CSRF, 404 disabled feature, 422 validation, 429 rate limited — with Retry-After)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-security:
-  - bearer: []

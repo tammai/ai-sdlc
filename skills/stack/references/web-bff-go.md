@@ -1,4 +1,6 @@
-# Profile: bff-web + go-api — BFF in front of a contract-first Go API
+# Profile: bff-web (BFF for an existing API) + go-api (contract-first Go API)
+
+> **When the BFF applies:** in front of an **existing API the team doesn't control**. The BFF keeps that API's tokens or keys server-side, owns the browser session and reshapes calls; replace `contracts/openapi.yaml` with that API's spec. For a **new** Go API, there's no BFF: see `web-spa-go.md`, where the API owns sessions and a passthrough Worker makes it same-origin. The Go API sections below apply to `go-api` in both cases.
 
 **Web (BFF):** Nuxt 4 + Nuxt UI (default) or Next.js + shadcn/ui · Tailwind v4 · `ssr: false` · server routes are a thin BFF: session cookie ↔ bearer token, request shaping, no business logic.
 **API:** Go (current stable) · OpenAPI 3.1 contract at `contracts/openapi.yaml` · `oapi-codegen` strict server on `chi` · `sqlc` + `pgx/v5` · `goose` migrations · `log/slog` JSON logs · Postgres (current stable) · Docker Compose for local and single-host deploys.

@@ -1,0 +1,27 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Dependencies and build output
+node_modules
+dist
+*.local
+
+# Cloudflare local state and secrets
+.wrangler
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Editors, OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Local env files
+.env
+.env.*
+!.env.example

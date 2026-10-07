@@ -1,0 +1,61 @@
+{
+  // One Worker: the Vite SPA is served as static assets, the Hono API (worker/) answers /api/*.
+  // `pnpm dev` / `pnpm build` go through @cloudflare/vite-plugin, which reads this file, emulates the bindings locally
+  // (state in .wrangler/state) and writes the deployable Worker + assets to dist/ (no SSR).
+  // Every id marked PLACEHOLDER must be replaced with a real one (`wrangler d1 create`, `wrangler kv namespace create`)
+  // before the first remote deploy — a human step. Add "nodejs_compat" to compatibility_flags when a library needs it.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-06",
+  "assets": {
+    // Unknown paths get index.html so React Router handles deep links and refreshes...
+    "not_found_handling": "single-page-application",
+    // ...except /api/*, which always reaches the Worker (so an unknown API path is a JSON 404, never the SPA).
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true },
+  "upload_source_maps": true,
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "__APP_NAME__-db",
+      "database_id": "00000000-0000-0000-0000-000000000000", // PLACEHOLDER (ignored by local dev)
+      "migrations_dir": "worker/db/migrations"
+    }
+  ],
+  "kv_namespaces": [{ "binding": "KV", "id": "00000000000000000000000000000000" }], // PLACEHOLDER
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files" }],
+
+  // Build for an environment with `CLOUDFLARE_ENV=staging pnpm build`, then `wrangler deploy` (human-gated for production).
+  // Bindings are NOT inherited by environments, so each one redeclares them.
+  "env": {
+    "staging": {
+      "name": "__APP_NAME__-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "__APP_NAME__-db-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID", // PLACEHOLDER
+          "migrations_dir": "worker/db/migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "REPLACE_WITH_STAGING_KV_ID" }], // PLACEHOLDER
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files-staging" }]
+    },
+    "production": {
+      "name": "__APP_NAME__-production",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "__APP_NAME__-db-production",
+          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID", // PLACEHOLDER
+          "migrations_dir": "worker/db/migrations"
+        }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "REPLACE_WITH_PRODUCTION_KV_ID" }], // PLACEHOLDER
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files-production" }]
+    }
+  }
+}

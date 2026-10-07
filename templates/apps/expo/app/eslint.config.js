@@ -1,0 +1,7 @@
+const { defineConfig, globalIgnores } = require('eslint/config');
+const expo = require('eslint-config-expo/flat');
+
+module.exports = defineConfig([
+  expo,
+  globalIgnores(['dist/*', '.expo/*', 'src/api/schema.d.ts']),
+]);

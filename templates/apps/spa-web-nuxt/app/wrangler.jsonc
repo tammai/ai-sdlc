@@ -1,0 +1,32 @@
+{
+  // One Worker = the SPA (static assets) + a passthrough proxy for /api/* to the Go API. No business logic here.
+  // `pnpm build` writes the SPA to .output/public; `pnpm dev:worker` builds, then runs `wrangler dev` on it.
+  // ORIGIN_URL (the Go API base URL, no trailing slash) is a plain var: top level = local dev,
+  // each env overrides it. Override locally without editing this file via .dev.vars (see .dev.vars.example).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "__APP_NAME__",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+    // Deep links (/notes/42, /auth/magic?token=…) get index.html; the SPA router takes over.
+    "not_found_handling": "single-page-application",
+    // Only /api/* runs the Worker first; every other path is served from assets without invoking it.
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "vars": { "ORIGIN_URL": "http://localhost:8080" }, // dev default
+
+  // `wrangler deploy --env <name>`: vars are NOT inherited, so each env declares its own.
+  "env": {
+    "staging": {
+      "name": "__APP_NAME__-staging",
+      "vars": { "ORIGIN_URL": "https://REPLACE_WITH_STAGING_API_URL" } // PLACEHOLDER
+    },
+    "production": {
+      "name": "__APP_NAME__-production",
+      "vars": { "ORIGIN_URL": "https://REPLACE_WITH_PRODUCTION_API_URL" } // PLACEHOLDER
+    }
+  }
+}

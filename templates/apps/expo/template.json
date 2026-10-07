@@ -1,0 +1,37 @@
+{
+  "id": "expo",
+  "profile": "expo",
+  "ui": "any",
+  "title": "Expo (React Native) — expo-router, TanStack Query, openapi-fetch bearer client, secure-store tokens; notes slice on /v1/notes",
+  "toolchains": [
+    "node>=22",
+    "pnpm>=10"
+  ],
+  "install": [
+    "pnpm install --frozen-lockfile"
+  ],
+  "postInstall": [],
+  "verify": [
+    {
+      "name": "typecheck",
+      "cmd": "pnpm run typecheck"
+    },
+    {
+      "name": "lint",
+      "cmd": "pnpm run lint"
+    },
+    {
+      "name": "test",
+      "cmd": "pnpm run test"
+    },
+    {
+      "name": "doctor",
+      "cmd": "pnpm run expo:doctor"
+    }
+  ],
+  "dev": "pnpm start",
+  "shared": [
+    "contracts"
+  ],
+  "verified": "2026-10-07"
+}

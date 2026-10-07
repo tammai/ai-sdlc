@@ -12,8 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-
-	"__GO_MODULE__/internal/auth"
 )
 
 // Limits mirror contracts/openapi.yaml (NewNote, listNotes.limit).
@@ -24,9 +22,10 @@ const (
 	MaxLimit     = 100
 )
 
-// Note is the domain model.
+// Note is the domain model. Every note belongs to exactly one user (OwnerID).
 type Note struct {
 	ID        uuid.UUID
+	OwnerID   uuid.UUID
 	Title     string
 	Body      string
 	CreatedAt time.Time
@@ -55,11 +54,16 @@ type ValidationError struct{ Detail string }
 
 func (e *ValidationError) Error() string { return e.Detail }
 
+// ErrNoOwner means the service was called without an authenticated owner (a wiring bug: the
+// router requires authentication for every notes operation).
+var ErrNoOwner = errors.New("notes: no authenticated owner")
+
 // Repo is the persistence port. The real implementation is sqlc-only (see repo.go).
+// Every method is scoped by owner: a user can never read or change another user's notes (no IDOR).
 type Repo interface {
-	Create(ctx context.Context, n NewNote) (Note, error)
-	// List returns up to limit notes newest first, strictly after the cursor when given.
-	List(ctx context.Context, after *Cursor, limit int) ([]Note, error)
+	Create(ctx context.Context, owner uuid.UUID, n NewNote) (Note, error)
+	// List returns up to limit of owner's notes newest first, strictly after the cursor when given.
+	List(ctx context.Context, owner uuid.UUID, after *Cursor, limit int) ([]Note, error)
 }
 
 // Service holds the notes business rules.
@@ -76,8 +80,12 @@ func NewService(repo Repo, log *slog.Logger) *Service {
 	return &Service{repo: repo, log: log}
 }
 
-// Create validates and stores a note, then emits an audit line (actor, action, entity, id; no content).
-func (s *Service) Create(ctx context.Context, in NewNote) (Note, error) {
+// Create validates and stores a note owned by owner, then emits an audit line (actor, action,
+// entity, id; no content).
+func (s *Service) Create(ctx context.Context, owner uuid.UUID, in NewNote) (Note, error) {
+	if owner == uuid.Nil {
+		return Note{}, ErrNoOwner
+	}
 	in.Title = strings.TrimSpace(in.Title)
 	switch {
 	case in.Title == "":
@@ -88,16 +96,20 @@ func (s *Service) Create(ctx context.Context, in NewNote) (Note, error) {
 		return Note{}, &ValidationError{Detail: fmt.Sprintf("body must be at most %d characters", MaxBodyLen)}
 	}
 
-	n, err := s.repo.Create(ctx, in)
+	n, err := s.repo.Create(ctx, owner, in)
 	if err != nil {
 		return Note{}, fmt.Errorf("create note: %w", err)
 	}
-	s.log.InfoContext(ctx, "audit", "actor", auth.Subject(ctx), "action", "note.create", "entity", "note", "id", n.ID)
+	s.log.InfoContext(ctx, "audit", "actor", owner.String(), "action", "note.create", "entity", "note", "id", n.ID)
 	return n, nil
 }
 
-// List returns one page of notes. A nil limit means DefaultLimit; an empty cursor means the first page.
-func (s *Service) List(ctx context.Context, limit *int, cursor string) (Page, error) {
+// List returns one page of owner's notes. A nil limit means DefaultLimit; an empty cursor means the
+// first page.
+func (s *Service) List(ctx context.Context, owner uuid.UUID, limit *int, cursor string) (Page, error) {
+	if owner == uuid.Nil {
+		return Page{}, ErrNoOwner
+	}
 	n := DefaultLimit
 	if limit != nil {
 		n = *limit
@@ -115,7 +127,7 @@ func (s *Service) List(ctx context.Context, limit *int, cursor string) (Page, er
 	}
 
 	// Fetch one extra row to know whether another page exists.
-	items, err := s.repo.List(ctx, after, n+1)
+	items, err := s.repo.List(ctx, owner, after, n+1)
 	if err != nil {
 		return Page{}, fmt.Errorf("list notes: %w", err)
 	}

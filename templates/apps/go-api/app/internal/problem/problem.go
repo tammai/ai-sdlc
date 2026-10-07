@@ -15,6 +15,7 @@ type Error struct {
 	Status int
 	Title  string
 	Detail string
+	Header http.Header // extra response headers (e.g. Retry-After on 429); optional
 }
 
 func (e *Error) Error() string {
@@ -39,6 +40,11 @@ type body struct {
 
 // Write sends the problem as application/problem+json.
 func Write(w http.ResponseWriter, e *Error) {
+	for k, vs := range e.Header {
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
 	w.Header().Set("Content-Type", ContentType)
 	w.WriteHeader(e.Status)
 	_ = json.NewEncoder(w).Encode(body{Type: "about:blank", Title: e.Title, Status: e.Status, Detail: e.Detail})

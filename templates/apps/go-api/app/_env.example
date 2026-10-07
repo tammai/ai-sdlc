@@ -1,13 +1,67 @@
 # Copy to .env (never commit .env). The server reads the process environment; export these or use your shell/IDE.
+# Every value below is a fake example. Unset variables use the defaults noted.
+
+# --- core ---
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/__APP_SNAKE__?sslmode=disable
 PORT=8080
-
 # Apply embedded goose migrations on start (convenient locally; gate it in production).
 RUN_MIGRATIONS=true
-
-# JWT validation. Leave AUTH_JWKS_URL empty ONLY for local development (auth is then disabled).
-# The server refuses to start with APP_ENV=production and no AUTH_JWKS_URL.
-AUTH_JWKS_URL=
-AUTH_ISSUER=
-AUTH_AUDIENCE=
+# APP_ENV=production refuses insecure settings (COOKIE_SECURE=false, http URLs, MAGIC_LINK=log, missing APP_URL, ...).
 # APP_ENV=production
+
+# --- origins ---
+# The web app's origin. The SPA reaches this API through the edge proxy at ${APP_URL}/api/* (prefix stripped),
+# so the session cookie is first-party. Required (https) in production; default http://localhost:3000.
+APP_URL=http://localhost:3000
+# API base as native (mobile/desktop) clients reach it; native OIDC callback base. Default ${APP_URL}/api.
+# API_PUBLIC_URL=https://api.example.com
+# API base as the browser reaches it; web OIDC callback base. Default ${APP_URL}/api.
+# OIDC_WEB_CALLBACK_BASE=https://app.example.com/api
+# CSRF: origins allowed to make cookie-authenticated writes (comma-separated). Default APP_URL.
+# ALLOWED_ORIGINS=https://app.example.com
+# Only these peers' X-Forwarded-For/-Proto/-Host are believed (CIDRs or IPs, comma-separated). Default: none.
+# Set it to your load balancer / proxy range, or per-IP rate limits see the proxy's IP for everyone.
+# TRUSTED_PROXIES=10.0.0.0/8
+
+# --- sessions & tokens ---
+COOKIE_NAME=session
+# Secure cookies need https. false ONLY for local http development (refused in production).
+COOKIE_SECURE=false
+# SESSION_TTL=168h            # web: idle lifetime, slides on use
+# SESSION_ABSOLUTE_TTL=720h   # web: hard cap
+# ACCESS_TOKEN_TTL=15m        # native bearer token
+# REFRESH_TOKEN_TTL=720h      # native refresh token, rotated on every use (reuse revokes the session)
+# REFRESH_ABSOLUTE_TTL=2160h  # native: hard cap from sign-in (90 days); then refresh is 401 and the user signs in again
+
+# --- sign-in methods ---
+AUTH_PASSWORD=true
+# open | closed (closed: /v1/auth/register returns 403 and magic link / OIDC create no new accounts)
+AUTH_REGISTRATION=open
+# off | log | smtp. log prints sign-in links to the server log (local dev only; refused in production).
+MAGIC_LINK=log
+# SMTP_HOST=smtp.example.com
+# SMTP_PORT=587               # 587 STARTTLS (required unless the host is loopback), 465 implicit TLS
+# SMTP_USER=apikey
+# SMTP_PASS=fake-smtp-password
+# SMTP_FROM=__APP_TITLE__ <no-reply@example.com>
+
+# Native apps: exact allow-list of redirect URIs (custom scheme or https app link), comma-separated.
+# The first entry also builds native magic links: <entry>/magic?token=...
+NATIVE_REDIRECT_URIS=com.example.__APP_NAME__:/oauth
+# Where the web OIDC flow lands after a failure (?error=<code>). Default /login.
+# AUTH_ERROR_PATH=/login
+
+# --- OIDC identity providers (any number). Register both callback URLs at the IdP:
+#   web:    ${OIDC_WEB_CALLBACK_BASE}/v1/auth/oidc/<id>/callback
+#   native: ${API_PUBLIC_URL}/v1/auth/oidc/<id>/callback
+# OIDC_PROVIDERS=google,keycloak
+# OIDC_GOOGLE_NAME=Google
+# OIDC_GOOGLE_ISSUER=https://accounts.google.com
+# OIDC_GOOGLE_CLIENT_ID=fake-client-id.apps.googleusercontent.com
+# OIDC_GOOGLE_CLIENT_SECRET=fake-client-secret
+# OIDC_KEYCLOAK_NAME=Company SSO
+# OIDC_KEYCLOAK_ISSUER=https://sso.example.com/realms/main
+# OIDC_KEYCLOAK_CLIENT_ID=__APP_NAME__
+# OIDC_KEYCLOAK_CLIENT_SECRET=fake-client-secret
+# OIDC_KEYCLOAK_SCOPES=openid,email,profile
+# OIDC_KEYCLOAK_TRUST_EMAIL=false   # true only if this IdP owns the email domain and omits email_verified

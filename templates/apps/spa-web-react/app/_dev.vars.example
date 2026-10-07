@@ -1,0 +1,3 @@
+# Copy to .dev.vars to override wrangler.jsonc vars for `pnpm dev:worker` (never commit .dev.vars).
+# Where the Worker forwards /api/* (the Go API). Point it at a different API or a local stub:
+ORIGIN_URL=http://localhost:8080

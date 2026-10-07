@@ -1,0 +1,2 @@
+# Base URL of the Go API (see src/config.ts). Android emulator: http://10.0.2.2:8080. Physical device: your machine's LAN IP.
+EXPO_PUBLIC_API_URL=__API_URL__

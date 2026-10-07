@@ -5,7 +5,10 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"__GO_MODULE__/internal/api/gen"
+	"__GO_MODULE__/internal/auth"
 	"__GO_MODULE__/internal/problem"
 )
 
@@ -22,7 +25,11 @@ func (h *Handler) ListNotes(ctx context.Context, req gen.ListNotesRequestObject)
 	if req.Params.Cursor != nil {
 		cursor = *req.Params.Cursor
 	}
-	page, err := h.svc.List(ctx, req.Params.Limit, cursor)
+	owner, err := currentOwner(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, err := h.svc.List(ctx, owner, req.Params.Limit, cursor)
 	if err != nil {
 		return nil, toProblem(err)
 	}
@@ -46,11 +53,24 @@ func (h *Handler) CreateNote(ctx context.Context, req gen.CreateNoteRequestObjec
 	if req.Body.Body != nil {
 		in.Body = *req.Body.Body
 	}
-	n, err := h.svc.Create(ctx, in)
+	owner, err := currentOwner(ctx)
+	if err != nil {
+		return nil, err
+	}
+	n, err := h.svc.Create(ctx, owner, in)
 	if err != nil {
 		return nil, toProblem(err)
 	}
 	return gen.CreateNote201JSONResponse(toAPI(n)), nil
+}
+
+// currentOwner is the signed-in user; the router already rejects unauthenticated calls, this is defense in depth.
+func currentOwner(ctx context.Context) (uuid.UUID, error) {
+	p, ok := auth.PrincipalFrom(ctx)
+	if !ok {
+		return uuid.Nil, problem.New(http.StatusUnauthorized, "not authenticated")
+	}
+	return p.UserID, nil
 }
 
 func toAPI(n Note) gen.Note {

@@ -1,0 +1,43 @@
+{
+  "id": "tauri-vue",
+  "profile": "tauri",
+  "ui": "vue",
+  "title": "Tauri v2 desktop — Vite + Vue 3 + Nuxt UI, Rust commands as BFF, local SQLite",
+  "toolchains": [
+    "node>=22.12",
+    "pnpm>=10",
+    "rust>=1.82"
+  ],
+  "install": [
+    "pnpm install --frozen-lockfile"
+  ],
+  "postInstall": [],
+  "verify": [
+    {
+      "name": "lint",
+      "cmd": "pnpm run lint"
+    },
+    {
+      "name": "test",
+      "cmd": "pnpm run test"
+    },
+    {
+      "name": "typecheck",
+      "cmd": "pnpm run typecheck"
+    },
+    {
+      "name": "build",
+      "cmd": "pnpm run build"
+    },
+    {
+      "name": "clippy",
+      "cmd": "cd src-tauri && cargo clippy --all-targets -- -D warnings"
+    },
+    {
+      "name": "rust-test",
+      "cmd": "cd src-tauri && cargo test"
+    }
+  ],
+  "dev": "pnpm tauri dev",
+  "verified": "2026-10-07"
+}

@@ -3,3 +3,4 @@
 - Session: nuxt-auth-utils sealed cookie; the API token lives in `session.secure` and never reaches the browser. `server/api/auth/login.post.ts` is a dev stub (paste a JWT) — replace it with your IdP flow.
 - CSRF: `server/middleware/csrf.ts` rejects mutating `/api/**` requests without `X-Requested-With: bff` or with a cross-origin `Origin`. Call the BFF via `app/api/client.ts` (adds the header).
 - Tests: vitest; `test/nuxt` (components), `test/e2e` (built BFF against a stubbed Go API, offline). Contract change → edit `contracts/openapi.yaml`, run `pnpm gen:api`, commit the result.
+- For an existing API: replace contracts/openapi.yaml with that API's spec (or write one), run gen:api, and replace the dev token-paste login with the API's real auth (OAuth/OIDC code flow or server-held API key). Tokens and keys stay server-side in the BFF.

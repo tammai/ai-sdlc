@@ -3,3 +3,4 @@
 - Session: iron-session sealed httpOnly cookie (`SESSION_SECRET`); the API token never reaches the browser. `src/app/api/auth/login/route.ts` is a dev stub (paste a JWT) — replace it with your IdP flow.
 - CSRF: every mutating `/api/**` handler calls `checkCsrf` (needs `X-Requested-With: bff`, same-origin `Origin`). Call the BFF via `src/api/client.ts` (adds the header).
 - Tests: vitest (offline) — route handlers run against a stubbed `fetch` standing in for the Go API (`src/test/`); add shadcn components with `pnpm dlx shadcn@latest add <name>`.
+- For an existing API: replace contracts/openapi.yaml with that API's spec (or write one), run gen:api, and replace the dev token-paste login with the API's real auth (OAuth/OIDC code flow or server-held API key). Tokens and keys stay server-side in the BFF.
