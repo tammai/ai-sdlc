@@ -3,7 +3,7 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
-## [Unreleased]
+## [0.4.2] — 2026-10-07
 
 ### Changed
 - **"Let Claude choose" now asks what the backend needs** before deciding fullstack vs a separate Go API, when the app builds its own backend. The options are payments/multi-tenant/sensitive data, jobs/integrations/reporting, scale or a separate backend team, or a simple app. Claude decides from the answers and records them in the stack ADR. Before, it guessed.
@@ -171,6 +171,7 @@ Installing on an existing project now keeps its stack.
 - **Scaffolds:** `CLAUDE.md`, `REVIEW.md`, `DESIGN.md`, agent eval runner, CI workflows, `/babysit` command, managed-settings reference.
 - MIT license.
 
+[0.4.2]: https://github.com/tammai/ai-sdlc/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/tammai/ai-sdlc/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/tammai/ai-sdlc/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tammai/ai-sdlc/compare/v0.2.1...v0.3.0
