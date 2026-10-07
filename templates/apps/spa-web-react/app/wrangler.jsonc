@@ -16,7 +16,7 @@
     // Only /api/* runs the Worker first; every other path is served from assets without invoking it.
     "run_worker_first": ["/api", "/api/*"]
   },
-  "vars": { "ORIGIN_URL": "http://localhost:8080" }, // dev default
+  "vars": { "ORIGIN_URL": "__API_URL__" }, // dev default (sdlc scaffold-app --api-url, else http://localhost:8080)
 
   // `wrangler deploy --env <name>`: vars are NOT inherited, so each env declares its own.
   "env": {

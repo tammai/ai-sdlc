@@ -98,7 +98,7 @@ export function scaffoldApp({ root, plugin, args, flags, die, loadConfigRaw, sav
     APP_TITLE: flags.title || title(name),
     APP_SNAKE: name.replace(/-/g, '_'),
     GO_MODULE: flags.module || `example.com/${name}/api`,
-    API_URL: flags['api-url'] || 'http://localhost:8080'
+    API_URL: flags['api-url'] || stack?.apiUrl || 'http://localhost:8080'
   };
 
   // Resolve every component's template first, so we know whether Nuxt apps will share a layer.

@@ -53,28 +53,41 @@ Then:
 4. CLAUDE.md "Stack" section: describe what's there (from inspect), not the profile.
 
 ## 5b. New project (no app detected) — what are we building?
-**First call** — one `AskUserQuestion` with two questions:
-1. **"How should the stack be chosen?"** — header `Stack`, single select:
-   - **Let Claude choose (Recommended)** — always the first option and the default. Claude picks what it's most confident building and verifying for this app: React + shadcn/ui on web and desktop (Hono API at the edge for simple apps), Expo on mobile, Go + Postgres for a separate backend.
-   - **Use the team templates** — the team's standard stack: Vue + Nuxt UI on web and desktop (Nuxt on the web, Vite + Vue in the desktop app), Flutter on mobile, Go + Postgres for a separate backend.
-2. **"Which apps are you building?"** — header `Surfaces`, `multiSelect: true`: **Web** (browser SPA) · **Mobile** (iOS + Android) · **Desktop** (Windows/macOS/Linux, Tauri v2).
+**First call:** one `AskUserQuestion` with three questions. Always ask all three; never assume an answer.
+1. **"How should the stack be chosen?"** (header `Stack`, single select)
+   - **Let Claude choose (Recommended).** Always the first option and the default. Claude picks what it's most confident building and verifying for this app: React + shadcn/ui on web and desktop (Hono API at the edge for simple apps), Expo on mobile, Go + Postgres for a new separate backend.
+   - **Use the team templates.** The team's standard stack: Vue + Nuxt UI on web and desktop (Nuxt on the web, Vite + Vue in a desktop-only app), Flutter on mobile, Go + Postgres for a new separate backend.
+2. **"Which apps are you building?"** (header `Surfaces`, `multiSelect: true`): **Web** (browser SPA) · **Mobile** (iOS + Android) · **Desktop** (Windows/macOS/Linux, Tauri v2).
+3. **"Does this app use an existing backend API?"** (header `API`, single select). This is a fact only the user knows, so ask it on both paths.
+   - **No, build the backend too.** Nothing exists yet; the backend is part of this project.
+   - **Yes, our own API, and we can change it.** Another repo or service the team owns. Web gets a static SPA and a passthrough Worker pointed at it (no BFF, no new Go API). That API should own sessions as in `contracts/openapi.yaml`: a cookie for web, bearer tokens for native. If it doesn't yet, that's its first change, done in the API's repo.
+   - **Yes, an API we don't control.** Third-party, another department's, or legacy. Web gets a BFF that keeps that API's tokens or keys server-side; mobile and desktop call it directly.
 
-**Backend:**
-- **Team templates →** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
-  - **Fullstack (one app)** — the Cloudflare app (Workers + D1/KV/R2) is the web app and the API. CRUD, internal tools, content, dashboards; one team. Mobile/desktop call its `/api`; desktop-only = local-first Tauri (Rust + SQLite).
-  - **New separate backend** — a Go API (OpenAPI contract-first, Postgres, hosted on AWS/GCP/DO/any VPS) owns accounts and sessions for every client; the web SPA reaches it through a passthrough Worker on its own origin (no BFF). Several clients, transactional domains, jobs, heavy reporting, separate frontend team.
-  - **Existing API** — an API the team doesn't control. The web app gets a BFF (Nuxt server) that keeps the API's tokens or keys server-side; mobile/desktop call the API directly.
-  Mark one "(Recommended)": existing if the user mentioned an API they consume; separate backend when web is combined with mobile/desktop, or for payments/multi-tenant/integrations/jobs; fullstack otherwise.
-- **Let Claude choose →** don't ask; decide the backend yourself with the same rules (ask one short question only if you don't know whether an existing API is involved), and say the choice in one line with its reason.
+**Backend, only when the answer to 3 is "No, build the backend too":**
+- **Let Claude choose:** decide fullstack or a new separate backend yourself with the rules below. Say the choice in one line with its reason.
+- **Team templates:** a second `AskUserQuestion`, **"Where does the data live?"** (header `Backend`):
+  - **Fullstack (one app).** The Cloudflare app (Workers + D1/KV/R2) is the web app and the API. CRUD, internal tools, content, dashboards; one team. Mobile/desktop call its `/api`; desktop-only = local-first Tauri (Rust + SQLite).
+  - **New separate backend.** A Go API (OpenAPI contract-first, Postgres, hosted on AWS/GCP/DO/any VPS) owns accounts and sessions for every client. The web SPA reaches it through a passthrough Worker on its own origin (no BFF). For several clients, transactional domains, jobs, heavy reporting, or a separate frontend team.
 
-Then run `sdlc stack --choice <claude|team> --surfaces <comma list> --backend <fullstack|separated|existing>` (omitting `--choice` means `claude`). It maps the answers to components and records them in `.sdlc/stack.json`:
+  Mark one "(Recommended)": separate backend when web is combined with mobile/desktop, or for payments/multi-tenant/integrations/jobs; fullstack otherwise.
+
+Map the answers to `--backend`:
+- 3 = No → `fullstack` or `separated`
+- 3 = own API → `existing-own`
+- 3 = API we don't control → `existing`
+
+Then run `sdlc stack --choice <claude|team> --surfaces <comma list> --backend <fullstack|separated|existing-own|existing>` (omitting `--choice` means `claude`). It maps the answers to components and records them in `.sdlc/stack.json`:
 | Backend | claude (default) | team |
 |---|---|---|
-| fullstack | `edge-web` (Nuxt) | `edge-web` (React + Hono) |
-| separated | `spa-web` (Nuxt SPA + passthrough Worker) + `go-api` | `spa-web` (React SPA + passthrough Worker) + `go-api` |
-| existing | `bff-web` (Nuxt BFF) | `bff-web` (Next BFF) |
-| + mobile / + desktop | `flutter` / `tauri` (Vue) | `expo` / `tauri` (React) |
-`--ui vue|react` overrides the web/desktop UI for the default choice when the user asks for it. Then continue with the **stack** skill from "§2 Record" step 1 (ADR — for "Let Claude choose", the ADR records Claude's reasons) and step 3 (CLAUDE.md "Stack" section).
+| fullstack | `edge-web` (React + Hono) | `edge-web` (Nuxt) |
+| separated | `spa-web` (React SPA + passthrough Worker) + `go-api` | `spa-web` (Nuxt SPA + passthrough Worker) + `go-api` |
+| existing-own | `spa-web` (React SPA + passthrough Worker), your API | `spa-web` (Nuxt SPA + passthrough Worker), your API |
+| existing | `bff-web` (Next BFF) | `bff-web` (Nuxt BFF) |
+| + mobile / + desktop | `expo` / `tauri` (React) | `flutter` / `tauri` (Nuxt next to a Nuxt web app, Vue when desktop-only) |
+
+With either existing backend, ask for the API's OpenAPI spec (URL or file) and put it at `contracts/openapi.yaml` in place of the template's; then run `gen:api` in each client after scaffolding. If there's no spec, note it in the ADR and write one for the endpoints the app uses. `--ui vue|react` overrides the web/desktop UI when the user asks for it.
+
+Then continue with the **stack** skill from "§2 Record": step 1 (the ADR; for "Let Claude choose", it records Claude's reasons) and step 3 (the CLAUDE.md "Stack" section).
 
 Then offer to scaffold: "Want me to create the app now from the ai-sdlc templates?" On yes: `sdlc scaffold-app --name <app-name>` (see the **stack** skill §3). It's a fixed, verified template, so it doesn't need the intent→plan chain; it must end with verify green. Then suggest committing, and `/ai-sdlc:vibe` for the first feature.
 

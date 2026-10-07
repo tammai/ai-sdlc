@@ -533,12 +533,15 @@ function stack() {
     surfaces = String(f.surfaces).split(',').map((x) => x.trim()).filter(Boolean);
     for (const x of surfaces) if (!['web', 'mobile', 'desktop'].includes(x)) die(`unknown surface ${x} (web|mobile|desktop)`);
     backend = f.backend;
-    if (!['fullstack', 'separated', 'existing'].includes(backend)) die('--backend must be fullstack, separated or existing');
+    if (!['fullstack', 'separated', 'existing-own', 'existing'].includes(backend)) die('--backend must be fullstack, separated, existing-own (an API the team owns and can change) or existing (an API the team does not control)');
     compList = [];
     if (backend === 'separated') {
       // a new contract-first Go API owns auth + sessions for every client; the web SPA reaches it same-origin via a passthrough Worker
       if (surfaces.includes('web')) compList.push('spa-web');
       compList.push('go-api');
+    } else if (backend === 'existing-own') {
+      // the team's own existing API (another repo): it owns sessions; the SPA reaches it same-origin via the passthrough Worker
+      if (surfaces.includes('web')) compList.push('spa-web');
     } else if (backend === 'existing') {
       // an API the team doesn't control: the BFF keeps its tokens/keys server-side and owns the browser session
       if (surfaces.includes('web')) compList.push('bff-web');
@@ -552,7 +555,7 @@ function stack() {
   }
   if (!compList) {
     if (fs.existsSync(stackFile)) { console.log(fs.readFileSync(stackFile, 'utf8')); return; }
-    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing [--choice claude|team]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
+    die(`usage: sdlc stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|team] [--api-url URL]\n   or: sdlc stack --components <${Object.keys(profiles).join('|')}>[,…] [--ui vue|react|react-hono] [--dirs name=dir,…] [--force]`);
   }
   for (const n of compList) if (!profiles[n]) die(`unknown component ${n}`);
   // desktop next to a Nuxt web app → Nuxt desktop extending the shared layer (packages/ui-layer);
@@ -575,7 +578,7 @@ function stack() {
 
   const UI_LABEL = { vue: 'Vue/Nuxt + Nuxt UI + Tailwind', react: 'React + shadcn/ui + Tailwind', 'react-hono': 'React + shadcn/ui + Tailwind, Hono API' };
   const record = {
-    mode: 'new', choice, surfaces: surfaces || undefined, backend: backend || undefined,
+    mode: 'new', choice, surfaces: surfaces || undefined, backend: backend || undefined, apiUrl: f['api-url'] || undefined,
     components: comps.map((c) => ({ ...c, title: profiles[c.name].title, reference: `skills/stack/references/${profiles[c.name].reference}` })),
     ui: UI_LABEL[comps.find((c) => c.ui)?.ui] || null,
     ssr: false, decidedBy: f.by || gitUser(root), decidedAt: nowIso(), adr: f.adr || null

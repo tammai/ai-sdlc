@@ -3,6 +3,19 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [Unreleased]
+
+### Changed
+- **"Let Claude choose" is the first and default stack option** in setup. The team's stack is now called "team templates" (`--choice team`; `default` still works as an alias). `sdlc stack` without `--choice` uses Claude's picks.
+- **Setup always asks whether the app uses an existing backend API**, on both paths. Before, the "Let Claude choose" path assumed there was none. The answers are:
+  - no (build the backend);
+  - our own API we can change (new `--backend existing-own`: SPA + passthrough Worker pointed at it, no BFF, no new Go API);
+  - an API we don't control (`--backend existing`: BFF).
+- **`--api-url`** is recorded in `.sdlc/stack.json` and used by `scaffold-app` for the contract server, the SPA dev proxy and the Worker's local `ORIGIN_URL`.
+
+### Fixed
+- **Setup's stack table** had its "claude" and "team" columns swapped.
+
 ## [0.4.0] — 2026-10-07
 
 Stack choice, real auth in the Go API, and no BFF in front of your own API.

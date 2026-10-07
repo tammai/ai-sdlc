@@ -58,12 +58,14 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 For a new app, setup asks three things:
 1. **Stack:** **let Claude choose** what it's most confident building and verifying (the default), or use the **team templates**.
 2. **Apps:** web, mobile and/or desktop.
-3. **Backend** (team templates only; when Claude chooses, it decides the backend too).
+3. **Existing API?** No (build the backend too) · yes, our own API we can change · yes, an API we don't control. Always asked.
+4. **Backend** (only when nothing exists): asked for the team templates; when Claude chooses, it decides.
 
 | Backend | Team templates | Claude's choice (default) |
 |---|---|---|
 | **Fullstack**: the edge app is the backend | `edge-web-nuxt`: Nuxt 4 on Cloudflare Workers (D1/KV/R2, Drizzle) | `edge-web-hono-react`: Vite + React SPA and a Hono API in one Worker |
 | **New separate backend**: a Go API owns accounts and sessions for every client | `spa-web-nuxt` (Nuxt `ssr:false` + passthrough Worker) + `go-api` | `spa-web-react` (Vite + React + passthrough Worker) + `go-api` |
+| **Your own existing API** (you can change it) | `spa-web-nuxt` + passthrough Worker → your API (`--api-url`) | `spa-web-react` + passthrough Worker → your API |
 | **Existing API** you don't control | `bff-web-nuxt`: the BFF keeps that API's tokens/keys server-side | `bff-web-next` |
 | + Mobile | `flutter` | `expo` |
 | + Desktop | `tauri-nuxt` next to a Nuxt web app (shares `packages/ui-layer`); `tauri-vue` when desktop is the only app | `tauri-react` |

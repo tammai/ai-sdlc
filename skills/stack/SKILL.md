@@ -16,7 +16,8 @@ For a **new** project: ask exactly as in the **setup** skill §5b ("Let Claude c
 
 ## 1. Decide (from the intent/spec; ask only if a signal below is genuinely unknown)
 
-**Backend:**
+**Backend.** Whether an API already exists is a fact, so ask the user (setup §5b question 3); never assume:
+- **existing-own**: the team's own existing API (another repo) that it can change. Web gets `spa-web` (static SPA + passthrough Worker) pointed at it via `--api-url`; no BFF and no new Go API. That API should own sessions (a cookie for web, bearer for native) as in `contracts/openapi.yaml`; if it doesn't yet, that's its first change, done in the API's repo.
 - **existing** — the app consumes an API the team doesn't control (third-party, another department's, legacy). Web gets `bff-web`: the BFF holds that API's tokens or keys server-side and gives the browser a cookie session; it also reshapes calls when the API doesn't fit the screens. Mobile/desktop call the API directly. Replace `contracts/openapi.yaml` with that API's spec.
 - **fullstack** (`edge-web`) when ALL hold: one main client; CRUD / content / internal tool / dashboard; data fits SQLite (D1: modest write concurrency, ≤ ~10 GB per DB); background work fits Workers limits (Queues, Cron, short jobs).
 - **separated** (`spa-web` + `go-api`) otherwise: several clients, transactional domain, long jobs, heavy reporting, separate frontend team, or self-hosted on AWS/GCP/DO/VPS. **No BFF**: the Go API owns accounts and sessions (cookie for web, bearer for native; password, optional magic link, OIDC), and the SPA reaches it same-origin through a passthrough Worker on Cloudflare (`/api/*` → API, no logic). A full BFF in front of your own API needs an ADR (several backends to aggregate, or a frontend team owning UI-specific endpoints).
