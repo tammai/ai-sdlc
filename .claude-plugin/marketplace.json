@@ -11,7 +11,7 @@
       "source": "./",
       "description": "Vibe coding for developers on the AI-native SDLC playbook: intent → design → spec → plan → verify → review → ship. Runs on a Claude subscription; opinionated stacks; deterministic guardrails.",
       "license": "MIT",
-      "version": "0.4.2"
+      "version": "0.5.0"
     }
   ]
 }

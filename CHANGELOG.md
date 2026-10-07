@@ -3,7 +3,7 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
-## [Unreleased]
+## [0.5.0] — 2026-10-07
 
 ### Added
 - **Definition of ready at the intent → spec boundary.** `sdlc approve spec` (and `approve plan` for tier S) is refused while `intent.md` has unticked open questions or `spec.md` has unticked Concerns. Items use checkboxes: `- [ ] question — owner` → `- [x] question → decision (by who)`. New `sdlc ready`; `sdlc status` shows `open:N`.
