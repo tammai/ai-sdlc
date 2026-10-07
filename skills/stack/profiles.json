@@ -411,8 +411,9 @@
         "cmd": "cd {dir} && pnpm exec eslint --fix {file}"
       },
       "prodPatterns": [
-        "\beass+(submit|update)\b.*(production|--branchs+production)",
-        "\beass+build\b.*--auto-submit"
+        "\\beas\\s+submit\\b",
+        "\\beas\\s+update\\b.*\\bproduction\\b",
+        "\\beas\\s+build\\b.*--auto-submit"
       ]
     }
   }

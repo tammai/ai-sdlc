@@ -501,6 +501,14 @@ function adr() {
 function stack() {
   need();
   const profiles = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'skills', 'stack', 'profiles.json'), 'utf8')).components;
+  // A regex written with one backslash in JSON ("\b", "\s") is not a regex: JSON turns "\b" into a backspace character and the
+  // pattern silently never matches (the Expo production gate was inert for this reason). Refuse to merge such a pattern into the config.
+  for (const [name, c] of Object.entries(profiles)) {
+    for (const p of c.prodPatterns || []) {
+      if (/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(p)) die(`skills/stack/profiles.json: a prod pattern of "${name}" contains a control character, so it can never match (write \\\\b and \\\\s with two backslashes in JSON): ${JSON.stringify(p)}`);
+      try { new RegExp(p, 'i'); } catch (e) { die(`skills/stack/profiles.json: a prod pattern of "${name}" is not a valid regex (${e.message}): ${p}`); }
+    }
+  }
   const stackFile = path.join(root, '.sdlc', 'stack.json');
   const sub = (str, dir) => str.replaceAll('cd {dir} && ', dir === '.' ? '' : `cd ${dir} && `).replaceAll('{dir}/', dir === '.' ? '' : `${dir}/`).replaceAll('{dir}', dir);
   const union = (a = [], b = []) => [...new Set([...a, ...b])];

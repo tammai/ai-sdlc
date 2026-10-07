@@ -3,6 +3,12 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [Unreleased]
+
+### Fixed
+- **The Expo production gate never fired.** The `expo` profile's prod patterns were written with single backslashes in `profiles.json` (`"eass+(submit|update)…"`), which JSON reads as a backspace character and a literal `s+`, so the regex could never match `eas submit`. With the Expo stack recorded, `eas submit`, `eas update --branch production` and `eas build --auto-submit` ran without the production prompt. The patterns are now `eas submit` (always a store submission, since the default profile is `production`), `eas update … production` and `eas build … --auto-submit`; checked through the real guard (`ask` for those, no prompt for `eas build --profile preview` or `eas whoami`).
+- **`sdlc stack` refuses a profile pattern that can never match** (a control character from a one-backslash JSON escape, or an invalid regex), so a gate cannot go inert silently again.
+
 ## [0.6.0] — 2026-10-07
 
 ### Added
