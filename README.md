@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/cover.webp" alt="AI-SDLC: before agents every stage runs at human speed; after agents the build stage runs at agent speed, and the cycle time it frees up is reclaimed." width="100%">
+</p>
+
 # ai-sdlc — vibe coding on the AI-native SDLC
 
 A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook](https://claude.com/resources/articles/the-ai-native-sdlc-playbook) into a working loop. You talk about what you want; Claude carries it through **intent → spec → plan → build/verify → review → ship**. Each stage commits an artifact that the next stage reads. Humans approve at the judgment points, and deterministic hooks enforce the rest.
