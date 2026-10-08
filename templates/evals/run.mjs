@@ -58,11 +58,16 @@ for (const file of files) {
   execFileSync('git', ['worktree', 'add', '--detach', wt, 'HEAD'], { cwd: root, stdio: 'ignore' });
   try {
     if (ev.setup) spawnSync(ev.setup, { cwd: wt, shell: true, stdio: 'ignore' });
-    const claudeArgs = ['-p', ev.prompt, '--output-format', 'json', '--max-turns', String(ev.maxTurns || cfg.maxTurns)];
+    const claudeArgs = ['-p', '--output-format', 'json', '--max-turns', String(ev.maxTurns || cfg.maxTurns)];
     if (ev.allowedTools || cfg.allowedTools) claudeArgs.push('--allowedTools', ev.allowedTools || cfg.allowedTools);
     if (cfg.model) claudeArgs.push('--model', cfg.model);
     const t0 = Date.now();
-    const r = spawnSync('claude', claudeArgs, { cwd: wt, encoding: 'utf8', timeout: (ev.timeoutSec || 900) * 1000, maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32' });
+    // the prompt goes on stdin: `claude -p` reads it there, so it never meets a shell. On Windows `claude` can be a .cmd
+    // shim that needs one, and a shell re-splits arguments at spaces, so the remaining arguments are quoted.
+    const win = process.platform === 'win32';
+    const r = spawnSync('claude', win ? claudeArgs.map((a) => `"${a.replaceAll('"', '\\"')}"`) : claudeArgs, {
+      cwd: wt, encoding: 'utf8', input: ev.prompt, timeout: (ev.timeoutSec || 900) * 1000, maxBuffer: 64 * 1024 * 1024, shell: win
+    });
     let output = r.stdout || '';
     try { output = JSON.parse(output).result ?? output; } catch { /* keep raw */ }
     const ctx = { cwd: wt, output, changed: changedFiles(wt) };

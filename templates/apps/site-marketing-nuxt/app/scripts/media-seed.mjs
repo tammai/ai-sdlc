@@ -27,14 +27,15 @@ function* files(dir) {
   }
 }
 
+// node + wrangler's entry point, with no shell: a shell (needed for pnpm.cmd on Windows) re-splits the arguments at
+// spaces, which breaks '--content-type text/plain; charset=utf-8' and any media path with a space.
+const WRANGLER = join('node_modules', 'wrangler', 'bin', 'wrangler.js')
+
 let count = 0
 for (const file of files('media')) {
   const key = relative('media', file).split(sep).join('/')
   const type = TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream'
-  const r = spawnSync('pnpm', ['exec', 'wrangler', 'r2', 'object', 'put', `${bucket}/${key}`, '--file', file, '--content-type', type, '--local'], {
-    stdio: 'inherit',
-    shell: process.platform === 'win32'
-  })
+  const r = spawnSync(process.execPath, [WRANGLER, 'r2', 'object', 'put', `${bucket}/${key}`, '--file', file, '--content-type', type, '--local'], { stdio: 'inherit' })
   if (r.status !== 0) process.exit(r.status ?? 1)
   count++
 }

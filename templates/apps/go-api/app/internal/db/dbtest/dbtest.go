@@ -18,7 +18,7 @@ import (
 // NewPool returns a pool bound to a throwaway schema with all migrations applied.
 // The test SKIPS when DATABASE_URL is unset, so `go test ./...` works offline.
 // Run against local Postgres with: docker compose up -d postgres
-// then DATABASE_URL=postgres://postgres:postgres@localhost:5432/<db>?sslmode=disable go test ./...
+// then DATABASE_URL=postgres://postgres:postgres@localhost:5432/<db>?sslmode=disable go test ./...   (PowerShell: $env:DATABASE_URL="..."; go test ./...)
 func NewPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("DATABASE_URL")

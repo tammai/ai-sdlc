@@ -28,7 +28,7 @@
   "kv_namespaces": [{ "binding": "KV", "id": "00000000000000000000000000000000" }], // PLACEHOLDER
   "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "__APP_NAME__-files" }],
 
-  // Build for an environment with `CLOUDFLARE_ENV=staging pnpm build`, then `wrangler deploy` (human-gated for production).
+  // Build for an environment with `CLOUDFLARE_ENV=staging pnpm build` (PowerShell: `$env:CLOUDFLARE_ENV="staging"; pnpm build`), then `wrangler deploy` (human-gated for production).
   // Bindings are NOT inherited by environments, so each one redeclares them.
   "env": {
     "staging": {

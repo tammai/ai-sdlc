@@ -4,4 +4,4 @@
 - The SPA calls the API only through the typed Hono client `src/lib/api.ts` (`hc<AppType>`); chain new routes in `worker/app.ts` so `AppType` stays complete. Add shadcn components with `pnpm dlx shadcn@latest add <name>`.
 - Never edit `worker/db/migrations/` by hand — change `schema.ts`, run `pnpm db:generate`, commit the output; apply locally with `pnpm db:migrate:local`.
 - Non-public routes use `requireUser` (`worker/middleware/require-user.ts`, fails closed; Better Auth + D1 Drizzle adapter is the plan); notes are public only as a demo.
-- Applying D1 migrations remotely, `wrangler secret put` and production `wrangler deploy` need a human; `CLOUDFLARE_ENV=staging pnpm build && wrangler deploy` is the preview.
+- Applying D1 migrations remotely, `wrangler secret put` and production `wrangler deploy` need a human; the preview is `pnpm build` with `CLOUDFLARE_ENV=staging` set, then `wrangler deploy` (bash: `CLOUDFLARE_ENV=staging pnpm build`; PowerShell: `$env:CLOUDFLARE_ENV="staging"; pnpm build`).
