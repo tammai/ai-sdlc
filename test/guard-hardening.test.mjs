@@ -151,3 +151,24 @@ describe('what the example allow-list lets through', () => {
     assert.equal(decision(dir, 'Bash', { command: 'cat api.example.com.pem' }), 'deny');
   });
 });
+
+describe('a nested project inside the session project', () => {
+  const outer = makeRepo({ config: { secretPaths: ['.env', 'conf/prod.json', 'apps/web/conf/live.json'] }, files: { 'conf/prod.json': 'x', 'apps/web/conf/live.json': 'x', 'apps/web/conf/dev.json': 'x' } });
+  // a package with its own .git and .sdlc moves the nearest root to apps/web
+  const inner = path.join(outer, 'apps/web');
+  fs.mkdirSync(path.join(inner, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(inner, '.sdlc'), { recursive: true });
+  fs.writeFileSync(path.join(inner, '.sdlc/config.json'), '{}');
+  const env = { CLAUDE_PROJECT_DIR: outer };
+
+  test('the session project\'s secretPaths still apply under the nested root', () => {
+    assert.equal(decision(inner, 'Read', { file_path: path.join(inner, 'conf/live.json') }, env), 'deny', 'a glob that reaches into the subtree');
+    assert.equal(decision(inner, 'Read', { file_path: path.join(outer, 'conf/prod.json') }, env), 'deny', 'a file above the nested root');
+    assert.equal(decision(inner, 'Bash', { command: 'cat conf/live.json' }, env), 'deny');
+    assert.equal(decision(inner, 'Read', { file_path: path.join(inner, 'conf/dev.json') }, env), 'allow');
+  });
+
+  test('without the session project the nested config alone decides (nothing is added)', () => {
+    assert.equal(decision(inner, 'Read', { file_path: path.join(inner, 'conf/live.json') }, { CLAUDE_PROJECT_DIR: inner }), 'allow');
+  });
+});

@@ -134,6 +134,18 @@ const root = findRoot(input.cwd);
 const cfg = loadConfig(root);
 const state = loadState(root);
 
+// A nested .git or .sdlc (a submodule, a package with its own config) moves the root to the nearest one. The session's own
+// project (CLAUDE_PROJECT_DIR) still defines secrets for everything under it, so its secretPaths are added: one that
+// reaches into this subtree is also tried with the subtree's prefix removed. This can only add restrictions.
+if (process.env.CLAUDE_PROJECT_DIR) {
+  const outer = findRoot(process.env.CLAUDE_PROJECT_DIR);
+  const sub = outer === root ? null : toRel(outer, root);
+  if (sub && isInside(sub)) {
+    const extra = loadConfig(outer).secretPaths.flatMap((g) => (g.startsWith(sub + '/') ? [g, g.slice(sub.length + 1)] : [g]));
+    cfg.secretPaths = [...new Set([...cfg.secretPaths, ...extra])];
+  }
+}
+
 if (tool === 'Bash' || tool === 'PowerShell') {
   const cmd = String(ti.command || '');
   if (cmd.length > MAX_COMMAND) decide('ask', `The command is ${cmd.length} characters, too long for the guard to scan in time; review it manually.`);
