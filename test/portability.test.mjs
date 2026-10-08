@@ -162,10 +162,17 @@ describe('spawnShell', () => {
 });
 
 describe('windowsCmd', () => {
-  test('a leading ./tool becomes tool, also after cd and &&', () => {
-    assert.equal(windowsCmd('./gradlew test'), 'gradlew test');
-    assert.equal(windowsCmd('cd app && ./mvnw test'), 'cd app && mvnw test');
-    assert.equal(windowsCmd('./scripts/check.sh --fast'), 'scripts\\check.sh --fast');
+  test('cmd.exe runs ./tool through its .bat after the rewrite', { skip: process.platform !== 'win32' }, () => {
+    const dir = makeRepo({ files: { 'foo.bat': '@echo off\r\necho from-bat %1\r\n' } });
+    const r = spawnShell('./foo one', { cwd: dir, encoding: 'utf8', timeout: 20000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /from-bat one/);
+  });
+
+  test('a leading ./tool becomes .\\tool, also after cd and &&', () => {
+    assert.equal(windowsCmd('./gradlew test'), '.\\gradlew test');
+    assert.equal(windowsCmd('cd app && ./mvnw test'), 'cd app && .\\mvnw test');
+    assert.equal(windowsCmd('./scripts/check.sh --fast'), '.\\scripts\\check.sh --fast');
   });
 
   test('anything else is left alone', () => {

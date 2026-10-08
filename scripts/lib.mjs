@@ -255,9 +255,10 @@ c.on('close', (code) => {
 });`;
 
 // cmd.exe cannot run `./gradlew test` (and a saved verify command is shared by every OS). Where a command starts
-// with `./tool`, run `tool` from the current directory, which cmd resolves to tool.bat / tool.cmd / tool.exe.
+// with `./tool`, run `.\tool`, which cmd resolves to tool.bat / tool.cmd / tool.exe in that directory. (A bare
+// `tool` would not do: with NoDefaultCurrentDirectoryInExePath set, cmd no longer searches the current directory.)
 export function windowsCmd(cmd) {
-  return cmd.replace(/(^|&&\s*|\|\|\s*)\.\/([^\s&|"']+)/g, (_, lead, tool) => `${lead}${tool.split('/').join('\\')}`);
+  return cmd.replace(/(^|&&\s*|\|\|\s*)\.\/([^\s&|"']+)/g, (_, lead, tool) => `${lead}.\\${tool.split('/').join('\\')}`);
 }
 
 // spawnSync(cmd, { shell: true, ...opts }) whose timeout also kills the command's child processes.
