@@ -165,3 +165,18 @@ test('a Grep glob filter with wildcards still hits secret files', () => {
   for (const glob of ['.env*', '*.pem', 'id_rsa*']) assert.equal(guard(dir, 'Grep', { pattern: 'K', glob }).decision, 'deny', glob);
   assert.equal(guard(dir, 'Grep', { pattern: 'K', glob: '*.ts' }).decision, 'allow');
 });
+
+describe('production gate and prose', () => {
+  const dir = makeRepo();
+  test('words in a docs heredoc or a commit message are not a deploy', () => {
+    const doc = "cd docs && python3 - <<'E'\ns=s.replace('Final production domain','use workers.dev after the first deploy')\nE";
+    assert.equal(guard(dir, 'Bash', { command: doc }).decision, 'allow');
+    assert.equal(guard(dir, 'Bash', { command: 'git commit -m "deploy to production notes"' }).decision, 'allow');
+  });
+
+  test('a heredoc that feeds a shell still counts', () => {
+    assert.equal(guard(dir, 'Bash', { command: 'bash <<EOF\nnpm publish\nEOF' }).decision, 'ask');
+    assert.equal(guard(dir, 'Bash', { command: 'ssh host <<EOF\nterraform apply\nEOF' }).decision, 'ask');
+    assert.equal(guard(dir, 'Bash', { command: 'npm publish' }).decision, 'ask');
+  });
+});

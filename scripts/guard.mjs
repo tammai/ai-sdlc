@@ -39,9 +39,13 @@ function tokens(cmd) {
 
 // Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects
 // like `> .env`) and commit/tag messages before scanning a shell command for secret paths.
-function stripProse(cmd) {
+// `keepShell`: leave heredoc bodies alone when they feed a shell (`bash <<EOF`, `ssh host <<EOF`), because those
+// lines run as commands: the production gate needs them, the secret scan does not.
+const SHELLISH = /\b(?:ba|z|da|k)?sh\b|\bssh\b|\beval\b|\bsource\b|\bpwsh\b|\bpowershell\b/i;
+function stripProse(cmd, { keepShell = false } = {}) {
   return cmd
-    .replace(/<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$2$3')
+    .replace(/([^\n]*)<<-?\s*(['"]?)([A-Za-z_][\w-]*)\2([^\n]*)\n[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g,
+      (m, pre, _q, tag, post) => (keepShell && SHELLISH.test(pre + post) ? m : `${pre}<<${tag}${post}`))
     .replace(/@(['"])[\s\S]*?\n\1@/g, '')                                   // PowerShell here-strings
     .replace(/(\s(?:-m|--message)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1MSG');
 }
@@ -99,7 +103,8 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   }
 
   // 5. production gate
-  const bare = cmd.replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
+  // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
+  const bare = stripProse(cmd, { keepShell: true }).replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
   const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(bare));
   if (prod) {
     if (process.env.RELEASE_APPROVAL) process.exit(0);
