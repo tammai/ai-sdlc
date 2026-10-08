@@ -1,12 +1,12 @@
 # Windows follow-ups
 
-Findings from the cross-platform audit that only matter on Windows, or that could not be checked without a Windows machine. The macOS side and the plugin's own scripts are fixed and green in CI (Linux, macOS, Windows × Node 18/20/22); everything below is open. Work through it on a Windows box, tick items off, delete the file when empty.
+Findings from the cross-platform audit that only matter on Windows, or that could not be checked without a Windows machine. The macOS side and the plugin's own scripts are fixed and green in CI (Linux, macOS, Windows × Node 18/20/22). **A** is still open: claims nobody has run. **B** has been fixed in code (see below), with the exceptions listed under "Still open". Work through it on a Windows box, tick items off, delete the file when empty.
 
-Start with **A (verify first)**: those are claims nobody has run. Then fix **B**.
+Start with **A (verify first)**.
 
 ## A. Verify first (unconfirmed, needs a real Windows run)
 
-- [ ] **Hooks find `node`.** (Partly checked: `node` v22 is on PATH in both PowerShell and Git Bash here; still needs a real `claude --debug` run.) Launch Claude Code the way you normally do (desktop app and terminal, PowerShell and Git Bash) and run `claude --debug`. SessionStart/PreToolUse hooks must run `node "…\scripts\guard.mjs"` without exit 127. A missing `node` is non-blocking, so every guard is silently off.
+- [ ] **Hooks find `node`.** (Partly checked: `node --version` works from both the PowerShell tool and Git Bash here, v22; still needs a real `claude --debug` run.) Launch Claude Code the way you normally do (desktop app and terminal, PowerShell and Git Bash) and run `claude --debug`. SessionStart/PreToolUse hooks must run `node "…\scripts\guard.mjs"` without exit 127. A missing `node` is non-blocking, so every guard is silently off.
 - [ ] **Guard cold start under 10 s** on a first run with Defender scanning (`timeout: 10` in `hooks/hooks.json`). A timeout also fails open.
 - [ ] **The PowerShell tool.** In a session, run a few guarded commands through it: `Get-Content $env:USERPROFILE\.aws\credentials` (expect deny), `ri tests\a.test.ts` with a test lock active (deny), `npm.cmd publish` (ask).
 - [ ] **`${CLAUDE_PLUGIN_ROOT}` has backslashes and maybe spaces** (`C:\Users\<you>\.claude\plugins\cache\…`). Run `/ai-sdlc:setup` on a project and confirm `node "<path>" inspect` works inline from PowerShell and from Git Bash.
@@ -18,20 +18,20 @@ Start with **A (verify first)**: those are claims nobody has run. Then fix **B**
 
 ## B. Fix on Windows
 
-Fixed (unit-tested on Windows; delete once A is verified):
+Fixed in code, with unit tests that ran on Windows unless noted (delete once A is verified):
 
-1. **Verify commands cmd.exe cannot run.** `sdlc verify`/`baseline` now run commands through `spawnShell`, which turns a leading `./tool` into `tool` on win32 (`./gradlew test` → `gradlew test`, resolved to `.bat`/`.cmd` by cmd), so already-saved configs keep working. The detector now emits `php vendor/bin/phpunit` and `ruby bin/rails test`, which run on every OS.
-2. **Argument splitting with `shell: true`.** `media-seed.mjs` runs `node node_modules/wrangler/bin/wrangler.js` with no shell. `templates/evals/run.mjs` sends the prompt on stdin (`claude -p` reads it there) and quotes the remaining arguments on win32.
+1. **Verify commands cmd.exe cannot run.** `sdlc verify`/`baseline` now run commands through `spawnShell`, which turns a leading `./tool` into `.\tool` on win32 (`./gradlew test` → `.\gradlew test`, resolved to `.bat`/`.cmd` by cmd; a test runs a real `foo.bat` through cmd). It must be `.\tool`, not `tool`: this machine sets `NoDefaultCurrentDirectoryInExePath`, so cmd does not search the current directory. This helps already-saved `./gradlew` and `./mvnw` entries only. Saved `vendor/bin/phpunit` and `bin/rails test` entries still fail in cmd (the `/` is parsed as a switch); edit them to `php vendor/bin/phpunit` / `ruby bin/rails test`, which is what the detector emits now.
+2. **Argument splitting with `shell: true`.** `media-seed.mjs` runs `node node_modules/wrangler/bin/wrangler.js` with no shell (`bin/wrangler.js` is the bin path in wrangler 4 per `npm view`; the script itself has not been run). `templates/evals/run.mjs` sends the prompt on stdin (`claude -p` reads it there; checked once by hand) and quotes the remaining arguments on win32.
 3. **POSIX-only syntax in docs and comments.** `edge-web-hono-react` (`CLAUDE.stack.md`, `wrangler.jsonc`) and `go-api/dbtest.go` now show the PowerShell form; the three Tauri `CLAUDE.stack.md` files list the two cargo commands separately. The `template.json` verify entries run in cmd and were left as they are.
 4. **Timeouts only killed `cmd.exe`.** `spawnShell` (`scripts/lib.mjs`) runs timed commands under a small node runner that does `taskkill /T /F` on timeout. Used by the formatter hook (20 s) and verify/baseline (15 min).
-5. **Guard gaps.** A quoted path with a space is now checked as one path (`tokens()` keeps quoted strings whole). `Grep` is in the hook matcher; the guard denies a secret `path` or a `glob` naming a secret file.
+5. **Guard gaps.** A quoted path with a space is now checked as one path (`tokens()` keeps quoted strings whole). `Grep` is in the hook matcher; the guard denies a secret file or a directory of secrets (`~/.ssh`, `~/.aws`, `secrets/`) as `path`, and a `glob` that matches secret file names (`.env*`, `*.{env,pem}`) without also matching ordinary source files.
 6. **Evals on Windows.** `CONTRIBUTING.md` now says the scaffolded cases need Git Bash ahead of WSL's `bash.exe` on the PATH. They are not skipped automatically.
 7. **README Requirements.** A Windows line lists `core.longpaths`, Docker Desktop or WSL, Rust + MSVC + WebView2, and the Flutter SDK. Tauri `clippy`/`cargo test` still run only on Linux CI, so Windows and macOS Tauri builds are unverified.
 
 Still open:
 
-- `Grep` with a *directory* `path` can still match `.env` contents (`Glob` lists names only and is not guarded).
-- `spawnShell`'s tree kill and the `./tool` rewrite are covered by tests, but the `claude -p` stdin path in `templates/evals/run.mjs` has only been run once by hand, not through the eval runner.
+- `Grep` over a directory that merely *contains* a `.env` (the repo root, a parent of `~/.ssh`) or with a catch-all glob (`*`, `**/*`) can still match secret contents. Closing it needs result filtering, not a path check. `Glob` lists names only and is not guarded.
+- The `claude -p` stdin path in `templates/evals/run.mjs` has been run once by hand, not through the eval runner; `media-seed.mjs` has not been run.
 - The scaffolded evals have not been run on Windows with Git Bash (they spend plan usage).
 
 ## How to confirm a fix
