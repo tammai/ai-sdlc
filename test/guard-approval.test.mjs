@@ -65,6 +65,12 @@ describe('the shell: any write to a gated artifact asks', () => {
       'git checkout -- docs/sdlc/c1/plan.md', 'git apply /tmp/p.diff docs/sdlc/c1/plan.md', 'patch docs/sdlc/c1/plan.md /tmp/p.diff', 'ed docs/sdlc/c1/plan.md',
       'cat docs/sdlc/c1/plan.md | python3 -c "import sys"', 'cat $(sed -i s/a/b/ docs/sdlc/c1/plan.md)', 'P=docs/sdlc/c1/plan.md; sed -i s/draft/approved/ $P',
       'cat docs/sdlc/c1/plan.md > docs/sdlc/c1/plan.md.new', 'ls; install -m 644 /tmp/x docs/sdlc/c1/plan.md',
+      // a "read" command with an option or an environment that runs a program or writes a file
+      'rg --pre sh K docs/sdlc/c1/plan.md', 'rg -z K docs/sdlc/c1/plan.md', 'git diff --output=/tmp/x docs/sdlc/c1/plan.md', 'git diff --ext-diff docs/sdlc/c1/plan.md',
+      `git -c core.pager='sh -c x' log docs/sdlc/c1/plan.md`, 'git log -O/tmp/x docs/sdlc/c1/plan.md', 'git show --textconv HEAD:docs/sdlc/c1/plan.md',
+      `LESSOPEN='|x' less docs/sdlc/c1/plan.md`, 'GIT_EXTERNAL_DIFF=x git diff docs/sdlc/c1/plan.md', 'less docs/sdlc/c1/plan.md', 'bat docs/sdlc/c1/plan.md',
+      'env cat docs/sdlc/c1/plan.md', 'command cat docs/sdlc/c1/plan.md', 'cat <(sed -i x docs/sdlc/c1/plan.md)', 'cat docs/sdlc/c1/plan.md >(tee x)',
+      'grep --file=/dev/stdin x docs/sdlc/c1/plan.md', 'head --output=x docs/sdlc/c1/plan.md',
       // an interpreter asks even to read: use cat
       `node -e "console.log(require('fs').readFileSync('docs/sdlc/c1/plan.md','utf8'))"`, `python3 -c "print(open('docs/sdlc/c1/plan.md').read())"`]) {
       assert.equal(bash(c), 'ask', c);
