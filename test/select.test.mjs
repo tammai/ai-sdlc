@@ -25,7 +25,7 @@ test('an edited eval case runs itself', () => {
 });
 
 test('docs, templates, tests and agents need no eval run', () => {
-  assert.deepEqual(tags('README.md', 'templates/apps/go-api/app/main.go', 'test/guard.test.mjs', 'agents-src/reviewer.md', 'docs/x.md'), []);
+  assert.deepEqual(tags('README.md', 'templates/apps/go-api/app/main.go', 'test/guard.test.mjs', 'agents-src/reviewer.md', 'docs/x.md', '.claude/CLAUDE.md'), []);
 });
 
 test('shared code, the manifest and unknown paths run everything', () => {
