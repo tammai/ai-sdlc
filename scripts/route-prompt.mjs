@@ -2,7 +2,7 @@
 // UserPromptSubmit: in a repo set up with /ai-sdlc:setup, every message is checked against the ai-sdlc skills
 // before Claude acts. A hook cannot invoke a skill, so it adds a short routing note (plus a keyword hint and the
 // active change's state) to the turn; Claude decides and calls the Skill. Off with `"routePrompts": false`.
-import { findRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson } from './lib.mjs';
+import { findRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson, saveState, treeId } from './lib.mjs';
 
 // First match wins; a hint, never a decision. Anything that matches nothing gets the note without a suggestion.
 const HINTS = [
@@ -22,10 +22,13 @@ const prompt = String(input.prompt || '').trim();
 const root = findRoot(input.cwd);
 if (!prompt || !isInitialized(root)) process.exit(0);
 const cfg = loadConfig(root);
+const state = loadState(root);
+// Baseline for the Stop gate: whatever differs from this tree by the end of the turn was changed in it, by any
+// route (edit tools, shell commands, formatters). Recorded whether or not the routing note is on.
+if (state.active) { const turnTree = treeId(root); if (turnTree) { state.turnTree = turnTree; saveState(root, state); } }
 if (cfg.routePrompts === false) process.exit(0);
 if (prompt.startsWith('/')) process.exit(0); // an explicit slash command already chose its skill
 
-const state = loadState(root);
 const lines = ['[ai-sdlc] Before acting, check this message against the ai-sdlc skills and call the matching one with the Skill tool:'];
 lines.push(
   '  idea / feature / change / "continue" → vibe (sizes the tier, resumes the active change) · bug or regression → fix · incident or alert → triage',
