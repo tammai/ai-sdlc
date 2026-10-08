@@ -53,7 +53,7 @@ export const DEFAULT_CONFIG = {
   protectedPaths: [],
   alwaysEditable: [],
   secretPaths: ['.env', '.env.*', '*.pem', '*.key', '*.p12', 'id_rsa*', 'id_ed25519*', 'secrets/**', '**/secrets/**', '**/.aws/credentials', '**/.ssh/**'],
-  secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.{json,yaml,yml,toml,txt,md,env}'],
+  secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.{json,yaml,yml,toml,txt,md,env}', '**/node_modules/**'],
   testGlobs: ['**/*.test.*', '**/*.spec.*', '**/*_test.*', '**/test_*.py', '**/tests/**', '**/test/**', '**/__tests__/**', '**/itest/**'],
   formatOnEdit: null,
   verify: []
@@ -193,7 +193,15 @@ export function isInside(rel) {
   return rel && !rel.startsWith('../') && rel !== '..' && !path.isAbsolute(rel);
 }
 
+// Compiled once per glob: matching a few dozen secret globs against every file of a large repo must not recompile them.
+const globCache = new Map();
 export function globToRegExp(glob) {
+  let re = globCache.get(glob);
+  if (!re) { re = compileGlob(glob); globCache.set(glob, re); }
+  return re;
+}
+
+function compileGlob(glob) {
   let re = '';
   let braces = 0;
   for (let i = 0; i < glob.length; i++) {

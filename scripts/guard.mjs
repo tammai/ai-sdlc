@@ -6,6 +6,10 @@
 //   3. test lock    — during a fix, the failing test must not be edited
 //   4. plan gate    — nothing is implemented without an accepted plan.md
 //   5. prod gate    — the agent does everything up to the production gate and nothing past it
+//
+// Reading a shell command is a heuristic: the scan below resolves quotes, escapes, ${x:-default}, $HOME, braces and
+// wildcards, and checks recursive searches, but it is not a shell parser. A command built at run time (eval, a
+// variable assembled over several statements, $(printf …)) can still name a secret file the guard never sees.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -13,10 +17,16 @@ import {
   findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath
 } from './lib.mjs';
 
-// A hook that outlives its timeout is killed and Claude Code treats that as "no objection", so anything that could
-// make a scan slow (a huge command, a pathological glob) pauses for a human before it is scanned.
+// A hook that outlives its timeout (10 s) is killed, and Claude Code treats that as "no objection". So every scan is
+// bounded, and one that cannot finish pauses for a human instead of running on.
+const START = Date.now();
+const BUDGET_MS = 6000;
 const MAX_COMMAND = 20000;
 const MAX_GLOB = 512;
+const MAX_TOKEN = 300;
+const MAX_STARS = 8;
+const MAX_EXPANSION = 500;
+const MAX_FILES = 20000;
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const SEARCH_TOOLS = new Set(['Grep', 'Glob']);
@@ -29,6 +39,13 @@ const SECRET_CONTENT = [
   [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'Slack token'],
   [/\bAIza[0-9A-Za-z_-]{35}\b/, 'Google API key']
 ];
+const SEGMENT = /(\n|;|&&|\|\||\||&)/;
+const GLOB_CHARS = /[*?[]/;
+const SECRET_PROBES = ['.env', '.env.local', '.env.production', 'x.pem', 'x.key', 'x.p12', 'id_rsa', 'id_ed25519', '.aws/credentials', '.ssh/id_rsa', 'secrets/x'];
+const ORDINARY_PROBES = ['app.ts', 'README.md', 'src/index.js', 'main.go'];
+
+// Set once the hook input is read (bottom of the file); the functions below use them when called.
+let input, tool, ti, root, cfg, state;
 
 function decide(decision, reason) {
   process.stdout.write(JSON.stringify({
@@ -37,7 +54,14 @@ function decide(decision, reason) {
   process.exit(0);
 }
 
-const isSecretPath = (cfg, rel) => matchesAny(rel, cfg.secretPaths) && !matchesAny(rel, cfg.secretAllow);
+function slow() {
+  if (Date.now() - START > BUDGET_MS) decide('ask', 'The guard ran out of time scanning this action; review it manually.');
+}
+
+const homeDir = () => process.env.USERPROFILE || process.env.HOME || '';
+const isSecretPath = (c, rel) => matchesAny(rel, c.secretPaths) && !matchesAny(rel, c.secretAllow);
+
+// ------------------------------------------------------------------ shell text ---
 
 // Split on whitespace and shell punctuation; a quoted string is also kept whole, so a path with a space
 // ("C:\Users\Jane Doe\.aws\credentials") is checked as one path and not only as its pieces.
@@ -46,10 +70,9 @@ function tokens(cmd) {
   return [...cmd.split(/[\s'"`;|&<>()=]+/).filter(Boolean), ...quoted];
 }
 
-// Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects
-// like `> .env`) and commit/tag messages before scanning a shell command for secret paths.
-// Text the shell still runs is not prose: an unquoted heredoc, a "…" here-string or a "…" message expands $(…) and
-// backticks, and a `<<X` inside a quoted string is not a heredoc at all. Those are kept for scanning.
+// Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects like `> .env`) and
+// commit/tag messages. Text the shell still runs is not prose: an unquoted heredoc, a "…" here-string or a "…" message
+// expands $(…) and backticks, and a `<<X` inside a quoted string is not a heredoc at all. Those are kept.
 const EXPANDS = /\$\(|`/;
 function stripProse(cmd) {
   return cmd
@@ -62,55 +85,189 @@ function stripProse(cmd) {
     .replace(/(\s(?:-m|--message)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, (m, flag, msg) => (msg[0] === '"' && EXPANDS.test(msg) ? m : `${flag}MSG`));
 }
 
-// The same command as the shell or PowerShell may read it once quotes, concatenation, escapes and ${x:-default} are
-// resolved: `.en""v`, `".en"+"v"`, `.e\nv` and `${x:-.env}` all name .env. Each variant is scanned.
+// `echo ".env" >> .gitignore` names .env without reading it: what echo prints is prose. Keep its redirect targets and
+// any $(…) it runs; keep everything when its output is piped on (`echo .env | xargs cat`).
+function dropEchoArgs(cmd) {
+  const parts = cmd.split(SEGMENT);
+  for (let i = 0; i < parts.length; i += 2) {
+    if (parts[i + 1] === '|' || !/^\s*(?:echo|printf|write-output|write-host)\b/i.test(parts[i])) continue;
+    const keep = [...parts[i].matchAll(/\d*>>?\s*[^\s>|&;]+/g), ...parts[i].matchAll(/\$\([^)]*\)|`[^`]*`/g)].map((m) => m[0]);
+    parts[i] = ['echo', ...keep].join(' ');
+  }
+  return parts.join('');
+}
+
+// Patterns handed to find, and `git check-ignore`, are not reads either.
+function dropPatternArgs(cmd) {
+  return cmd
+    .replace(/(\s-(?:i?name|i?path|iwholename|wholename|i?regex)\s+)("[^"]*"|'[^']*'|\S+)/g, '$1PATTERN')
+    .replace(/\bgit\s+check-ignore\b[^\n;|&]*/g, 'git check-ignore');
+}
+
+// bash $'\x2eenv' → .env
+function decodeAnsiC(body) {
+  return body.replace(/\\(x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|[0-7]{1,3}|.)/g, (m, c) => {
+    if ((c[0] === 'x' || c[0] === 'u') && c.length > 1) return String.fromCharCode(parseInt(c.slice(1), 16));
+    if (/^[0-7]+$/.test(c)) return String.fromCharCode(parseInt(c, 8));
+    return { n: '\n', t: '\t', r: '\r' }[c] ?? c;
+  });
+}
+
+// $HOME, %USERPROFILE%, $env:USERPROFILE (also quoted, as in "$HOME"/.aws/credentials) → the home directory; $PWD → cwd
+function expandVars(s) {
+  return s
+    .replace(/["']?(?:\$\{?(?:HOME|USERPROFILE)\}?|%USERPROFILE%|\$env:USERPROFILE|\$env:HOMEDRIVE\$env:HOMEPATH)["']?(?=[\\/])/gi, () => homeDir())
+    .replace(/["']?\$\{?PWD\}?["']?(?=[\\/])/g, () => input.cwd || root);
+}
+
+// The same command as the shell or PowerShell may read it once quotes, concatenation, escapes, $'…' and
+// ${x:-default} are resolved: `.en""v`, `".e"nv`, `".en"+"v"`, `.e\nv`, `$'\x2eenv'` and `${x:-.env}` all name .env.
 function scanVariants(cmd) {
-  const base = stripProse(cmd);
-  const joined = base.replace(/["']\s*\+\s*["']/g, '').replace(/""|''/g, '');
-  const defaults = [...base.matchAll(/\$\{[^}]*?:?[-=+?]([^}]*)\}/g)].map((m) => m[1]);
-  return [base, joined, joined.replace(/\\(?=[A-Za-z0-9._-])/g, ''), defaults.join(' ')];
+  const base = dropPatternArgs(dropEchoArgs(stripProse(cmd)));
+  const joined = base.replace(/["']\s*\+\s*["']/g, '');
+  const bare = joined.replace(/\$[@*]/g, '').replace(/["']/g, '');
+  const defaults = [...base.matchAll(/\$\{([^}\n]{0,200})\}/g)].map((m) => /^[^:=+?-]*:?[-=+?]([\s\S]*)$/.exec(m[1])?.[1]).filter(Boolean);
+  return [base, bare, bare.replace(/\\(?=[A-Za-z0-9._-])/g, ''), base.replace(/\$'((?:[^'\\]|\\.)*)'/g, (m, b) => decodeAnsiC(b)), defaults.join(' ')]
+    .map(expandVars);
 }
 
-// $HOME, %USERPROFILE%, $env:USERPROFILE (also quoted, as in "$HOME"/.aws/credentials) → the home directory
-function expandHome(s) {
-  const home = process.env.USERPROFILE || process.env.HOME || '';
-  return s.replace(/["']?(?:\$\{?(?:HOME|USERPROFILE)\}?|%USERPROFILE%|\$env:USERPROFILE|\$env:HOMEDRIVE\$env:HOMEPATH)["']?(?=[\\/])/gi, () => home);
-}
-
-const GLOB_CHARS = /[*?[\]{}]/;
-
-// A command-line token is a secret access when it names a distinctive secret file (.env, *.pem,
-// id_rsa…) or matches a directory-style secret glob (secrets/**, .ssh/**) AND that path exists.
-// "D1/secrets/deploy" in prose matches secrets/** but exists nowhere, so it is allowed.
-function secretToken(cfg, raw, dirs) {
-  const t = raw.replace(/^@/, ''); // curl -F file=@.env
-  const home = process.env.USERPROFILE || process.env.HOME || '';
-  const expanded = /^~[\\/]/.test(t) ? path.join(home, t.slice(2))
-    : t.replace(/^(?:\$\{?(?:HOME|USERPROFILE)\}?|%USERPROFILE%|\$env:USERPROFILE)(?=[\\/])/i, home);
-  const rel = toRel(root, expanded) ?? t;
-  // outside the repo (home dir, absolute paths): the repo-relative globs apply to every trailing sub-path
-  const segs = expanded.normalize('NFC').split(/[\\/]+/).filter(Boolean);
-  const tails = isInside(rel) ? [] : segs.map((_, i) => segs.slice(i).join('/'));
-  // `git show HEAD:.env`, `git show :.env` name the file after the colon
-  const afterRev = /^(?![A-Za-z]:[\\/])[^:\\/]*:/.test(t) ? t.replace(/^[^:\\/]*:/, '') : null;
-  const candidates = [rel, t.replace(/^~[\\/]/, ''), ...tails, ...(afterRev ? [afterRev] : [])];
-  if (candidates.some((c) => matchesAny(c, cfg.secretAllow))) return false;
-  const byName = cfg.secretPaths.filter((g) => !g.includes('/'));
-  const byDir = cfg.secretPaths.filter((g) => g.includes('/'));
-  if (candidates.some((c) => matchesAny(c, byName))) return true;
-  // a wildcard token (`secrets/*`, `.e*`, `.[e]nv`, `.env{,}`) is judged by what it matches in its directory
-  if (GLOB_CHARS.test(t)) {
-    const slash = Math.max(expanded.lastIndexOf('/'), expanded.lastIndexOf('\\'));
-    const parent = expanded.slice(0, slash + 1);
-    if (!GLOB_CHARS.test(parent)) {
-      const re = globToRegExp(expanded.slice(slash + 1));
-      for (const d of dirs) {
-        let names = [];
-        try { names = fs.readdirSync(path.resolve(d, parent || '.')).slice(0, 2000); } catch { /* not a directory */ }
-        for (const n of names) if (re.test(n) && !GLOB_CHARS.test(n) && secretToken(cfg, parent + n, dirs)) return true;
+// {a,b} → a and b (nested, capped)
+function expandBraces(s, limit = 64) {
+  const results = [];
+  const rec = (str) => {
+    if (results.length >= limit) return;
+    let depth = 0;
+    let start = -1;
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === '{') { if (depth++ === 0) start = i; }
+      else if (str[i] === '}' && depth > 0 && --depth === 0) {
+        const inner = str.slice(start + 1, i);
+        const parts = [];
+        let d = 0;
+        let last = 0;
+        for (let k = 0; k < inner.length; k++) {
+          if (inner[k] === '{') d++;
+          else if (inner[k] === '}') d--;
+          else if (inner[k] === ',' && d === 0) { parts.push(inner.slice(last, k)); last = k + 1; }
+        }
+        parts.push(inner.slice(last));
+        if (parts.length > 1) { for (const p of parts) rec(str.slice(0, start) + p + str.slice(i + 1)); return; }
+        start = -1; // `{x}` has no comma: a literal
       }
     }
+    results.push(str);
+  };
+  rec(s);
+  return results;
+}
+
+// ------------------------------------------------------------------- paths -------
+
+const dirCache = new Map();
+function listDir(d) {
+  if (!dirCache.has(d)) {
+    let names = [];
+    try { names = fs.readdirSync(d); } catch { /* not a directory */ }
+    dirCache.set(d, names.slice(0, 5000));
   }
+  return dirCache.get(d);
+}
+
+// One path segment's wildcards (`*`, `?`, `[class]`) matched without regex backtracking: a file name the agent made up
+// (`aaaa…a`) against `*a*a*a*b` must not be able to stall the guard past its timeout.
+function segTokens(pat) {
+  const out = [];
+  for (let i = 0; i < pat.length; i++) {
+    const c = pat[i];
+    if (c === '*') { if (!out.at(-1)?.star) out.push({ star: true }); }
+    else if (c === '?') out.push({ any: true });
+    else if (c === '[') {
+      let k = i + 1;
+      const neg = pat[k] === '!' || pat[k] === '^';
+      if (neg) k++;
+      const j = pat.indexOf(']', pat[k] === ']' ? k + 1 : k);
+      let re = null;
+      if (j > k) { try { re = new RegExp(`^[${neg ? '^' : ''}${pat.slice(k, j).replace(/[\\[\]]/g, '\\$&')}]$`, 'i'); } catch { /* literal */ } }
+      if (re) { out.push({ re }); i = j; } else out.push({ ch: '[' });
+    } else out.push({ ch: c.toLowerCase() });
+  }
+  return out;
+}
+
+function wildMatch(toks, name) {
+  const one = (t, ch) => t.any || (t.re ? t.re.test(ch) : t.ch === ch.toLowerCase());
+  let ti = 0;
+  let si = 0;
+  let starTi = -1;
+  let starSi = 0;
+  while (si < name.length) {
+    if (ti < toks.length && toks[ti].star) { starTi = ti++; starSi = si; }
+    else if (ti < toks.length && one(toks[ti], name[si])) { ti++; si++; }
+    else if (starTi >= 0) { ti = starTi + 1; si = ++starSi; }
+    else return false;
+  }
+  while (ti < toks.length && toks[ti].star) ti++;
+  return ti === toks.length;
+}
+
+// What a wildcard path names on disk, segment by segment (a wildcard may sit in any segment: `~/.aw*/credentials`).
+// `*` does not match a leading dot, as in the shell.
+function expandWild(expanded, dirs) {
+  const norm = expanded.split('\\').join('/');
+  const abs = /^(?:[A-Za-z]:)?\//.exec(norm);
+  let cur = abs ? [abs[0]] : dirs.map((d) => path.resolve(d));
+  for (const seg of (abs ? norm.slice(abs[0].length) : norm).split('/').filter(Boolean)) {
+    slow();
+    if (seg === '.') continue;
+    if (seg === '..') { cur = cur.map((c) => path.resolve(c, '..')); continue; }
+    if (!GLOB_CHARS.test(seg)) { cur = cur.map((c) => path.join(c, seg)); continue; }
+    const toks = segTokens(seg);
+    const next = [];
+    for (const c of cur) {
+      for (const n of listDir(c)) {
+        if (n[0] === '.' && seg[0] !== '.') continue;
+        if (wildMatch(toks, n)) next.push(path.join(c, n));
+        if (next.length > MAX_EXPANSION) decide('ask', 'This wildcard matches too many paths for the guard to check; review it manually.');
+      }
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+// A command-line token is a secret access when it names a distinctive secret file (.env, *.pem, id_rsa…), or matches a
+// directory-style secret glob (secrets/**, .ssh/**) AND that path exists, or is a wildcard that expands to one.
+// "D1/secrets/deploy" in prose matches secrets/** but exists nowhere, so it is allowed.
+function secretToken(c, raw, dirs) {
+  slow();
+  if (raw.length > MAX_TOKEN) {
+    if (GLOB_CHARS.test(raw)) decide('ask', 'A wildcard in this command is too long for the guard to check; review it manually.');
+    return false;
+  }
+  return expandBraces(raw.replace(/^@/, '')).some((t) => secretName(c, t, dirs));
+}
+
+function secretName(c, t, dirs, expandedAlready = false) {
+  const home = homeDir();
+  const expanded = /^~[\\/]/.test(t) ? path.join(home, t.slice(2))
+    : t.replace(/^(?:\$\{?(?:HOME|USERPROFILE)\}?|%USERPROFILE%|\$env:USERPROFILE)(?=[\\/])/i, home);
+  if (!expandedAlready && GLOB_CHARS.test(expanded)) {
+    if ((expanded.match(/\*/g) || []).length > MAX_STARS) decide('ask', 'A wildcard in this command has too many *, so the guard cannot check it in time; review it manually.');
+    return expandWild(expanded, dirs).some((p) => secretName(c, p, dirs, true));
+  }
+  // a relative path means relative to where the shell is, not to the project root
+  const abs = path.resolve(input.cwd || root, expanded);
+  const rel = toRel(root, abs) ?? t;
+  // outside the repo (home dir, absolute paths): the repo-relative globs apply to every trailing sub-path
+  const segs = abs.normalize('NFC').split(/[\\/]+/).filter(Boolean);
+  const tails = isInside(rel) ? [] : segs.map((_, i) => segs.slice(i).join('/'));
+  // `git show HEAD:.env`, `git cat-file -p :secrets/db.json` name the file after the colon (not a URL)
+  const afterRev = !t.includes('://') && /^(?![A-Za-z]:[\\/])[^:\\/]*:/.test(t) ? t.replace(/^[^:\\/]*:/, '') : null;
+  const candidates = [rel, t.replace(/^~[\\/]/, ''), ...tails, ...(afterRev ? [afterRev] : [])];
+  if (candidates.some((x) => matchesAny(x, c.secretAllow))) return false;
+  const byName = c.secretPaths.filter((g) => !g.includes('/'));
+  const byDir = c.secretPaths.filter((g) => g.includes('/'));
+  if (candidates.some((x) => matchesAny(x, byName))) return true;
   // a directory of secrets (`cd ~/.aws`, `cd secrets`): what is inside is one `cat` away
   for (const d of dirs) {
     try {
@@ -118,33 +275,178 @@ function secretToken(cfg, raw, dirs) {
       if (fs.statSync(p).isDirectory() && secretDirectory(p)) return true;
     } catch { /* does not exist */ }
   }
+  // a committed file need not exist in the working tree
+  if (afterRev && matchesAny(afterRev, byDir)) return true;
   if (!/[\\/.]/.test(t)) return false;
-  if (!candidates.some((c) => matchesAny(c, byDir))) return false;
+  if (!candidates.some((x) => matchesAny(x, byDir))) return false;
   return dirs.some((d) => fs.existsSync(path.resolve(d, expanded)) || fs.existsSync(path.resolve(d, expanded.split('\\').join('/'))));
 }
+
+// A Grep `path` that is a directory holding secrets (~/.ssh, ./secrets): test a file inside it with the same rules
+// as a file path, including the outside-the-repo tails that make `**/.ssh/**` match under the home directory.
+function secretDirectory(p) {
+  return ['__grep__', 'credentials'].some((name) => { // credentials: **/.aws/credentials
+    const probe = path.join(p, name);
+    const segs = path.resolve(root, probe).normalize('NFC').split(/[\\/]+/).filter(Boolean);
+    const r = toRel(root, probe);
+    return [r, ...(isInside(r) ? [] : segs.map((_, i) => segs.slice(i).join('/')))]
+      .some((x) => matchesAny(x, cfg.secretPaths) && !matchesAny(x, cfg.secretAllow));
+  });
+}
+
+// A file the secret globs name. Inside the repo the repo-relative path is tested; outside it (the home directory,
+// another drive) every trailing sub-path is, so `**/.aws/credentials` and `**/.ssh/**` match under any parent.
+function secretFile(p, { fast = false } = {}) {
+  const rel = fast ? path.relative(root, p).split(path.sep).join('/') : toRel(root, p);
+  if (isInside(rel)) return isSecretPath(cfg, rel);
+  const segs = path.resolve(p).normalize('NFC').split(/[\\/]+/).filter(Boolean);
+  return segs.some((_, i) => isSecretPath(cfg, segs.slice(i).join('/')));
+}
+
+// Files under a directory, bounded in count and depth so a scan cannot outlast the hook's timeout.
+function walkFiles(dir, maxDepth = 6) {
+  const files = [];
+  const stack = [[dir, 0]];
+  let truncated = false;
+  while (stack.length) {
+    slow();
+    const [d, depth] = stack.pop();
+    let entries = [];
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name === 'node_modules' || e.name === '.git') continue;
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) { if (depth < maxDepth) stack.push([full, depth + 1]); else truncated = true; } else files.push(full);
+      if (files.length >= MAX_FILES) return { files, truncated: true };
+    }
+  }
+  return { files, truncated };
+}
+
+// Keep the secret files a Grep glob would reach. Only files already known to be secret are tested, and a long name (which
+// a regex could be made to chew on) is assumed to match: a missed secret is worse than a prompt.
+function globFilter(files, globs) {
+  if (!globs || files.length > 50) return files;
+  return files.filter((f) => f.length > 100 || matchesAny(f, globs));
+}
+
+// Secret files a directory-wide search would print. Inside a git repo that is what git lists under the root: tracked,
+// or untracked and not ignored (what ripgrep walks, so a gitignored .env is skipped by it too); `all` also lists
+// ignored files, for tools that do not skip them (`grep -r`, `rg -u`, or a Grep `glob`, which overrides .gitignore).
+// With no usable git, or outside the repo, walk the tree; a walk that hit its limit without a hit asks.
+function secretsUnder(dir, { all = false, glob = null, excludeDirs = [] } = {}) {
+  slow();
+  const abs = path.resolve(input.cwd || root, dir);
+  try { if (!fs.statSync(abs).isDirectory()) return []; } catch { return []; }
+  const rel = toRel(root, abs);
+  const skip = (f) => excludeDirs.length > 0 && f.split(/[\\/]/).some((s) => excludeDirs.includes(s));
+  const globs = glob ? [glob] : null;
+  if (rel === '' || isInside(rel)) {
+    try {
+      const out = execFileSync('git', ['ls-files', '-co', ...(all ? [] : ['--exclude-standard']), '-z', '--', rel || '.'],
+        { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+      return globFilter(out.split('\0').filter((f) => f && isSecretPath(cfg, f) && !skip(f)), globs);
+    } catch { /* not a git repo, or git is missing: walk it */ }
+  }
+  const { files, truncated } = walkFiles(abs);
+  const hits = globFilter(files.filter((p, i) => (i % 500 === 0 && slow(), secretFile(p, { fast: true })) && !skip(p)), globs);
+  if (!hits.length && truncated) decide('ask', 'This directory is too large for the guard to search for secrets in time; review the search manually.');
+  return hits;
+}
+
+// Grep prints file contents. A glob is judged by what it matches: names a secret file (`.env*`, `*.{env,pem}`,
+// `.[e]nv`) without being a catch-all that also matches ordinary source (`*`, `**/*`).
+function globNamesSecret(glob) {
+  if (!glob || glob.startsWith('!')) return false;
+  // a glob can carry several space-separated patterns
+  return glob.split(/\s+/).filter(Boolean).some((g) => {
+    const hits = (names) => names.some((n) => matchesAny(n, [g]) || matchesAny(`dir/${n}`, [g]));
+    return hits(SECRET_PROBES.filter((n) => !matchesAny(n, cfg.secretAllow))) && !hits(ORDINARY_PROBES);
+  });
+}
+
+// ------------------------------------------------------- searches and the guard's own files ---
+
+// Recursive searches in a command, one per simple command: grep -r (ignores .gitignore), rg/ag/ack/git grep (recursive
+// by default; -u / --no-ignore read ignored files too), findstr /s, and Select-String fed by -Recurse.
+function recursiveSearches(cmd) {
+  const found = [];
+  const parts = stripProse(cmd).split(SEGMENT);
+  const psRecurse = /-Recurse\b/i.test(cmd) && /\b(?:sls|select-string)\b/i.test(cmd);
+  const cwd = input.cwd || root;
+  for (let i = 0; i < parts.length; i += 2) {
+    const words = parts[i].trim().split(/\s+/).filter(Boolean);
+    while (words.length && (/^[A-Za-z_]\w*=/.test(words[0]) || ['sudo', 'command', 'time', 'nice'].includes(words[0]))) words.shift();
+    if (!words.length) continue;
+    const name = path.basename(words[0].replace(/\\/g, '/')).toLowerCase().replace(/\.exe$/, '');
+    const args = words.slice(1);
+    const flags = args.filter((a) => a.startsWith('-'));
+    let all = false;
+    let kind = null;
+    if (['grep', 'egrep', 'fgrep', 'rgrep', 'zgrep'].includes(name)) {
+      if (flags.some((a) => /^-[A-Za-z]*[rR][A-Za-z]*$/.test(a) || /^--(?:dereference-)?recursive$/.test(a) || a === '--directories=recurse') ||
+        args.some((a, k) => a === '-d' && args[k + 1] === 'recurse')) { kind = name; all = true; }
+    } else if (['rg', 'ripgrep', 'ag', 'ack', 'ack-grep'].includes(name)) {
+      kind = name;
+      all = name.startsWith('ack') || flags.some((a) => /^-u+$/.test(a) || /^--(?:no-ignore|unrestricted)/.test(a));
+    } else if (name === 'git' && args[0] === 'grep') kind = 'git grep';
+    else if (name === 'findstr' && args.some((a) => /^\/s$/i.test(a))) { kind = name; all = true; }
+    else if (psRecurse && ['sls', 'select-string', 'gci', 'get-childitem', 'ls', 'dir', 'cat', 'gc', 'get-content'].includes(name)) { kind = name; all = true; }
+    if (!kind) continue;
+    const excludeDirs = [];
+    args.forEach((a, k) => {
+      const m = /^--exclude-dir=(.+)$/.exec(a);
+      if (m) excludeDirs.push(...m[1].replace(/^\{|\}$/g, '').split(','));
+      else if (a === '--exclude-dir' && args[k + 1]) excludeDirs.push(args[k + 1]);
+    });
+    // operands: the first non-flag word is the pattern (unless -e/-f/--regexp gives it); the rest are paths
+    const operands = args.filter((a) => !a.startsWith('-') && !a.startsWith('/'));
+    const patternGiven = args.some((a) => ['-e', '-f', '--regexp', '--file'].includes(a) || a.startsWith('--regexp='));
+    const paths = patternGiven ? operands : operands.slice(1);
+    // findstr /s takes file specs (`*`, `*.pem`) and walks the cwd for them, dotfiles included
+    const targets = paths.length && kind !== 'findstr' ? [] : [cwd];
+    for (const p of kind === 'findstr' ? [] : paths) {
+      const clean = expandVars(p.replace(/^["']|["']$/g, ''));
+      for (const candidate of GLOB_CHARS.test(clean) ? expandWild(clean, [cwd]) : [path.resolve(cwd, clean)]) {
+        try { if (fs.statSync(candidate).isDirectory()) targets.push(candidate); } catch { /* not a directory */ }
+      }
+    }
+    if (targets.length) found.push({ targets, all, excludeDirs });
+  }
+  return found;
+}
+
+// The guard's own config and state: an agent that can rewrite secretPaths has switched the guard off. A shell command
+// that writes (or deletes, moves, redirects into, or `cd`s into) .sdlc/config.json or .sdlc/local/ asks a person.
+function touchesGuardFiles(cmd) {
+  const norm = cmd.replace(/\\/g, '/').replace(/\/(?:\.\/)+/g, '/').replace(/\/{2,}/g, '/');
+  if (!/\.sdl(?:c\b|[?*[])/i.test(norm)) return false;
+  return [
+    /(?:^|[\s;|&(])(?:tee|mv|cp|rm|del|erase|ren|rd|rmdir|move|copy|truncate|dd|install|vim?|nano|code|sc|ni|ri|mi|ac|set-content|add-content|out-file|clear-content|remove-item|move-item|copy-item|rename-item|new-item)\b/i,
+    /\b(?:writeFile|appendFile|unlink|rmSync|renameSync|copyFile|cpSync|write_text|dump)\w*\b/,
+    /\bopen\s*\([^)]*,\s*['"][wa]/,
+    /\b(?:sed|perl)\s+-\S*i/i,
+    /\bcurl\b[^\n|;]*\s(?:-o|--output)\b|\bwget\b[^\n|;]*\s(?:-O|--output-document)\b/i,
+    />>?\s*\S*\.sdl/i,
+    /\b(?:cd|pushd|set-location|sl)\s+\S*\.sdlc/i,
+    /\bgit\s+(?:checkout|restore|apply|stash)\b/i
+  ].some((re) => re.test(norm));
+}
+
+// ===================================================================== main ============
 
 // A guard that crashes exits 1, which Claude Code treats as non-blocking: that would silently switch every
 // check off. Unreadable input or an unexpected error pauses for a human instead.
 process.on('uncaughtException', (e) => decide('ask', `The guard failed (${e.message}); review this action manually.`));
-const input = await readStdinJson({ strict: true });
+input = await readStdinJson({ strict: true });
 if (input.invalidInput) decide('ask', 'The guard could not parse its input; review this action manually.');
-const tool = input.tool_name;
-const ti = input.tool_input || {};
-const root = findRoot(input.cwd);
-const cfg = loadConfig(root);
-const state = loadState(root);
-
-// A nested .git or .sdlc (a submodule, a package with its own config) moves the root to the nearest one. The session's own
-// project (CLAUDE_PROJECT_DIR) still defines secrets for everything under it, so its secretPaths are added: one that
-// reaches into this subtree is also tried with the subtree's prefix removed. This can only add restrictions.
-if (process.env.CLAUDE_PROJECT_DIR) {
-  const outer = findRoot(process.env.CLAUDE_PROJECT_DIR);
-  const sub = outer === root ? null : toRel(outer, root);
-  if (sub && isInside(sub)) {
-    const extra = loadConfig(outer).secretPaths.flatMap((g) => (g.startsWith(sub + '/') ? [g, g.slice(sub.length + 1)] : [g]));
-    cfg.secretPaths = [...new Set([...cfg.secretPaths, ...extra])];
-  }
-}
+tool = input.tool_name;
+ti = input.tool_input || {};
+// The session's project (CLAUDE_PROJECT_DIR) anchors the guard even when the shell has `cd`'d into a nested package or
+// submodule that has its own .git or .sdlc: the config, state, protected paths and test lock are the session's.
+root = findRoot(process.env.CLAUDE_PROJECT_DIR || input.cwd);
+cfg = loadConfig(root);
+state = loadState(root);
 
 if (tool === 'Bash' || tool === 'PowerShell') {
   const cmd = String(ti.command || '');
@@ -153,26 +455,20 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   // 1. secrets referenced on the command line
   const dirs = [...new Set([input.cwd, root].filter(Boolean))];
   for (const variant of scanVariants(cmd)) {
-    for (const t of tokens(expandHome(variant))) {
+    for (const t of tokens(variant)) {
       if (secretToken(cfg, t, dirs)) decide('deny', `"${t}" matches a secret path. Secrets stay out of the session; use an env-injected value or ask the user.`);
     }
   }
 
-  // a recursive grep reads ignored files too, so a .env anywhere under the directory it searches is read
-  if (/\b(?:grep|egrep|fgrep|ack)\b[^\n]*\s(?:-[a-zA-Z]*[rR]|--recursive)\b/.test(cmd) || /Select-String[^\n]*-Recurse|-Recurse[^\n]*Select-String/i.test(cmd)) {
-    // operands after the command word, minus flags; the first is the pattern, the rest are paths (none: the cwd)
-    const operands = tokens(cmd).filter((t) => !t.startsWith('-')).slice(1);
-    const paths = operands.slice(1);
-    const targets = paths.length ? paths.filter((p) => { try { return fs.statSync(path.resolve(input.cwd || root, expandHome(p))).isDirectory(); } catch { return false; } }) : [input.cwd || root];
-    for (const t of targets) {
-      const found = secretsUnder(path.resolve(input.cwd || root, expandHome(t)), true);
-      if (found.length) decide('deny', `A recursive search of ${t} would print the contents of ${found[0]}. Search a source directory instead.`);
+  // a recursive search reads every file under the directory it walks, so a .env there is printed
+  for (const s of recursiveSearches(cmd)) {
+    for (const target of s.targets) {
+      const found = secretsUnder(target, { all: s.all, excludeDirs: s.excludeDirs });
+      if (found.length) decide('deny', `A recursive search of ${target} would print the contents of ${found[0]}. Search a source directory instead.`);
     }
   }
 
-  // the guard's own config and state: an agent that can rewrite secretPaths has switched the guard off
-  const WRITES_ANY = /(?:>|\b(?:tee|sed|perl|mv|cp|rm|del|erase|ren|move|copy|truncate|Set-Content|Add-Content|Out-File|Clear-Content|Remove-Item|Move-Item|Copy-Item|Rename-Item|node|python3?|ruby|jq|git\s+(?:checkout|restore|apply)|write\w*)\b)/i;
-  if (/\.sdlc[\\/](?:config\.json|local)\b/i.test(cmd) && WRITES_ANY.test(cmd)) {
+  if (touchesGuardFiles(cmd)) {
     decide('ask', 'This command changes the guard\'s own settings or state (.sdlc/config.json, .sdlc/local/). A person should confirm it.');
   }
 
@@ -199,86 +495,18 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   process.exit(0);
 }
 
-// A Grep `path` that is a directory holding secrets (~/.ssh, ./secrets): test a file inside it with the same rules
-// as a file path, including the outside-the-repo tails that make `**/.ssh/**` match under the home directory.
-// (Function declarations only below this point: the Bash branch above calls them before the consts further down.)
-function secretDirectory(p) {
-  return ['__grep__', 'credentials'].some((name) => { // credentials: **/.aws/credentials
-    const probe = path.join(p, name);
-    const segs = path.resolve(root, probe).normalize('NFC').split(/[\\/]+/).filter(Boolean);
-    const r = toRel(root, probe);
-    return [r, ...(isInside(r) ? [] : segs.map((_, i) => segs.slice(i).join('/')))]
-      .some((c) => matchesAny(c, cfg.secretPaths) && !matchesAny(c, cfg.secretAllow));
-  });
-}
-
-// A file the secret globs name. Inside the repo the repo-relative path is tested; outside it (the home directory,
-// another drive) every trailing sub-path is, so `**/.aws/credentials` and `**/.ssh/**` match under any parent.
-function secretFile(p) {
-  const rel = toRel(root, p);
-  if (isInside(rel)) return isSecretPath(cfg, rel);
-  const segs = path.resolve(p).normalize('NFC').split(/[\\/]+/).filter(Boolean);
-  return segs.some((_, i) => isSecretPath(cfg, segs.slice(i).join('/')));
-}
-
-// Files under a directory, bounded in count and depth so a scan cannot outlast the hook's timeout.
-function walkFiles(dir, { maxFiles = 20000, maxDepth = 6 } = {}) {
-  const out = [];
-  const stack = [[dir, 0]];
-  while (stack.length && out.length < maxFiles) {
-    const [d, depth] = stack.pop();
-    let entries = [];
-    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
-    for (const e of entries) {
-      if (e.name === 'node_modules' || e.name === '.git') continue;
-      const full = path.join(d, e.name);
-      if (e.isDirectory()) { if (depth < maxDepth) stack.push([full, depth + 1]); } else out.push(full);
-    }
-  }
-  return out;
-}
-
-// Secret files a directory-wide search would print. Inside a git repo that is what git lists under the root: tracked,
-// or untracked and not ignored (what ripgrep walks, so a gitignored .env is skipped by it too); `all` also lists
-// ignored files, for tools like `grep -r` that do not skip them. With no usable git, or outside the repo, walk the tree.
-function secretsUnder(dir, all = false, glob = null) {
-  const abs = path.resolve(root, dir);
-  try { if (!fs.statSync(abs).isDirectory()) return []; } catch { return []; }
-  const rel = toRel(root, abs);
-  const keep = (names) => names.filter((f) => f && secretFile(path.resolve(root, f)) && (!glob || matchesAny(f, [glob])));
-  if (rel === '' || isInside(rel)) {
-    try {
-      const out = execFileSync('git', ['ls-files', '-co', ...(all ? [] : ['--exclude-standard']), '-z', '--', rel || '.'],
-        { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
-      return keep(out.split('\0'));
-    } catch { /* not a git repo, or git is missing: walk it */ }
-  }
-  return keep(walkFiles(abs));
-}
-
-// Grep prints file contents. A glob is judged by what it matches: names a secret file (`.env*`, `*.{env,pem}`,
-// `.[e]nv`) without being a catch-all that also matches ordinary source (`*`, `**/*`).
-function globNamesSecret(glob) {
-  if (!glob || glob.startsWith('!')) return false;
-  const secret = ['.env', '.env.local', '.env.production', 'x.pem', 'x.key', 'x.p12', 'id_rsa', 'id_ed25519', '.aws/credentials', '.ssh/id_rsa', 'secrets/x'];
-  const ordinary = ['app.ts', 'README.md', 'src/index.js', 'main.go'];
-  // a glob can carry several space-separated patterns
-  return glob.split(/\s+/).filter(Boolean).some((g) => {
-    const hits = (names) => names.some((n) => matchesAny(n, [g]) || matchesAny(`dir/${n}`, [g]));
-    return hits(secret.filter((n) => !matchesAny(n, cfg.secretAllow))) && !hits(ordinary);
-  });
-}
-
 if (SEARCH_TOOLS.has(tool)) {
   const glob = String(ti.glob || '');
-  if (glob.length > MAX_GLOB || (glob.match(/[{[]/g) || []).length > 8) {
+  if (glob.length > MAX_GLOB || (glob.match(/[{[]/g) || []).length > 8 || (glob.match(/\*/g) || []).length > MAX_STARS) {
     decide('ask', 'The search glob is too long or too intricate for the guard to check in time; review it manually.');
   }
   if (tool === 'Grep' && globNamesSecret(glob)) {
     decide('deny', `Grep glob "${glob}" targets secret files (secretPaths in .sdlc/config.json). Do not read them; reference the variable name instead.`);
   }
   if (tool === 'Grep' && ti.output_mode === 'content') {
-    const found = secretsUnder(ti.path || input.cwd || root, false, glob && !glob.startsWith('!') && !/\s/.test(glob) ? glob : null);
+    // a positive glob overrides .gitignore in ripgrep (`-g '*'` searches ignored files), so then ignored files count too
+    const positive = glob && !glob.startsWith('!');
+    const found = secretsUnder(ti.path || input.cwd || root, { all: Boolean(positive), glob: positive && !/\s/.test(glob) ? glob : null });
     if (found.length) {
       decide('deny', `This search would print the contents of ${found[0]}${found.length > 1 ? ` and ${found.length - 1} more secret file(s)` : ''}. ` +
         'Narrow the path or glob to source files, use output_mode files_with_matches, or add the secret file to .gitignore.');
@@ -288,7 +516,7 @@ if (SEARCH_TOOLS.has(tool)) {
 const rawPath = ti.file_path || ti.notebook_path || ti.path;
 // a search with only a glob has no path, but its glob is still checked below
 if (!rawPath && !(SEARCH_TOOLS.has(tool) && ti.glob)) process.exit(0);
-const filePath = rawPath && process.platform === 'win32' ? ntfsPath(rawPath) : rawPath;
+const filePath = rawPath && path.resolve(input.cwd || root, process.platform === 'win32' ? ntfsPath(rawPath) : rawPath);
 if (tool === 'Grep' && filePath && secretDirectory(filePath)) {
   decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
 }
