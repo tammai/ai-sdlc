@@ -191,7 +191,11 @@ export function changeDir(root, cfg, id) {
 // --- frontmatter (flat key: value only) ---------------------------------
 export function readDoc(file) {
   if (!fs.existsSync(file)) return null;
-  const text = readText(file);
+  return parseDoc(readText(file));
+}
+
+// The front matter (`key: value` lines between `---` fences) and the body of a document's text.
+export function parseDoc(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   const meta = {};
   if (m) {

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
-  heartbeat, readDoc
+  heartbeat, readDoc, parseDoc
 } from './lib.mjs';
 
 // A hook that outlives its timeout (10 s) is killed, and Claude Code treats that as "no objection". So every scan is
@@ -98,6 +98,28 @@ function approvalAsk(kind) {
     `Claude must not approve on its own, even when told to skip the paperwork. (Pre-authorize with SDLC_APPROVER=<name> in the launching shell.)`);
 }
 const gated = (kind) => !process.env.SDLC_APPROVER && (cfg.approvalGate || []).includes(kind);
+
+// The file as an Edit/MultiEdit/Write would leave it. The gate judges that, not the fragment: replacing `draft` with
+// `approved` never says `status:`, and two edits can add up to an approval.
+function afterEdit(abs) {
+  if (tool === 'Write') return String(ti.content ?? '');
+  let text = '';
+  try { text = fs.readFileSync(abs, 'utf8').replace(/^﻿/, ''); } catch { /* a new file */ }
+  for (const e of tool === 'MultiEdit' ? (ti.edits || []) : [ti]) {
+    if (typeof e.old_string !== 'string' || typeof e.new_string !== 'string') continue;
+    if (e.old_string === '') text += e.new_string;
+    else text = e.replace_all ? text.split(e.old_string).join(e.new_string) : text.replace(e.old_string, () => e.new_string);
+  }
+  return text;
+}
+
+// A shell command that writes a file: a redirect, or a copy/move/edit verb, or an interpreter that says it writes.
+const SHELL_WRITES = new RegExp([
+  String.raw`\b(?:sed|perl)\s+-\S*i`, String.raw`\btee\b`, String.raw`\b(?:Set|Add)-Content\b`, String.raw`\bOut-File\b`,
+  String.raw`\b(?:cp|mv|move|copy|dd|install|ren|rename)\b`, String.raw`\b(?:Copy|Move|Rename)-Item\b`,
+  String.raw`>>?\s*\S*\.md`,
+  String.raw`\b(?:python3?|node|ruby|perl|php)\b[\s\S]*(?:write|append|\.dump|open\s*\([^)]*,\s*['"][wa])`
+].join('|'), 'i');
 
 // `echo ".env" >> .gitignore` names .env without reading it: what echo prints is prose. Keep its redirect targets and
 // any $(…) it runs; keep everything when its output is piped on (`echo .env | xargs cat`).
@@ -520,9 +542,10 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   const sans = stripProse(cmd, { keepShell: true });
   const cli = sans.match(new RegExp(`\\bsdlc(?:\\.mjs)?["']?\\s+approve\\s+${STAGE_RE}\\b`, 'i'));
   if (cli && gated(cli[1].toLowerCase())) approvalAsk(cli[1].toLowerCase());
-  const art = sans.match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
-  if (art && gated(art[1].toLowerCase()) && /\bapproved\b/i.test(sans) &&
-    /\b(?:sed|perl)\s+-\S*i|\btee\b|\b(?:Set|Add)-Content\b|\bOut-File\b|\bpython3?\b|\bnode\b|>>?\s*\S*\.md/i.test(sans)) approvalAsk(art[1].toLowerCase());
+  // (Windows spells the path docs\sdlc\c1\plan.md)
+  const art = sans.replace(/\\/g, '/').match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
+  // any write to a gated artifact asks, not only one that says "approved": `sed -i s/draft/$s/` builds the word at run time
+  if (art && gated(art[1].toLowerCase()) && SHELL_WRITES.test(sans)) approvalAsk(art[1].toLowerCase());
 
   // 5. production gate
   // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
@@ -610,11 +633,9 @@ if (matchesAny(rel, ['.sdlc/config.json', '.sdlc/local/**'])) {
 {
   const m = rel.match(new RegExp(`^${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/${STAGE_RE}\\.md$`, 'i'));
   if (m && gated(m[1].toLowerCase())) {
-    const claims = (t) => /^\s*status:\s*approved\b/m.test(t || '');
     const abs = path.resolve(root, rel);
     const already = readDoc(abs)?.meta.status === 'approved';
-    const wrote = tool === 'Write' ? claims(ti.content) : [ti.new_string, ...(ti.edits || []).map((e) => e.new_string)].some(claims);
-    if (wrote && !already) approvalAsk(m[1].toLowerCase());
+    if (!already && parseDoc(afterEdit(abs)).meta.status === 'approved') approvalAsk(m[1].toLowerCase());
   }
 }
 
