@@ -276,9 +276,12 @@ function verify() {
     const label = ok ? 'PASS' : knownRed ? 'KNOWN-RED' : 'FAIL';
     console.log(`${label}  ${v.name}  (${v.cmd})  ${results.at(-1).secs}s`);
     if (ok && v.baseline === 'red') console.log(`      ${v.name} is green now — run \`sdlc baseline\` to start enforcing it`);
+    if (knownRed && v.baselineReason === 'tool or script missing') console.log(`      ${v.name}: the tool or script it runs is missing on this machine, so nothing was checked. Install it (or edit the command) and run \`sdlc baseline\` again`);
     if (!ok && !knownRed) { console.log(tail(out, 60)); if (!f.all) break; }
   }
   const known = results.filter((r) => r.knownRed);
+  const unrun = known.filter((r) => r.baselineReason === 'tool or script missing');
+  if (unrun.length) console.log(`WARNING: ${unrun.length} check(s) could not run because their tool is missing (${unrun.map((r) => r.name).join(', ')}); a green result does not cover them.`);
   if (known.length) console.log(`(${known.length} check(s) were already failing before ai-sdlc and are not enforced: ${known.map((r) => r.name).join(', ')})`);
   const passed = results.every((r) => r.ok) && (!only || results.length === only.size);
   const full = passed && !only;

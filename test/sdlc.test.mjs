@@ -119,6 +119,16 @@ describe('verify', () => {
     const r = sdlc(dir, ['verify']);
     assert.equal(r.code, 0);
     assert.match(r.out, /KNOWN-RED\s+bad/);
+    assert.doesNotMatch(r.out, /WARNING/, 'an ordinary known-red check is not a missing tool');
+  });
+
+  test('a known-red check whose tool is missing says that nothing was checked', () => {
+    const missing = { name: 'make', cmd: 'node -e "process.exit(1)"', baseline: 'red', baselineReason: 'tool or script missing' };
+    const dir = makeRepo({ active: 'c1', config: { verify: [ok, missing] } });
+    const r = sdlc(dir, ['verify']);
+    assert.equal(r.code, 0);
+    assert.match(r.out, /make: the tool or script it runs is missing/);
+    assert.match(r.out, /WARNING: 1 check\(s\) could not run because their tool is missing \(make\)/);
   });
 });
 
