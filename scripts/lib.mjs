@@ -205,7 +205,8 @@ export function globToRegExp(glob) {
       const j = glob.indexOf(']', i + 2);
       if (j > 0) {
         const body = glob.slice(i + 1, j).replace(/^!/, '^').replace(/\\/g, '\\\\');
-        re += `[${body}]`; i = j; continue;
+        // an invalid class (`[z-a]`) is matched literally, as a bracket in a file name, rather than throwing
+        try { new RegExp(`[${body}]`); re += `[${body}]`; i = j; continue; } catch { /* fall through to the literal */ }
       }
     }
     if (c === '*') {

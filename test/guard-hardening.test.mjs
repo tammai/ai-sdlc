@@ -130,6 +130,10 @@ describe('Grep tool corner cases', () => {
     }
     assert.equal(decision(dir, 'Grep', { pattern: 'K', output_mode: 'content' }), 'deny', 'no git: the tree is walked');
     assert.equal(decision(dir, 'Grep', { pattern: 'K', path: f(dir, 'src'), output_mode: 'content' }), 'allow');
+    // a malformed class must not crash the guard (a crash exits non-zero, which Claude Code lets through)
+    for (const glob of ['[z-a].env', '[].env', '[!].env', '[\\]x']) {
+      assert.doesNotThrow(() => decision(dir, 'Grep', { pattern: 'K', glob, output_mode: 'content' }), glob);
+    }
     const git = makeRepo({ files: { '.env': 'K=1' } });
     spawnSync('git', ['init', '-q'], { cwd: git });
     assert.equal(decision(git, 'Grep', { pattern: 'K', glob: '*.ts .env' }), 'deny', 'several patterns in one glob');
