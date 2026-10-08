@@ -18,6 +18,8 @@ When the install dialog asks for a scope, pick **project** (this repo only) to t
 
 **Requirements:** git, and Node ≥ 18 for the plugin itself (hooks and CLI have zero dependencies). The app templates need Node ≥ 22.21 (see [Known limits](#app-templates-sdlc-scaffold-app)). `gh` is needed for PR flows.
 
+**Platforms:** the plugin's own tests run in CI on Linux, macOS and Windows (Node 18, 20, 22). Hooks run as `node …`, so `node` must be on the PATH of the shell Claude Code launches (with nvm/fnm/volta, start Claude Code from a terminal where `node --version` works; if `node` is missing a hook errors without blocking, so the guards are off). Prefer Git for Windows (Git Bash) on Windows. The app templates have their own limits, below.
+
 **No API key needed.** It works on a Claude subscription: review, babysitting, triage and evals run in your own session. GitHub automation is opt-in via `/ai-sdlc:setup ci`, using a `claude setup-token` subscription token (or an API key).
 
 ## Quick start

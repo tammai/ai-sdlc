@@ -12,11 +12,28 @@ permissions:
   contents: read
 jobs:
   unit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: unit (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm install -g @anthropic-ai/claude-code
-      - run: node test/run.mjs --no-evals
+        with: { node-version: '${{ matrix.node }}' }
+      # .gitattributes forces LF; a CRLF checkout would break the bash fixtures and hook scripts
+      - name: No CRLF in tracked text files
+        shell: bash
+        run: |
+          if git ls-files --eol | grep -E 'w/(crlf|mixed)' | grep -vE 'attr/(-text|binary)'; then echo "CRLF files above"; exit 1; fi
+      # the hook and CLI tests need no Claude CLI, so they run on every OS and Node version
+      - shell: bash # bash so the glob expands on Windows runners and Node 18/20
+        run: node --test test/*.test.mjs
+      # plugin validation needs the Claude CLI: once per OS, on the current Node
+      - if: matrix.node == 22
+        run: npm install -g @anthropic-ai/claude-code
+      - if: matrix.node == 22
+        run: node test/run.mjs --no-evals
