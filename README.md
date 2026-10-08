@@ -18,7 +18,7 @@ When the install dialog asks for a scope, pick **project** (this repo only) to t
 
 **Requirements:** git, and Node ≥ 18 for the plugin itself (hooks and CLI have zero dependencies). The app templates need Node ≥ 22.21 (see [Known limits](#app-templates-sdlc-scaffold-app)). `gh` is needed for PR flows.
 
-**On Windows, the app templates also need:** `git config --global core.longpaths true` (the plugin cache path is long); Docker Desktop or WSL for the Go API's Postgres compose file; Rust with the MSVC build tools and WebView2 for the Tauri templates (their `clippy` and `cargo test` run only on Linux CI, so Windows and macOS Tauri builds are unverified); and the Flutter SDK for the Flutter template.
+**On Windows, the app templates also need:** a short project directory (see Known limits); Docker Desktop or WSL for the Go API's Postgres compose file; Rust with the MSVC build tools and WebView2 for the Tauri templates (their `clippy` and `cargo test` run only on Linux CI, so Windows and macOS Tauri builds are unverified); and the Flutter SDK for the Flutter template.
 
 **Platforms:** the plugin's own tests run in CI on Linux, macOS and Windows (Node 18, 20, 22). Hooks run as `node …`, so `node` must be on the PATH of the shell Claude Code launches (with nvm/fnm/volta, start Claude Code from a terminal where `node --version` works; if `node` is missing a hook errors without blocking, so the guards are off). Prefer Git for Windows (Git Bash) on Windows. The app templates have their own limits, below.
 
@@ -185,8 +185,8 @@ On existing projects it only adds new components into empty folders. `.github/wo
 
 Known limits:
 - **Nuxt 4.6 templates need Node ≥ 22.21.** On older Node 22, `nuxt generate` fails.
-- **Windows paths:** keep project paths short on Windows. Cloudflare's local runtime (workerd) and Expo's Hermes compiler fail beyond the 260-character path limit. WSL also works.
-- **`nuxt generate` on native Windows:** every Nuxt template that prerenders (the SPA templates and both sites) failed with `500 Server Error` on all routes when we built it on Windows, including the untouched `spa-web-nuxt`, from a short path too. Linux, macOS and WSL are fine; build there.
+- **Windows paths:** keep the project directory short on Windows, under about 100 characters. Node cannot read a `package.json` whose full path is 260 characters or more, even with `LongPathsEnabled`, so a deep `node_modules` breaks `vitest` and `nuxt generate` first; git itself fails near 200 characters of project root. Cloudflare's local runtime (workerd) and Expo's Hermes compiler have the same limit. WSL also works.
+- **`nuxt generate` on native Windows:** Nitro 2.13 compares its `inline` list against Windows paths with backslashes, so Nuxt's own server runtime stayed external in the prerender build and every prerendered route returned `500 Server Error` ("Either manifest or precomputed data must be provided"). The Nuxt templates that prerender now carry `nitro.externals.inline` with a function matcher in `nuxt.config.ts`, which fixes it (`spa-web-nuxt` and `site-landing-nuxt` build and prerender on Windows). A project scaffolded before this fix needs the same line; Linux, macOS and WSL never had the problem. `tauri-nuxt` (Nuxt 4.4) is not affected.
 - **Site templates** leave the account-side steps to a human: creating the R2 buckets, uploading real media, setting `NUXT_PUBLIC_SITE_URL` and the production deploy. They have no form backend (contact is a `mailto:` link) and no i18n or RSS. Nuxt Content indexes with Node's built-in `node:sqlite`, which Node ≥ 22.21 provides.
 - **edge-web-next** builds on Linux, macOS or WSL. OpenNext needs symlinks, so on Windows without Developer Mode, run `pnpm build` in WSL.
 - **flutter** was written without a local Flutter SDK; CI proves it on Linux. Its lockfile is created on first install.
