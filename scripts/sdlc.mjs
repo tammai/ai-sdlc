@@ -779,11 +779,11 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   metrics [--json]                   playbook leading/lagging indicators from the chain + git
   detect [--bands file] [--series file]  rolling-baseline + Western Electric band check
   adr ["<title>"] [--supersedes NNNN] | adr --accept|--reject|--deprecate NNNN [--by name]
-  stack --surfaces web,mobile,desktop --backend fullstack|separated [--ui vue|react]   (new app)
+  stack --surfaces web,mobile,desktop --backend fullstack|separated|existing-own|existing [--choice claude|templates] [--ui vue|react|react-hono] [--api-url URL]   (new app)
   stack --surfaces site --site landing|marketing                                       (new static site, Nuxt SSG on Cloudflare)
   stack --adr <file>                 link the stack ADR to the recorded stack (no --force needed)
   stack --detect [--format]          existing app: keep its stack, add only presets that fit
-  stack --components a,b [--ui vue|react] [--dirs name=dir]  record stack + merge presets into config
+  stack --components a,b [--ui vue|react|react-hono] [--dirs name=dir]  record stack + merge presets into config
   route [role...] [--complexity simple|normal|complex] [--implementer-model m]
                                      subagent + model/effort for the active tier; records who implements and reviews
   ready                              open questions (intent.md) and Concerns (spec.md) that block approval
