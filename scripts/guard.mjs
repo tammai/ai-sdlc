@@ -168,7 +168,9 @@ function listDir(d) {
   if (!dirCache.has(d)) {
     let names = [];
     try { names = fs.readdirSync(d); } catch { /* not a directory */ }
-    dirCache.set(d, names.slice(0, 5000));
+    // a wildcard that cannot see the whole directory could miss the one secret in it, so a huge one asks instead
+    if (names.length > MAX_FILES) decide('ask', `A wildcard in this command walks ${names.length} entries in ${d}, too many for the guard to check; review it manually.`);
+    dirCache.set(d, names);
   }
   return dirCache.get(d);
 }
@@ -240,10 +242,8 @@ function expandWild(expanded, dirs) {
 // "D1/secrets/deploy" in prose matches secrets/** but exists nowhere, so it is allowed.
 function secretToken(c, raw, dirs) {
   slow();
-  if (raw.length > MAX_TOKEN) {
-    if (GLOB_CHARS.test(raw)) decide('ask', 'A wildcard in this command is too long for the guard to check; review it manually.');
-    return false;
-  }
+  // only a wildcard is expensive to expand; a long plain path (long paths are on in Windows 11) is still checked by name
+  if (raw.length > MAX_TOKEN && GLOB_CHARS.test(raw)) decide('ask', 'A wildcard in this command is too long for the guard to check; review it manually.');
   return expandBraces(raw.replace(/^@/, '')).some((t) => secretName(c, t, dirs));
 }
 
@@ -264,7 +264,10 @@ function secretName(c, t, dirs, expandedAlready = false) {
   // `git show HEAD:.env`, `git cat-file -p :secrets/db.json` name the file after the colon (not a URL)
   const afterRev = !t.includes('://') && /^(?![A-Za-z]:[\\/])[^:\\/]*:/.test(t) ? t.replace(/^[^:\\/]*:/, '') : null;
   const candidates = [rel, t.replace(/^~[\\/]/, ''), ...tails, ...(afterRev ? [afterRev] : [])];
-  if (candidates.some((x) => matchesAny(x, c.secretAllow))) return false;
+  // The allow-list is tried only on resolved paths. The raw token may reach a secret through a `..` that a glob would read
+  // as part of an allowed prefix (`node_modules/../.env` matches `**/node_modules/**`).
+  const allowable = [rel, ...tails, ...(afterRev ? [path.posix.normalize(afterRev.split('\\').join('/'))] : [])];
+  if (allowable.some((x) => !x.split('/').includes('..') && matchesAny(x, c.secretAllow))) return false;
   const byName = c.secretPaths.filter((g) => !g.includes('/'));
   const byDir = c.secretPaths.filter((g) => g.includes('/'));
   if (candidates.some((x) => matchesAny(x, byName))) return true;
@@ -400,7 +403,7 @@ function recursiveSearches(cmd) {
       else if (a === '--exclude-dir' && args[k + 1]) excludeDirs.push(args[k + 1]);
     });
     // operands: the first non-flag word is the pattern (unless -e/-f/--regexp gives it); the rest are paths
-    const operands = args.filter((a) => !a.startsWith('-') && !a.startsWith('/'));
+    const operands = args.filter((a) => !a.startsWith('-') && !(kind === 'findstr' && a.startsWith('/')));
     const patternGiven = args.some((a) => ['-e', '-f', '--regexp', '--file'].includes(a) || a.startsWith('--regexp='));
     const paths = patternGiven ? operands : operands.slice(1);
     // findstr /s takes file specs (`*`, `*.pem`) and walks the cwd for them, dotfiles included

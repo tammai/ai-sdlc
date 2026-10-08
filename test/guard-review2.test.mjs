@@ -225,3 +225,41 @@ describe('the Windows shell cwd', () => {
     assert.equal(bash(sub, 'cat secrets/db.json', { CLAUDE_PROJECT_DIR: dir }), 'deny');
   });
 });
+
+describe('the allow-list is tried on resolved paths only', () => {
+  const dir = makeRepo({ files: { '.env': 'K=1', 'node_modules/p/index.js': 'x' } });
+
+  test('a .. that climbs out of an allowed prefix still reaches the secret', () => {
+    for (const c of ['cat node_modules/../.env', 'cat node_modules/p/../../.env', 'git show HEAD:node_modules/../.env', 'cat "./node_modules/../.env"']) {
+      assert.equal(bash(dir, c), 'deny', c);
+    }
+    assert.equal(decision(dir, 'Read', { file_path: path.join(dir, 'node_modules', '..', '.env') }), 'deny');
+    assert.equal(bash(dir, 'cat node_modules/p/index.js'), 'allow');
+  });
+});
+
+describe('a search that starts at the drive root', () => {
+  test('grep -r K / is not waved through', () => {
+    const dir = makeRepo({});
+    const { r, ms } = timed(() => bash(dir, 'grep -r K /'));
+    assert.notEqual(r, 'allow');
+    assert.ok(ms < 9000, `${ms} ms`);
+  });
+});
+
+describe('limits that must not become blind spots', () => {
+  test('a long plain path to a secret is still checked', () => {
+    const deep = ['d'.repeat(60), 'e'.repeat(60), 'f'.repeat(60), 'g'.repeat(60), 'h'.repeat(60)].join(path.sep);
+    const dir = makeRepo({ files: { [`${deep.split(path.sep).join('/')}/.env`]: 'K=1' } });
+    const token = `${deep.split(path.sep).join('/')}/.env`;
+    assert.ok(token.length > 300, `${token.length}`);
+    assert.equal(bash(dir, `cat ${token}`), 'deny');
+    assert.equal(decision(dir, 'Read', { file_path: path.join(dir, token) }), 'deny');
+  });
+
+  test('a wildcard over a directory too big to list asks, not allows', () => {
+    const files = Object.fromEntries(Array.from({ length: 20050 }, (_, i) => [`a/f${i}`, '']));
+    const dir = makeRepo({ files: { ...files, 'a/.env': 'K=1' } });
+    assert.equal(bash(dir, 'cat a/.e*'), 'ask');
+  });
+});
