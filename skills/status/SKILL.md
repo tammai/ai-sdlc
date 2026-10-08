@@ -5,7 +5,7 @@ description: Show where every change is in the AI-native SDLC chain (intent/spec
 
 # Status
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 1. `sdlc status` (add `--all` to include closed changes). Summarize: the active change and its next step; other open changes; anything blocked (unapproved spec with Concerns, failed verify, disputed review findings).
 2. If asked about health/progress, `sdlc metrics` and interpret against the playbook's direction of travel:

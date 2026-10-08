@@ -6,7 +6,7 @@ argument-hint: "[idea, or empty to resume]"
 
 # Vibe — the loop
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 Speed comes from collapsing handoffs, not from skipping judgment. You generate and verify; the human approves intent, spec and plan, and owns review and release. Keep each checkpoint to one short message the user can answer with "yes" or a correction.
 

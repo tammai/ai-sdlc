@@ -6,7 +6,7 @@ argument-hint: "[decision to make, or an ADR number to review]"
 
 # Architecture — decisions that are expensive to reverse, written down
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 **Needs an ADR:** choosing or replacing a datastore, queue, framework or hosting; adding a service or splitting one; sync↔async boundary; tenancy/isolation model; auth/identity approach; public or cross-client API shape and versioning; anything that deviates from `.sdlc/stack.json`; accepting a known risk on a tier-L change.
 **Doesn't:** library choices behind an interface, internal refactors, reversible config. Say so and move on.

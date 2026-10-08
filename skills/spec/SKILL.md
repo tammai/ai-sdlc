@@ -5,7 +5,7 @@ description: Stage 2 (Design) of the AI-native SDLC — collapse requirements an
 
 # Spec — requirements and design in one session
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Tier S skips this stage.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell). Tier S skips this stage.
 
 Preconditions: intent approved (`sdlc status`). If not, go back to the **intent** skill.
 

@@ -5,11 +5,11 @@ description: Stage 5 (Deploy) of the AI-native SDLC — commit the artifact chai
 
 # Ship — the agent does everything up to the production gate and nothing past it
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 1. **Gate check:** `sdlc status` → plan approved, verify passed, review approved (M/L). Run `sdlc verify` once more on the final tree.
 2. **Branch & commit:** never on main. `git switch -c <type>/<change-id>` if needed. Commit code and `docs/sdlc/<id>/` together (Conventional Commits; reference the change id). The chain in the same PR is the audit record.
-3. **PR:** `gh pr create` with body:
+3. **PR:** write the body to a file and run `gh pr create --body-file <file>` (no shell heredocs; they fail in PowerShell). Body:
    - Intent (one line) → link `docs/sdlc/<id>/intent.md`
    - What changed (from plan.md) + Deviations
    - Proof: verify summary (from verify.md), verifier verdict, screenshots for UI

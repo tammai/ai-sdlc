@@ -6,7 +6,7 @@ argument-hint: "<bug description, error, or issue link>"
 
 # Fix — the test exists before the fix
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 1. **Intent:** `sdlc new "<bug title>" --fix --tier <S|M|L>`. Fill intent.md briefly: observed vs expected, repro steps, impact, suspected area. Tier by blast radius of the *fix* (data corruption, auth, payments → L). Ask the user to confirm the expected behavior (that's the judgment call), then `sdlc approve intent`.
 2. **Reproduce as a test** (allowed before plan approval — fix mode exempts test files from the plan gate): write the smallest test at the lowest level that observes the bug (unit > integration > e2e). Run it. It must **fail, for the expected reason** — read the failure message; a test failing on a typo proves nothing. If you can't reproduce, stop and report what you tried.

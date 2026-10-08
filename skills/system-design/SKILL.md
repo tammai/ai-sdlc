@@ -6,7 +6,7 @@ argument-hint: "[what to design, or empty for the active change]"
 
 # System design — decide the shape before the spec
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. References live in `${CLAUDE_PLUGIN_ROOT}/skills/system-design/references/`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell). References live in `${CLAUDE_PLUGIN_ROOT}/skills/system-design/references/`.
 
 When: **tier L always** (the chain requires an approved `design.md` before `spec` can be approved), and for M changes that add a service, a store, a queue, an integration or a cross-surface contract. A screen or an endpoint inside an existing module doesn't need this — say so and go to the spec.
 

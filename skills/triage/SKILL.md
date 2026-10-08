@@ -6,7 +6,7 @@ argument-hint: "<incident, alert, metric or finding>"
 
 # Triage — findings re-enter the pipeline as intent.md
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 Detection stays deterministic; Claude diagnoses once a band is breached; the tier decides what Claude may do.
 

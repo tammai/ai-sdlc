@@ -8,7 +8,7 @@ With argument `ci`: skip to the last section, "Mode: setup ci".
 
 # Setup
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Work in this order; each step is useful on its own (the playbook's "starting plays").
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell). Work in this order; each step is useful on its own (the playbook's "starting plays").
 
 ## 0. New or existing?
 `sdlc inspect` — lists detected apps (folder, framework, matching stack profile or "no profile") and the verify commands built from each app's **own** scripts with its **own** package manager. "no app detected" = new project. This decides §5.

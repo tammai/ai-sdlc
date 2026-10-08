@@ -6,7 +6,7 @@ argument-hint: "<idea in plain words>"
 
 # Intent — capture what's being asked, not how
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 1. **Brainstorm until concrete — but cheaply.** Ask at most 3 questions per round, in one message, only about what changes the outcome: who is it for, what does "done" look like observably, what must not change. Answer anything you can from the repo yourself (routes, schema, existing screens) — use the `researcher-simple` subagent if it needs more than a few reads. Stop asking when you can write a falsifiable "Proposed outcome".
 2. **Size the tier** (S / M / L — see the vibe skill's table) and say why in one line.

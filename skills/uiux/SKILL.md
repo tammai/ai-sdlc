@@ -6,7 +6,7 @@ argument-hint: "[screen/flow to design, 'review', 'polish', or 'design-md']"
 
 # UI/UX — taste with receipts
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`; `REF` means `${CLAUDE_PLUGIN_ROOT}/skills/uiux/references`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell); `REF` means `${CLAUDE_PLUGIN_ROOT}/skills/uiux/references`.
 
 **Authority order** when rules collide: security & privacy → accessibility & the primary task → truthful content → platform conventions & semantics → DESIGN.md (project tokens and learned constraints) → `REF/craft-rules.md` defaults → component-library defaults → novelty. Never trade a higher item for a lower one.
 

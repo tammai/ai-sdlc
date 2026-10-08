@@ -5,7 +5,7 @@ description: Stage 5 (Deploy) review loop of the AI-native SDLC — an independe
 
 # Review — agents review, humans approve
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 Preconditions: `verify: passed` for the active change (`sdlc status`).
 

@@ -5,7 +5,7 @@ description: Stage 3–4 (Build + Test) of the AI-native SDLC — implement an a
 
 # Build — plan approved, now auto-mode with a feedback loop
 
-Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`.
+Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
 Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill. (The guard hook blocks edits otherwise.)
 
