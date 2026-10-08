@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 // A change to any of these can move every behaviour, so it runs the whole eval suite.
 const SHARED = [/^scripts\/(lib|sdlc)\.mjs$/, /^\.claude-plugin\//, /^evals\/_fixtures\//];
 // Covered by the unit tests or by their own CI; no eval case exercises them.
-const NO_EVALS = [/^test\//, /^templates\//, /^docs\//, /^\.github\//, /^\.claude\//, /^agents(-src)?\//, /^scripts\/(build-agents|scaffold-app|detect)\.mjs$/,
+const NO_EVALS = [/^test\//, /^templates\//, /^docs\//, /^\.github\//, /^\.claude\/CLAUDE\.md$/, /^agents(-src)?\//, /^scripts\/(build-agents|scaffold-app|detect)\.mjs$/,
   /^evals\/results\//, /^[^/]+\.md$/, /^LICENSE$/, /^\.gitignore$/];
 const HOOK_SCRIPTS = { 'guard.mjs': 'guard', 'post-edit.mjs': 'post-edit', 'stop-gate.mjs': 'stop-gate', 'session-start.mjs': 'session-start' };
 

@@ -32,6 +32,7 @@ test('shared code, the manifest and unknown paths run everything', () => {
   assert.equal(tags('scripts/lib.mjs'), null);
   assert.equal(tags('scripts/sdlc.mjs'), null);
   assert.equal(tags('.claude-plugin/plugin.json'), null);
+  assert.equal(tags('.claude/settings.json'), null, 'only CLAUDE.md is exempt; other .claude files can change agent behaviour');
   assert.equal(tags('evals/_fixtures/app-repo.sh'), null, 'a shared fixture can move any case that uses it');
   assert.equal(tags('skills/fix/SKILL.md', 'something/new.txt'), null);
 });

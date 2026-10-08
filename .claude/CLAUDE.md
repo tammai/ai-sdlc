@@ -7,7 +7,7 @@ A Claude Code plugin: skills in `skills/`, hooks in `hooks/` and `scripts/`, sub
 - **`agents/` is generated.** Edit `agents-src/`, then run `node scripts/build-agents.mjs` (a unit test fails if they drift).
 - **Commits are conventional:** `feat:`, `fix:`, `docs:`, `test:`, `ci:`, `chore:` with an optional scope, e.g. `fix(stack): …`. Releases are `chore(release): vX.Y.Z`.
 - **`evals/*-hard-*` cases each carry a copy of `evals/_fixtures/app-repo.sh`** as `scaffold.sh` (a case can't reference files outside its folder). Change the fixture, then copy it into each case; a unit test fails if a copy drifts.
-- **A new skill needs an eval case tagged `skill-<name>`;** a unit test fails without one. Copy `evals/fix-bug-report/` (prompt + one `tool_used: Skill` grader) and change the prompt and skill name.
+- **A new skill needs an eval case tagged `skill-<name>`;** a unit test fails without one. Copy `evals/fix-bug-report/` (prompt + one `tool_used: Skill` grader), rename the folder, and change the prompt, the skill name in the grader, and the `tags:` line in `prompt.md` (it must include the folder name and `skill-<name>`).
 
 ## Testing
 Entry point is `node test/run.mjs`.
