@@ -21,7 +21,7 @@ describe('hooks.json', () => {
 
   test('the guard sees every tool that can read, write or run a command', () => {
     const matcher = cfg.hooks.PreToolUse.find((m) => m.hooks.some((h) => h.command.includes('guard.mjs'))).matcher;
-    for (const tool of ['Read', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell']) {
+    for (const tool of ['Read', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell']) {
       assert.ok(new RegExp(`^(?:${matcher})$`).test(tool), `PreToolUse matcher misses ${tool}`);
     }
   });

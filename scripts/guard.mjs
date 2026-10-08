@@ -32,8 +32,11 @@ function decide(decision, reason) {
 
 const isSecretPath = (cfg, rel) => matchesAny(rel, cfg.secretPaths) && !matchesAny(rel, cfg.secretAllow);
 
+// Split on whitespace and shell punctuation; a quoted string is also kept whole, so a path with a space
+// ("C:\Users\Jane Doe\.aws\credentials") is checked as one path and not only as its pieces.
 function tokens(cmd) {
-  return cmd.split(/[\s'"`;|&<>()=]+/).filter(Boolean);
+  const quoted = [...cmd.matchAll(/"([^"\n]+)"|'([^'\n]+)'/g)].map((m) => m[1] ?? m[2]).filter((q) => /\s/.test(q));
+  return [...cmd.split(/[\s'"`;|&<>()=]+/).filter(Boolean), ...quoted];
 }
 
 // Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects
@@ -110,13 +113,17 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   process.exit(0);
 }
 
+// Grep prints file contents, so a `glob` that names a secret file (`--glob .env`) is a read of it
+if (tool === 'Grep' && ti.glob && isSecretPath(cfg, path.basename(String(ti.glob)))) {
+  decide('deny', `Grep glob "${ti.glob}" targets a secret file (secretPaths in .sdlc/config.json). Do not read it; reference the variable name instead.`);
+}
 const filePath = ti.file_path || ti.notebook_path || ti.path;
 if (!filePath) process.exit(0);
 const rel = toRel(root, filePath);
 const inside = isInside(rel);
 
 // 1. secrets — paths
-if (['Read', ...EDIT_TOOLS].includes(tool) && isSecretPath(cfg, inside ? rel : path.basename(filePath))) {
+if (['Read', 'Grep', ...EDIT_TOOLS].includes(tool) && isSecretPath(cfg, inside ? rel : path.basename(filePath))) {
   decide('deny', `${rel} is a secret file (secretPaths in .sdlc/config.json). Do not read or write it; reference the variable name instead.`);
 }
 if (!EDIT_TOOLS.has(tool)) process.exit(0);

@@ -16,6 +16,14 @@ describe('secrets', () => {
     assert.equal(guard(dir, 'Write', { file_path: f(dir, '.env'), content: 'A=1' }).decision, 'deny');
   });
 
+  test('Grep on a secret file, or with a glob naming one, is denied', () => {
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, '.env') }).decision, 'deny');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', glob: '.env' }).decision, 'deny');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', glob: '**/*.pem' }).decision, 'deny');
+    assert.equal(guard(dir, 'Grep', { pattern: 'TODO', path: f(dir, 'src') }).decision, 'allow');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, '.env.example') }).decision, 'allow');
+  });
+
   test('example env files stay readable', () => {
     for (const rel of ['.env.example', '.env.sample', 'config.example.json']) {
       assert.equal(guard(dir, 'Read', { file_path: f(dir, rel) }).decision, 'allow', rel);
@@ -35,6 +43,13 @@ describe('secrets', () => {
     assert.equal(guard(dir, 'Bash', { command: 'echo A=1 > .env.production' }).decision, 'deny');
     assert.equal(guard(dir, 'PowerShell', { command: 'Get-Content ~/.ssh/id_ed25519' }).decision, 'deny');
     assert.equal(guard(dir, 'Bash', { command: 'cat .env.example' }).decision, 'allow');
+  });
+
+  test('a quoted secret path with a space is denied as one path', () => {
+    const spaced = makeRepo({ files: { 'secrets/my team/deploy': 'x' } });
+    assert.equal(guard(spaced, 'Bash', { command: 'cat "secrets/my team/deploy"' }).decision, 'deny');
+    assert.equal(guard(spaced, 'PowerShell', { command: "Get-Content 'secrets\\my team\\deploy'" }).decision, 'deny');
+    assert.equal(guard(spaced, 'Bash', { command: 'cat "secrets/my team/other"' }).decision, 'allow');
   });
 
   test('a directory-style secret path is denied only when it exists', () => {
