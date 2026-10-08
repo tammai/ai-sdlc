@@ -28,6 +28,29 @@ describe('globs', () => {
   });
 });
 
+describe('glob character classes', () => {
+  const m = (name, glob) => matchesAny(name, [glob]);
+
+  test('a class matches one of its characters, a range, or (negated) none of them', () => {
+    assert.ok(m('.env', '.[e]nv'));
+    assert.ok(m('bx', '[a-c]x') && !m('dx', '[a-c]x'));
+    assert.ok(m('cb', '[!a]b') && !m('ab', '[!a]b'));
+    assert.ok(m('cb', '[^a]b') && !m('ab', '[^a]b'), '^ negates like !');
+  });
+
+  test('a ] first in the class is a literal, and a negated class never crosses a /', () => {
+    assert.ok(m(']x', '[]]x') && m('ax', '[]a]x') && !m('bx', '[]a]x'));
+    assert.ok(m(']x', '[!a]x'));
+    assert.ok(!matchesAny('a/x', ['a[!b]x']), 'a negated class does not match the separator');
+  });
+
+  test('an invalid or unterminated class is a literal, not an exception', () => {
+    assert.doesNotThrow(() => matchesAny('x', ['[z-a].env', '[abc', '[]', '[!]']));
+    assert.ok(m('[z-a].env', '[z-a].env'));
+    assert.ok(m('[abc', '[abc'));
+  });
+});
+
 describe('openItems (definition of ready)', () => {
   const body = (items) => `# Intent\n\n## Open questions\n${items}\n\n## Risk tier\nM\n`;
 

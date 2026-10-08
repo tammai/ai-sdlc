@@ -202,11 +202,19 @@ export function globToRegExp(glob) {
     if (c === '}' && braces) { braces--; re += ')'; continue; }
     if (c === ',' && braces) { re += '|'; continue; }
     if (c === '[') { // a character class, as ripgrep and gitignore read it: `.[e]nv` is `.env`
-      const j = glob.indexOf(']', i + 2);
-      if (j > 0) {
-        const body = glob.slice(i + 1, j).replace(/^!/, '^').replace(/\\/g, '\\\\');
+      // fnmatch/gitignore rules: `!` or `^` negates, and a `]` first in the class (after the negation) is a literal
+      let k = i + 1;
+      const neg = glob[k] === '!' || glob[k] === '^';
+      if (neg) k++;
+      const j = glob.indexOf(']', glob[k] === ']' ? k + 1 : k);
+      if (j > k) {
+        const body = glob.slice(k, j).replace(/[\\[\]]/g, '\\$&');
         // an invalid class (`[z-a]`) is matched literally, as a bracket in a file name, rather than throwing
-        try { new RegExp(`[${body}]`); re += `[${body}]`; i = j; continue; } catch { /* fall through to the literal */ }
+        try {
+          const cls = `[${neg ? '^/' : ''}${body}]`;
+          new RegExp(cls);
+          re += cls; i = j; continue;
+        } catch { /* fall through to the literal */ }
       }
     }
     if (c === '*') {
