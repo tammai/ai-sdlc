@@ -1,6 +1,7 @@
 // PreToolUse guard (scripts/guard.mjs): secrets, protected paths, test lock, plan gate, production gate.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
 import path from 'node:path';
 import { makeRepo, guard } from './helpers.mjs';
 
@@ -22,6 +23,30 @@ describe('secrets', () => {
     assert.equal(guard(dir, 'Grep', { pattern: 'KEY', glob: '**/*.pem' }).decision, 'deny');
     assert.equal(guard(dir, 'Grep', { pattern: 'TODO', path: f(dir, 'src') }).decision, 'allow');
     assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, '.env.example') }).decision, 'allow');
+  });
+
+  test('Grep over a directory of secrets, or with a glob that matches secret files, is denied', () => {
+    const outside = path.join(os.tmpdir(), 'somebody', '.ssh');
+    for (const input of [
+      { pattern: 'PRIVATE', path: outside },
+      { pattern: 'key', path: path.join(os.tmpdir(), 'somebody', '.aws') },
+      { pattern: 'x', path: f(dir, 'secrets') },
+      { pattern: 'KEY', glob: '.env*' },
+      { pattern: 'KEY', glob: '*.{env,pem}' },
+      { pattern: 'KEY', glob: '**/.env.local' }
+    ]) assert.equal(guard(dir, 'Grep', input).decision, 'deny', JSON.stringify(input));
+  });
+
+  test('ordinary Grep calls are not blocked', () => {
+    for (const input of [
+      { pattern: 'x' },
+      { pattern: 'x', path: dir },
+      { pattern: 'x', path: f(dir, 'src') },
+      { pattern: 'x', glob: '*.ts' },
+      { pattern: 'x', glob: '**/*' },
+      { pattern: 'x', glob: '!*.pem' },
+      { pattern: 'x', glob: '.env.example' }
+    ]) assert.equal(guard(dir, 'Grep', input).decision, 'allow', JSON.stringify(input));
   });
 
   test('example env files stay readable', () => {

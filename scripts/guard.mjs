@@ -113,12 +113,34 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   process.exit(0);
 }
 
-// Grep prints file contents, so a `glob` that names a secret file (`--glob .env`) is a read of it
-if (tool === 'Grep' && ti.glob && isSecretPath(cfg, path.basename(String(ti.glob)))) {
-  decide('deny', `Grep glob "${ti.glob}" targets a secret file (secretPaths in .sdlc/config.json). Do not read it; reference the variable name instead.`);
+// Grep prints file contents. A glob is judged by what it matches: names a secret file (`.env*`, `*.{env,pem}`)
+// without being a catch-all that also matches ordinary source (`*`, `**/*`).
+const SECRET_PROBES = ['.env', '.env.local', '.env.production', 'x.pem', 'x.key', 'x.p12', 'id_rsa', 'id_ed25519', '.aws/credentials', '.ssh/id_rsa', 'secrets/x'];
+const ORDINARY_PROBES = ['app.ts', 'README.md', 'src/index.js', 'main.go'];
+function globNamesSecret(glob) {
+  if (!glob || glob.startsWith('!')) return false;
+  const hits = (names) => names.some((n) => matchesAny(n, [glob]) || matchesAny(`dir/${n}`, [glob]));
+  return hits(SECRET_PROBES.filter((n) => !matchesAny(n, cfg.secretAllow))) && !hits(ORDINARY_PROBES);
+}
+// A Grep `path` that is a directory holding secrets (~/.ssh, ./secrets): test a file inside it with the same rules
+// as a file path, including the outside-the-repo tails that make `**/.ssh/**` match under the home directory.
+function secretDirectory(p) {
+  return ['__grep__', 'credentials'].some((name) => { // credentials: **/.aws/credentials
+    const probe = path.join(p, name);
+    const segs = path.resolve(root, probe).normalize('NFC').split(/[\\/]+/).filter(Boolean);
+    const r = toRel(root, probe);
+    return [r, ...(isInside(r) ? [] : segs.map((_, i) => segs.slice(i).join('/')))]
+      .some((c) => matchesAny(c, cfg.secretPaths) && !matchesAny(c, cfg.secretAllow));
+  });
+}
+if (tool === 'Grep' && globNamesSecret(ti.glob)) {
+  decide('deny', `Grep glob "${ti.glob}" targets secret files (secretPaths in .sdlc/config.json). Do not read them; reference the variable name instead.`);
 }
 const filePath = ti.file_path || ti.notebook_path || ti.path;
 if (!filePath) process.exit(0);
+if (tool === 'Grep' && secretDirectory(filePath)) {
+  decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
+}
 const rel = toRel(root, filePath);
 const inside = isInside(rel);
 
