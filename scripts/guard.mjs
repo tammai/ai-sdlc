@@ -119,12 +119,25 @@ function afterEdit(abs) {
 function gatedFileNamed(text) {
   const files = ['intent', 'design', 'ui', 'spec', 'plan', 'review'].filter(gated).map((s) => `${s}.md`);
   if (!files.length) return null;
-  for (const raw of text.replace(/\\/g, '/').split(/[\s;|&<>()=]+/)) {
+  const artDir = cfg.artifactsDir.split('/').filter(Boolean);
+  const norm = text.replace(/\\/g, '/');
+  // "here" is the artifacts directory: the shell is in it, or the command cd's there
+  const cwdRel = toRel(root, input.cwd || root);
+  const here = (isInside(cwdRel) && `${cwdRel}/`.toLowerCase().startsWith(`${artDir.join('/').toLowerCase()}/`)) ||
+    norm.toLowerCase().includes(artDir.join('/').toLowerCase());
+  for (const raw of norm.split(/[\s;|&<>()=]+/)) {
     for (const word of expandBraces(raw.replace(/["']/g, ''))) {
-      const base = word.split('/').pop();
+      const parts = word.split('/');
+      const base = parts.pop();
       if (!base) continue;
-      const hit = GLOB_CHARS.test(base) ? files.find((f) => wildMatch(segTokens(base), f)) : files.find((f) => f === base.toLowerCase());
-      if (hit) return hit.slice(0, -3);
+      const wild = GLOB_CHARS.test(base);
+      const hit = wild ? files.find((f) => wildMatch(segTokens(base), f)) : files.find((f) => f === base.toLowerCase());
+      if (!hit) continue;
+      // a literal gated file name counts wherever it is; a wildcard (`*`, `p*.md`) only where it can reach the artifacts directory,
+      // or `ls *` and `git add *` would all ask
+      const dir = parts.filter((p) => p && p !== '.' && p !== '..');
+      const reaches = dir.length === 0 ? here : dir.slice(0, artDir.length).every((seg, i) => wildMatch(segTokens(seg), artDir[i]));
+      if (!wild || reaches) return hit.slice(0, -3);
     }
   }
   return null;

@@ -104,13 +104,15 @@ describe('the gate sees an artifact named by its file name, not only by the full
 
   test('after a cd, through a wildcard, a class, a brace or a bare *', () => {
     for (const c of ['cd docs/sdlc/c1 && sed -i s/draft/approved/ plan.md', 'sed -i s/draft/approved/ docs/sdlc/c1/p*.md', 'sed -i s/draft/approved/ docs/sdlc/c1/pla[n].md',
-      'sed -i s/draft/approved/ docs/sdlc/c1/{plan,x}.md', 'rm docs/sdlc/c1/*', 'cd docs/sdlc/c1; tee plan.md < /tmp/x', 'cp /tmp/x plan.md', 'sed -i s/draft/approved/ p?an.md']) {
+      'sed -i s/draft/approved/ docs/sdlc/c1/{plan,x}.md', 'rm docs/sdlc/c1/*', 'cd docs/sdlc/c1; tee plan.md < /tmp/x', 'cp /tmp/x plan.md', 'cd docs/sdlc/c1 && sed -i s/draft/approved/ p?an.md', 'cd docs/sdlc/c1 && rm *']) {
       assert.equal(bash(c), 'ask', c);
     }
   });
 
   test('reading it, and commands that name no gated file, are untouched', () => {
-    for (const c of ['cd docs/sdlc/c1 && cat plan.md', 'ls docs/sdlc/c1', 'sed -i s/a/b/ src/app.ts', 'rm src/old.js', 'cp a.txt b.txt', 'cat spec.md']) {
+    for (const c of ['cd docs/sdlc/c1 && cat plan.md', 'ls docs/sdlc/c1', 'sed -i s/a/b/ src/app.ts', 'rm src/old.js', 'cp a.txt b.txt', 'cat spec.md',
+      // a wildcard that cannot reach the artifacts directory is just a wildcard
+      'ls *', 'git add *', 'rm src/*.tmp', 'sed -i s/a/b/ src/*.ts', 'cat src/p*.md', 'cp -r build/* dist/']) {
       assert.equal(bash(c), 'allow', c);
     }
   });
