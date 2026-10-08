@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { makeRepo, guard, hook, write, read, cleanEnv, SCRIPTS } from './helpers.mjs';
-import { loadConfig, readDoc, shellQuote, writeFileAtomic, toRel, spawnShell, windowsCmd } from '../scripts/lib.mjs';
+import { loadConfig, readDoc, shellQuote, writeFileAtomic, toRel, spawnShell, windowsCmd, ntfsPath } from '../scripts/lib.mjs';
 
 const f = (dir, rel) => path.join(dir, rel);
 const BOM = '\uFEFF';
@@ -175,7 +175,33 @@ describe('windowsCmd', () => {
     assert.equal(windowsCmd('./scripts/check.sh --fast'), '.\\scripts\\check.sh --fast');
   });
 
+  test('saved bare phpunit and rails commands run through their interpreter', () => {
+    assert.equal(windowsCmd('vendor/bin/phpunit --testdox'), 'php vendor/bin/phpunit --testdox');
+    assert.equal(windowsCmd('cd api && bin/rails test'), 'cd api && ruby bin/rails test');
+    assert.equal(windowsCmd('php vendor/bin/phpunit'), 'php vendor/bin/phpunit');
+    assert.equal(windowsCmd('ruby bin/rails test'), 'ruby bin/rails test');
+  });
+
   test('anything else is left alone', () => {
     for (const c of ['npm test', 'node ./x.mjs', 'echo "./not-a-command"', 'php vendor/bin/phpunit', 'make -C ./sub']) assert.equal(windowsCmd(c), c);
+  });
+});
+
+describe('NTFS name aliases', () => {
+  test('ntfsPath reduces a name to the one the filesystem opens', () => {
+    assert.equal(ntfsPath('C:\\p\\.env '), 'C:/p/.env');
+    assert.equal(ntfsPath('C:\\p\\.env.'), 'C:/p/.env');
+    assert.equal(ntfsPath('/p/.env:stream'), '/p/.env');
+    assert.equal(ntfsPath('/p/.env::$DATA'), '/p/.env');
+    assert.equal(ntfsPath('../a/./b.txt'), '../a/./b.txt');
+    assert.equal(ntfsPath('/p/.env.local'), '/p/.env.local');
+  });
+
+  test('the guard denies .env spelled with a trailing space or a stream name', { skip: process.platform !== 'win32' }, () => {
+    const dir = makeRepo();
+    for (const name of ['.env ', '.env.', '.env:x', '.env::$DATA']) {
+      assert.equal(guard(dir, 'Read', { file_path: path.join(dir, name) }).decision, 'deny', JSON.stringify(name));
+    }
+    assert.equal(guard(dir, 'Read', { file_path: path.join(dir, '.env.example') }).decision, 'allow');
   });
 });

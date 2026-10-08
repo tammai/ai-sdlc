@@ -8,8 +8,9 @@
 //   5. prod gate    — the agent does everything up to the production gate and nothing past it
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath, ntfsPath
 } from './lib.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -133,11 +134,31 @@ function secretDirectory(p) {
       .some((c) => matchesAny(c, cfg.secretPaths) && !matchesAny(c, cfg.secretAllow));
   });
 }
+// Secret files a directory-wide Grep would print: what git lists under the search root (tracked, or untracked and
+// not ignored), which is what ripgrep walks. A .env that is gitignored is skipped by ripgrep too, so it is not listed.
+function exposedSecrets(dir) {
+  const rel = toRel(root, path.resolve(root, dir));
+  if (rel !== '' && !isInside(rel)) return [];
+  try {
+    if (!fs.statSync(path.resolve(root, dir)).isDirectory()) return [];
+    const out = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', rel || '.'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const glob = ti.glob && !ti.glob.startsWith('!') ? [ti.glob] : null;
+    return out.split('\0').filter((f) => f && isSecretPath(cfg, f) && (!glob || matchesAny(f, glob)));
+  } catch { return []; }
+}
 if (tool === 'Grep' && globNamesSecret(ti.glob)) {
   decide('deny', `Grep glob "${ti.glob}" targets secret files (secretPaths in .sdlc/config.json). Do not read them; reference the variable name instead.`);
 }
-const filePath = ti.file_path || ti.notebook_path || ti.path;
-if (!filePath) process.exit(0);
+if (tool === 'Grep' && ti.output_mode === 'content') {
+  const found = exposedSecrets(ti.path || input.cwd || root);
+  if (found.length) {
+    decide('deny', `This search would print the contents of ${found[0]}${found.length > 1 ? ` and ${found.length - 1} more secret file(s)` : ''}. ` +
+      'Narrow the path or glob to source files, use output_mode files_with_matches, or add the secret file to .gitignore.');
+  }
+}
+const rawPath = ti.file_path || ti.notebook_path || ti.path;
+if (!rawPath) process.exit(0);
+const filePath = process.platform === 'win32' ? ntfsPath(rawPath) : rawPath;
 if (tool === 'Grep' && secretDirectory(filePath)) {
   decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
 }

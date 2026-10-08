@@ -174,6 +174,16 @@ export function toRel(root, p) {
   return path.relative(realish(root), realish(path.resolve(root, p))).split(path.sep).join('/');
 }
 
+// NTFS opens `.env ` and `.env.` as `.env` (the Win32 API drops trailing dots and spaces) and `.env:x` as a stream of
+// it. Reduce each name to the one the filesystem will open, so a guard matching `.env` also sees these.
+export function ntfsPath(p) {
+  return p.split(/[\\/]/).map((seg) => {
+    if (seg === '' || seg === '.' || seg === '..' || /^[A-Za-z]:$/.test(seg)) return seg;
+    const name = seg.replace(/:.*$/, '').replace(/[. ]+$/, '');
+    return name || seg;
+  }).join('/');
+}
+
 // Compare paths the way macOS (APFS: case-insensitive, NFD names) and Windows do.
 export const foldPath = (p) => p.normalize('NFC').toLowerCase();
 
@@ -257,8 +267,12 @@ c.on('close', (code) => {
 // cmd.exe cannot run `./gradlew test` (and a saved verify command is shared by every OS). Where a command starts
 // with `./tool`, run `.\tool`, which cmd resolves to tool.bat / tool.cmd / tool.exe in that directory. (A bare
 // `tool` would not do: with NoDefaultCurrentDirectoryInExePath set, cmd no longer searches the current directory.)
+// Saved `vendor/bin/phpunit` and `bin/rails` entries (older detectors wrote them bare) are PHP/Ruby scripts that
+// cmd cannot start by path: run them through their interpreter, as the detector does now.
 export function windowsCmd(cmd) {
-  return cmd.replace(/(^|&&\s*|\|\|\s*)\.\/([^\s&|"']+)/g, (_, lead, tool) => `${lead}.\\${tool.split('/').join('\\')}`);
+  return cmd
+    .replace(/(^|&&\s*|\|\|\s*)\.\/([^\s&|"']+)/g, (_, lead, tool) => `${lead}.\\${tool.split('/').join('\\')}`)
+    .replace(/(^|&&\s*|\|\|\s*)(vendor\/bin\/phpunit|bin\/rails)(?=\s|$)/g, (_, lead, tool) => `${lead}${tool === 'bin/rails' ? 'ruby' : 'php'} ${tool}`);
 }
 
 // spawnSync(cmd, { shell: true, ...opts }) whose timeout also kills the command's child processes.

@@ -1,8 +1,10 @@
 // PreToolUse guard (scripts/guard.mjs): secrets, protected paths, test lock, plan gate, production gate.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { makeRepo, guard } from './helpers.mjs';
 
 const f = (dir, rel) => path.join(dir, rel);
@@ -35,6 +37,20 @@ describe('secrets', () => {
       { pattern: 'KEY', glob: '*.{env,pem}' },
       { pattern: 'KEY', glob: '**/.env.local' }
     ]) assert.equal(guard(dir, 'Grep', input).decision, 'deny', JSON.stringify(input));
+  });
+
+  test('a directory-wide content Grep is denied while a non-ignored .env sits under it', () => {
+    const git = makeRepo({ files: { '.env': 'KEY=1', 'src/app.ts': 'x', 'api/.env.local': 'K=2' } });
+    spawnSync('git', ['init', '-q'], { cwd: git });
+    const content = (extra) => guard(git, 'Grep', { pattern: 'KEY', output_mode: 'content', ...extra }).decision;
+    assert.equal(content({}), 'deny', 'no path = the whole repo');
+    assert.equal(content({ path: git }), 'deny');
+    assert.equal(content({ path: f(git, 'api') }), 'deny', 'a subdirectory with a secret in it');
+    assert.equal(content({ path: f(git, 'src') }), 'allow', 'a directory without one');
+    assert.equal(content({ glob: '*.ts' }), 'allow', 'a glob that cannot reach it');
+    assert.equal(guard(git, 'Grep', { pattern: 'KEY' }).decision, 'allow', 'files_with_matches prints names only');
+    fs.writeFileSync(path.join(git, '.gitignore'), '.env*\n');
+    assert.equal(content({}), 'allow', 'gitignored: ripgrep skips it too');
   });
 
   test('ordinary Grep calls are not blocked', () => {
