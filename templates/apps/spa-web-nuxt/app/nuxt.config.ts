@@ -16,6 +16,10 @@ export default defineNuxtConfig({
   // Dev only: same contract as the Worker — /api/* goes to the Go API with the /api prefix stripped.
   // The API's allowed origins must include http://localhost:3000 (cookie CSRF check).
   nitro: {
+    // Nitro 2.13 matches its `inline` list against Windows paths with backslashes, so on Windows Nuxt's own server runtime stays
+    // external in the prerender build and every prerendered route returns 500 ("Either manifest or precomputed data must be provided").
+    // A function matcher sees the resolved id; this inlines nuxt/dist on every OS and changes nothing where the string matchers worked.
+    externals: { inline: [(id: string) => /\/nuxt\/dist\//.test(id.replaceAll('\\', '/'))] },
     devProxy: {
       '/api': {
         target: process.env.DEV_API_URL || '__API_URL__',

@@ -8,6 +8,12 @@ export default defineNuxtConfig({
   app: {
     head: { title: '__APP_TITLE__' }
   },
+  nitro: {
+    // Nitro 2.13 matches its `inline` list against Windows paths with backslashes, so on Windows Nuxt's own server runtime stays
+    // external in the prerender build and every prerendered route returns 500 ("Either manifest or precomputed data must be provided").
+    // A function matcher sees the resolved id; this inlines nuxt/dist on every OS and changes nothing where the string matchers worked.
+    externals: { inline: [(id: string) => /\/nuxt\/dist\//.test(id.replaceAll('\\', '/'))] }
+  },
   runtimeConfig: {
     // Server-only. Override with NUXT_API_BASE (see .env.example).
     apiBase: '__API_URL__',

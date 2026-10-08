@@ -35,6 +35,10 @@ export default defineNuxtConfig({
     build: { markdown: { highlight: { theme: { default: 'github-light', dark: 'github-dark' }, langs: ['bash', 'json', 'ts', 'vue'] } } }
   },
   nitro: {
+    // Nitro 2.13 matches its `inline` list against Windows paths with backslashes, so on Windows Nuxt's own server runtime stays
+    // external in the prerender build and every prerendered route returns 500 ("Either manifest or precomputed data must be provided").
+    // A function matcher sees the resolved id; this inlines nuxt/dist on every OS and changes nothing where the string matchers worked.
+    externals: { inline: [(id: string) => /\/nuxt\/dist\//.test(id.replaceAll('\\', '/'))] },
     // Links between pages are crawled from the home page; a broken internal link fails the build instead of shipping a 404.
     // /media is served from R2 by the Worker, not prerendered: a link to /media/brochure.pdf must not fail the build.
     prerender: { crawlLinks: true, failOnError: true, routes: ['/', '/404.html'], ignore: ['/media'] }

@@ -24,6 +24,10 @@ export default defineNuxtConfig({
   // The canonical origin, used for absolute URLs in the sitemap. Set it per deploy: NUXT_PUBLIC_SITE_URL=https://example.com
   site: { url: process.env.NUXT_PUBLIC_SITE_URL || 'https://example.com' },
   nitro: {
+    // Nitro 2.13 matches its `inline` list against Windows paths with backslashes, so on Windows Nuxt's own server runtime stays
+    // external in the prerender build and every prerendered route returns 500 ("Either manifest or precomputed data must be provided").
+    // A function matcher sees the resolved id; this inlines nuxt/dist on every OS and changes nothing where the string matchers worked.
+    externals: { inline: [(id: string) => /\/nuxt\/dist\//.test(id.replaceAll('\\', '/'))] },
     // Links between pages are crawled from the home page; a broken internal link fails the build instead of shipping a 404.
     prerender: { crawlLinks: true, failOnError: true, routes: ['/', '/404.html'] }
   }
