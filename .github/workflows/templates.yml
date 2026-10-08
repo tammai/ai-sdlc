@@ -1,40 +1,44 @@
 name: App templates
 # Proves every templates/apps/<id> scaffolds and passes its own verify commands on a clean runner.
 # No Claude involved — only toolchains — so no token or API key is needed.
+# PRs and pushes run only the templates that changed; the weekly run and manual runs cover all of them.
 on:
   pull_request:
-    paths: ['templates/apps/**', 'scripts/scaffold-app.mjs', 'scripts/sdlc.mjs', 'scripts/lib.mjs', '.github/workflows/templates.yml']
+    paths: ['templates/apps/**', 'scripts/scaffold-app.mjs', 'scripts/sdlc.mjs', 'scripts/lib.mjs', '.github/workflows/templates.yml', '.github/scripts/pick-templates.mjs']
   push:
     branches: [main]
-    paths: ['templates/apps/**', 'scripts/scaffold-app.mjs']
+    paths: ['templates/apps/**', 'scripts/scaffold-app.mjs', 'scripts/sdlc.mjs', 'scripts/lib.mjs', '.github/workflows/templates.yml', '.github/scripts/pick-templates.mjs']
   schedule:
     - cron: '0 3 * * 1'   # weekly: catch toolchain / registry drift
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      combo: ${{ steps.pick.outputs.combo }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: node .github/scripts/pick-templates.mjs >> "$GITHUB_OUTPUT"
+
   template:
     name: ${{ matrix.id }}
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { id: edge-web-nuxt, component: edge-web, ui: vue, dir: . }
-          - { id: edge-web-next, component: edge-web, ui: react, dir: . }
-          - { id: bff-web-nuxt, component: bff-web, ui: vue, dir: web }
-          - { id: bff-web-next, component: bff-web, ui: react, dir: web }
-          - { id: go-api, component: go-api, ui: vue, dir: api }
-          - { id: tauri-vue, component: tauri, ui: vue, dir: . }
-          - { id: tauri-react, component: tauri, ui: react, dir: . }
-          - { id: flutter, component: flutter, ui: vue, dir: mobile }
-          - { id: edge-web-hono-react, component: edge-web, ui: react-hono, dir: . }
-          - { id: spa-web-nuxt, component: spa-web, ui: vue, dir: web }
-          - { id: spa-web-react, component: spa-web, ui: react, dir: web }
-          - { id: expo, component: expo, ui: vue, dir: mobile }
-          - { id: site-landing-nuxt, component: site-landing, ui: vue, dir: site }
-          - { id: site-marketing-nuxt, component: site-marketing, ui: vue, dir: site }
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
     services:
       postgres:
         image: postgres:17
@@ -47,9 +51,18 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: corepack enable && corepack prepare pnpm@10 --activate
+      - id: pnpm
+        if: hashFiles(format('templates/apps/{0}/app/pnpm-lock.yaml', matrix.id)) != ''
+        run: echo "store=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - if: steps.pnpm.outputs.store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.store }}
+          key: pnpm-${{ matrix.id }}-${{ hashFiles(format('templates/apps/{0}/app/pnpm-lock.yaml', matrix.id)) }}
+          restore-keys: pnpm-${{ matrix.id }}-
       - if: matrix.id == 'go-api'
         uses: actions/setup-go@v5
-        with: { go-version: stable }
+        with: { go-version: stable, cache-dependency-path: templates/apps/go-api/app/go.sum }
       - if: startsWith(matrix.id, 'tauri')
         run: |
           sudo apt-get update
@@ -74,6 +87,8 @@ jobs:
   # Combinations: templates scaffolded together must still be green (shared Nuxt layer, contract, compose).
   combo:
     name: combo ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.combo == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -87,10 +102,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: corepack enable && corepack prepare pnpm@10 --activate
-      - run: |
+      - if: contains(matrix.surfaces, 'desktop')
+        run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - if: contains(matrix.surfaces, 'desktop')
+        uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - name: Scaffold together and verify
         run: |

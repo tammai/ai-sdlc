@@ -1,6 +1,6 @@
 # App templates — contract every template must meet
 
-Complete, runnable starter apps copied by `sdlc scaffold-app`. Each template is proven by `.github/workflows/templates.yml` (scaffold → install → verify) weekly and on every change under `templates/apps/`.
+Complete, runnable starter apps copied by `sdlc scaffold-app`. Each template is proven by `.github/workflows/templates.yml` (scaffold → install → verify): all templates weekly, and on a PR or push only the templates that changed (all of them when scaffold code or `_shared/` changes). A new template must also be added to the list in `.github/scripts/pick-templates.mjs`.
 
 ## Layout
 ```
