@@ -153,9 +153,9 @@ if (SEARCH_TOOLS.has(tool)) {
     const r = toRel(root, target);
     // a directory such as `secrets` or `.ssh` matches its `dir/**` glob only through a child path
     if (isInside(r) && (isSecretPath(cfg, r) || isSecretPath(cfg, `${r}/x`))) {
-      decide('deny', `${r} is a secret path (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
+      decide('deny', `"${r}" matches a secret path (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
     }
-    if (!isInside(r) && isSecretPath(cfg, path.basename(target))) decide('deny', `${target} is a secret file. Do not search it.`);
+    if (!isInside(r) && isSecretPath(cfg, path.basename(target))) decide('deny', `"${target}" matches a secret path. Do not search it.`);
   }
 }
 if (!EDIT_TOOLS.has(tool)) process.exit(0);

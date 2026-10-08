@@ -146,6 +146,12 @@ describe('search tools', () => {
     assert.equal(guard(dir, 'Glob', { pattern: '*.pem', path: f(dir, 'secrets') }).decision, 'deny');
   });
 
+  test('the deny reason uses wording the hook-secrets eval looks for', () => {
+    for (const input of [{ pattern: 'K', path: f(dir, '.env') }, { pattern: 'K', glob: '.env*' }]) {
+      assert.match(guard(dir, 'Grep', input).reason, /is a secret file|matches a secret path/);
+    }
+  });
+
   test('ordinary searches pass', () => {
     assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, 'src') }).decision, 'allow');
     assert.equal(guard(dir, 'Grep', { pattern: 'KEY' }).decision, 'allow');
