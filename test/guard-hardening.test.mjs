@@ -111,13 +111,13 @@ describe('the guard stays inside its time limit', () => {
   const dir = makeRepo({ files: { '.env': 'K=1' } });
   const timed = (fn) => { const t0 = Date.now(); const r = fn(); return { r, ms: Date.now() - t0 }; };
 
-  test('a pathological glob or a huge command asks instead of grinding', () => {
+  test('a pathological glob asks, and a huge command is still scanned (a secret in it is denied, not just prompted)', () => {
     const glob = '{,}'.repeat(26) + '.env';
     const a = timed(() => decision(dir, 'Grep', { pattern: 'K', path: dir, output_mode: 'content', glob }));
     assert.equal(a.r, 'ask');
     assert.ok(a.ms < 5000, `${a.ms} ms`);
     const b = timed(() => decision(dir, 'Bash', { command: '<<A\n'.repeat(40000) + 'cat .env' }));
-    assert.equal(b.r, 'ask');
+    assert.equal(b.r, 'deny');
     assert.ok(b.ms < 5000, `${b.ms} ms`);
   });
 });

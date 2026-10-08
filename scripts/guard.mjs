@@ -179,8 +179,15 @@ function listDir(d) {
 // Building them costs more than the path's length squared, so a path nobody writes by hand asks instead of being scanned.
 const MAX_SEGMENTS = 64;
 function tailsOf(p) {
-  const segs = p.normalize('NFC').split(/[\\/]+/).filter(Boolean);
-  if (segs.length > MAX_SEGMENTS) decide('ask', 'This path is too deep for the guard to check in time; review it manually.');
+  let segs = p.normalize('NFC').split(/[\\/]+/).filter(Boolean);
+  if (segs.length > MAX_SEGMENTS) {
+    // Padding a path must not turn a deny into a prompt: what the last segments name is still checked, and a secret
+    // there is denied. Only a path with nothing secret in its tail asks.
+    segs = segs.slice(-MAX_SEGMENTS);
+    const tails = segs.map((_, i) => segs.slice(i).join('/'));
+    if (tails.some((tail) => isSecretPath(cfg, tail))) return tails;
+    decide('ask', 'This path is too deep for the guard to check in time; review it manually.');
+  }
   return segs.map((_, i) => segs.slice(i).join('/'));
 }
 
@@ -458,8 +465,11 @@ cfg = loadConfig(root);
 state = loadState(root);
 
 if (tool === 'Bash' || tool === 'PowerShell') {
-  const cmd = String(ti.command || '');
-  if (cmd.length > MAX_COMMAND) decide('ask', `The command is ${cmd.length} characters, too long for the guard to scan in time; review it manually.`);
+  const full = String(ti.command || '');
+  // A command too long to scan whole must not become a way to turn a deny into a prompt: its first and last stretches are
+  // still checked (a secret in either is denied), and only if they come back clean does it ask.
+  const tooLong = full.length > MAX_COMMAND;
+  const cmd = tooLong ? `${full.slice(0, MAX_COMMAND / 2)}\n${full.slice(-MAX_COMMAND / 2)}` : full;
 
   // 1. secrets referenced on the command line
   const dirs = [...new Set([input.cwd, root].filter(Boolean))];
@@ -501,6 +511,7 @@ if (tool === 'Bash' || tool === 'PowerShell') {
       `Route: open a PR and let branch protection + the release manager decide.`;
     decide(cfg.prodGate === 'deny' ? 'deny' : 'ask', why);
   }
+  if (tooLong) decide('ask', `The command is ${full.length} characters, too long for the guard to scan in time; review it manually.`);
   process.exit(0);
 }
 
@@ -525,7 +536,12 @@ if (SEARCH_TOOLS.has(tool)) {
 const rawPath = ti.file_path || ti.notebook_path || ti.path;
 // a search with only a glob has no path, but its glob is still checked below
 if (!rawPath && !(SEARCH_TOOLS.has(tool) && ti.glob)) process.exit(0);
-if (rawPath && String(rawPath).length > 8192) decide('ask', 'This path is too long for the guard to check; review it manually.');
+if (rawPath && String(rawPath).length > 8192) {
+  // too long to resolve, but what its last segments name still counts (the first one may be cut in half, so it is dropped)
+  const last = String(rawPath).slice(-1024).split(/[\\/]+/).filter(Boolean).slice(1);
+  if (last.some((_, i) => isSecretPath(cfg, last.slice(i).join('/')))) decide('deny', 'The end of this path names a secret file (secretPaths in .sdlc/config.json). Do not read or write it.');
+  decide('ask', 'This path is too long for the guard to check; review it manually.');
+}
 const filePath = rawPath && path.resolve(input.cwd || root, process.platform === 'win32' ? ntfsPath(rawPath) : rawPath);
 if (tool === 'Grep' && filePath && secretDirectory(filePath)) {
   decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);

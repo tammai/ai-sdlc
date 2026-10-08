@@ -265,11 +265,11 @@ describe('limits that must not become blind spots', () => {
 });
 
 describe('a path nobody writes by hand', () => {
-  test('a Read of a very deep or very long path asks quickly instead of grinding', () => {
+  test('a Read of a very deep or very long path answers quickly instead of grinding', () => {
     const dir = makeRepo({});
-    for (const file_path of ['a/'.repeat(9000) + '.env', 'a'.repeat(20000)]) {
+    for (const [file_path, expected] of [['a/'.repeat(9000) + '.env', 'deny'], ['a/'.repeat(9000) + 'app.ts', 'ask'], ['a'.repeat(20000), 'ask']]) {
       const { r, ms } = timed(() => decision(dir, 'Read', { file_path }));
-      assert.equal(r, 'ask');
+      assert.equal(r, expected, file_path.slice(-12));
       assert.ok(ms < 3000, `${ms} ms`);
     }
   });
@@ -277,5 +277,22 @@ describe('a path nobody writes by hand', () => {
   test('ordinary deep paths still work', () => {
     const dir = makeRepo({ files: { 'a/b/c/d/e/f/g/h/i/j/k/l/m.ts': 'x' } });
     assert.equal(decision(dir, 'Read', { file_path: path.join(dir, 'a/b/c/d/e/f/g/h/i/j/k/l/m.ts') }), 'allow');
+  });
+});
+
+describe('padding does not turn a deny into a prompt', () => {
+  const dir = makeRepo({ files: { '.env': 'K=1' } });
+
+  test('a very long command is still scanned at both ends', () => {
+    const pad = 'x '.repeat(15000);
+    assert.equal(bash(dir, `cat .env ${pad}`), 'deny', 'secret at the start');
+    assert.equal(bash(dir, `${pad} cat .env`), 'deny', 'secret at the end');
+    assert.equal(bash(dir, `echo ${pad}`), 'ask', 'nothing secret: a person confirms');
+  });
+
+  test('a very deep path is denied when its tail names a secret, and asks otherwise', () => {
+    assert.equal(decision(dir, 'Read', { file_path: 'a/'.repeat(9000) + '.env' }), 'deny');
+    assert.equal(decision(dir, 'Read', { file_path: 'a/'.repeat(9000) + '.ssh/id_rsa' }), 'deny');
+    assert.equal(decision(dir, 'Read', { file_path: 'a/'.repeat(9000) + 'app.ts' }), 'ask');
   });
 });
