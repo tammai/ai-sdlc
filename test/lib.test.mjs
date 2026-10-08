@@ -154,3 +154,16 @@ describe('production patterns', () => {
     }
   });
 });
+
+describe('glob braces', () => {
+  test('an unbalanced brace is a literal, not an exception', () => {
+    assert.doesNotThrow(() => matchesAny('a{b', ['a{b', 'x{', '}y', '{{a,b}']));
+    assert.ok(matchesAny('a{b', ['a{b']));
+    assert.ok(matchesAny('dir/}y', ['dir/}y']));
+    assert.ok(!matchesAny('ab', ['a{b']));
+  });
+
+  test('balanced alternations still work', () => {
+    assert.ok(matchesAny('x.ts', ['*.{ts,tsx}']) && matchesAny('x.tsx', ['*.{ts,tsx}']) && !matchesAny('x.js', ['*.{ts,tsx}']));
+  });
+});

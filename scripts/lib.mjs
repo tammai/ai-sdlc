@@ -279,18 +279,22 @@ export function isInside(rel) {
 const globCache = new Map();
 export function globToRegExp(glob) {
   let re = globCache.get(glob);
-  if (!re) { re = compileGlob(glob); globCache.set(glob, re); }
+  if (!re) {
+    // an unbalanced { or } is part of a file name (`a{b`), not an alternation: reading it as one throws in every hook
+    re = compileGlob(glob, (glob.match(/\{/g) || []).length !== (glob.match(/\}/g) || []).length);
+    globCache.set(glob, re);
+  }
   return re;
 }
 
-function compileGlob(glob) {
+function compileGlob(glob, literalBraces = false) {
   let re = '';
   let braces = 0;
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
-    if (c === '{') { braces++; re += '(?:'; continue; }
-    if (c === '}' && braces) { braces--; re += ')'; continue; }
-    if (c === ',' && braces) { re += '|'; continue; }
+    if (!literalBraces && c === '{') { braces++; re += '(?:'; continue; }
+    if (!literalBraces && c === '}' && braces) { braces--; re += ')'; continue; }
+    if (!literalBraces && c === ',' && braces) { re += '|'; continue; }
     if (c === '[') { // a character class, as ripgrep and gitignore read it: `.[e]nv` is `.env`
       // fnmatch/gitignore rules: `!` or `^` negates, and a `]` first in the class (after the negation) is a literal
       let k = i + 1;

@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  hookRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
+  DEFAULT_CONFIG, hookRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
   heartbeat, readDoc, parseDoc
 } from './lib.mjs';
 
@@ -112,6 +112,27 @@ function afterEdit(abs) {
     else text = e.replace_all ? text.split(e.old_string).join(e.new_string) : text.replace(e.old_string, () => e.new_string);
   }
   return text;
+}
+
+// Does an edit to .sdlc/config.json weaken the guard? Ordinary edits (verify, formatOnEdit, stack presets, added secret or protected
+// paths) are not asked about; one that drops a secret or protected path, allows more, turns a gate off, moves the artifacts, or
+// leaves a file that does not parse (which silently falls back to the defaults) is.
+const KEEP = ['secretPaths', 'protectedPaths', 'approvalGate', 'prodPatterns', 'prodPatternsExtra']; // entries may be added, not dropped
+const NO_NEW = ['secretAllow', 'alwaysEditable']; // entries may be dropped, not added
+function weakensGuard(abs) {
+  const parse = (t) => { try { return JSON.parse(String(t).replace(/^﻿/, '')); } catch { return null; } };
+  let before = {};
+  try { before = parse(fs.readFileSync(abs, 'utf8')) ?? {}; } catch { /* a new file */ }
+  const after = parse(afterEdit(abs));
+  if (!after || typeof after !== 'object' || Array.isArray(after)) return true;
+  const eff = (c, k) => (c && c[k] !== undefined ? c[k] : DEFAULT_CONFIG[k]);
+  const list = (v) => (Array.isArray(v) ? v.map(String) : []);
+  for (const k of KEEP) { const kept = new Set(list(eff(after, k))); if (list(eff(before, k)).some((x) => !kept.has(x))) return true; }
+  for (const k of NO_NEW) { const had = new Set(list(eff(before, k))); if (list(eff(after, k)).some((x) => !had.has(x))) return true; }
+  if (eff(before, 'enforcePlan') !== false && eff(after, 'enforcePlan') === false) return true;
+  if (eff(before, 'requireVerifyOnStop') !== false && eff(after, 'requireVerifyOnStop') === false) return true;
+  if (eff(before, 'prodGate') === 'deny' && eff(after, 'prodGate') !== 'deny') return true;
+  return eff(before, 'artifactsDir') !== eff(after, 'artifactsDir');
 }
 
 // The gated stage a command's words could name by file name alone: `plan.md` after a `cd`, `p*.md`, `pla[n].md`, `{plan,x}.md`,
@@ -573,7 +594,7 @@ function touchesGuardFiles(cmd) {
     /\bcurl\b[^\n|;]*\s(?:-o|--output)\b|\bwget\b[^\n|;]*\s(?:-O|--output-document)\b/i,
     />>?\s*\S*\.sdl/i,
     /\b(?:cd|pushd|set-location|sl)\s+\S*\.sdlc/i,
-    /\bgit\s+(?:checkout|restore|apply|stash)\b/i
+    /\bgit\s+(?:checkout|restore|apply|stash)\b[^\n;|&]*\.sdl/i // only when git is pointed at .sdlc
   ].some((re) => re.test(norm));
 }
 
@@ -721,8 +742,11 @@ for (const [re, label] of SECRET_CONTENT) {
 if (!inside) process.exit(0);
 
 // the guard's own config and state: an agent that can rewrite secretPaths has switched the guard off, so a person confirms
-if (matchesAny(rel, ['.sdlc/config.json', '.sdlc/local/**'])) {
-  decide('ask', `${rel} holds the guard's own settings or state (secretPaths, protectedPaths, test lock). A person should confirm this change.`);
+if (matchesAny(rel, ['.sdlc/local/**'])) {
+  decide('ask', `${rel} holds the guard's own state (the test lock, the active change). A person should confirm this change.`);
+}
+if (matchesAny(rel, ['.sdlc/config.json']) && weakensGuard(path.resolve(root, rel))) {
+  decide('ask', `This edit to ${rel} would weaken the guard (a secret or protected path dropped, more allowed, a gate turned off, the artifacts moved, or a file that does not parse). A person should confirm it.`);
 }
 
 // 2a. approval gate — a hand-written `status: approved` in a gated artifact

@@ -26,8 +26,9 @@ describe('the guard cannot be switched off from inside the session', () => {
   test('editing the guard config or state asks a person', () => {
     for (const rel of ['.sdlc/config.json', '.sdlc/local/state.json']) {
       assert.equal(decision(dir, 'Write', { file_path: f(dir, rel), content: '{"secretPaths":[]}' }), 'ask', rel);
-      assert.equal(decision(dir, 'Edit', { file_path: f(dir, rel), old_string: 'a', new_string: 'b' }), 'ask', rel);
     }
+    // state: any edit asks. config: only one that weakens the guard (see guard-config.test.mjs)
+    assert.equal(decision(dir, 'Edit', { file_path: f(dir, '.sdlc/local/state.json'), old_string: 'a', new_string: 'b' }), 'ask');
     assert.equal(decision(dir, 'Bash', { command: 'echo {"secretPaths":[]} > .sdlc/config.json' }), 'ask');
     assert.equal(decision(dir, 'PowerShell', { command: "Set-Content .sdlc\\config.json '{}'" }), 'ask');
     assert.equal(decision(dir, 'Bash', { command: `node -e "require('fs').writeFileSync('.sdlc/config.json','{}')"` }), 'ask');
@@ -170,5 +171,17 @@ describe('a nested project inside the session project', () => {
 
   test('without the session project the nested config alone decides (nothing is added)', () => {
     assert.equal(decision(inner, 'Read', { file_path: path.join(inner, 'conf/live.json') }, { CLAUDE_PROJECT_DIR: inner }), 'allow');
+  });
+});
+
+describe('the guard-files check does not cry wolf', () => {
+  test('git commands that do not touch .sdlc, even when .sdlc is mentioned, pass', () => {
+    const dir = makeRepo({});
+    for (const c of ['git checkout -b feature && ls .sdlc', 'git stash && cat .sdlc/config.json', 'git restore src/a.ts; ls .sdlc']) {
+      assert.equal(decision(dir, 'Bash', { command: c }), 'allow', c);
+    }
+    for (const c of ['git checkout -- .sdlc/config.json', 'git restore .sdlc', 'git stash && git apply .sdlc/x.patch']) {
+      assert.equal(decision(dir, 'Bash', { command: c }), 'ask', c);
+    }
   });
 });
