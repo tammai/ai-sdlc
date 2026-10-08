@@ -196,6 +196,7 @@ export function readDoc(file) {
 
 // The front matter (`key: value` lines between `---` fences) and the body of a document's text.
 export function parseDoc(text) {
+  text = stripBom(text); // readDoc reads a file with its BOM removed; text that is about to be written must parse the same way
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   const meta = {};
   if (m) {

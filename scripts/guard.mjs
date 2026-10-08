@@ -113,13 +113,27 @@ function afterEdit(abs) {
   return text;
 }
 
-// A shell command that writes a file: a redirect, or a copy/move/edit verb, or an interpreter that says it writes.
-const SHELL_WRITES = new RegExp([
-  String.raw`\b(?:sed|perl)\s+-\S*i`, String.raw`\btee\b`, String.raw`\b(?:Set|Add)-Content\b`, String.raw`\bOut-File\b`,
-  String.raw`\b(?:cp|mv|move|copy|dd|install|ren|rename)\b`, String.raw`\b(?:Copy|Move|Rename)-Item\b`,
-  String.raw`>>?\s*\S*\.md`,
-  String.raw`\b(?:python3?|node|ruby|perl|php)\b[\s\S]*(?:write|append|\.dump|open\s*\([^)]*,\s*['"][wa])`
-].join('|'), 'i');
+// A command that names a gated artifact is allowed through only when everything in it merely reads. A list of the ways to
+// write (sed -i, tee, cp, an interpreter, awk, ed, patch, git apply…) is a list someone can walk around; the ways to read
+// are few. A redirect to a file, a $(…) or backtick substitution, or any other command word means the command may write.
+const READ_ONLY = new Set(['cat', 'head', 'tail', 'less', 'more', 'type', 'grep', 'egrep', 'fgrep', 'rg', 'sls', 'select-string',
+  'get-content', 'gc', 'wc', 'ls', 'dir', 'stat', 'diff', 'cmp', 'nl', 'bat', 'cd', 'pwd', 'echo', 'printf', 'test', 'true', 'export', 'set']);
+const GIT_READ = new Set(['diff', 'show', 'log', 'status', 'blame', 'ls-files', 'grep', 'cat-file']);
+function readsOnly(text) {
+  // `2>/dev/null` and `2>&1` write nothing (and the & in the latter is not a separator); any other > or >> does
+  const clean = text.replace(/&>\s*\/dev\/null\b/g, '').replace(/\d*>>?\s*\/dev\/null\b/g, '').replace(/\d*>&\d/g, '');
+  for (let i = 0, parts = clean.split(SEGMENT); i < parts.length; i += 2) {
+    const seg = parts[i];
+    if (/\$\(|`/.test(seg) || seg.includes('>')) return false;
+    const words = seg.trim().split(/\s+/).filter(Boolean);
+    while (words.length && /^[A-Za-z_]\w*=/.test(words[0])) words.shift(); // VAR=value assignments
+    if (!words.length) continue;
+    const name = path.basename(words[0].replace(/\\/g, '/')).toLowerCase().replace(/\.exe$/, '');
+    if (name === 'git') { if (!GIT_READ.has(words[1])) return false; continue; }
+    if (!READ_ONLY.has(name)) return false;
+  }
+  return true;
+}
 
 // `echo ".env" >> .gitignore` names .env without reading it: what echo prints is prose. Keep its redirect targets and
 // any $(…) it runs; keep everything when its output is piped on (`echo .env | xargs cat`).
@@ -544,8 +558,9 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   if (cli && gated(cli[1].toLowerCase())) approvalAsk(cli[1].toLowerCase());
   // (Windows spells the path docs\sdlc\c1\plan.md)
   const art = sans.replace(/\\/g, '/').match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
-  // any write to a gated artifact asks, not only one that says "approved": `sed -i s/draft/$s/` builds the word at run time
-  if (art && gated(art[1].toLowerCase()) && SHELL_WRITES.test(sans)) approvalAsk(art[1].toLowerCase());
+  // a command naming a gated artifact asks unless all of it only reads: a list of writers can be walked around (`sed -i s/draft/$s/`
+  // builds the word at run time; awk, ed, patch, git apply and any interpreter write too)
+  if (art && gated(art[1].toLowerCase()) && !readsOnly(sans)) approvalAsk(art[1].toLowerCase());
 
   // 5. production gate
   // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
