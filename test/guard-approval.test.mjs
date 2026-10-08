@@ -71,6 +71,10 @@ describe('the shell: any write to a gated artifact asks', () => {
       `LESSOPEN='|x' less docs/sdlc/c1/plan.md`, 'GIT_EXTERNAL_DIFF=x git diff docs/sdlc/c1/plan.md', 'less docs/sdlc/c1/plan.md', 'bat docs/sdlc/c1/plan.md',
       'env cat docs/sdlc/c1/plan.md', 'command cat docs/sdlc/c1/plan.md', 'cat <(sed -i x docs/sdlc/c1/plan.md)', 'cat docs/sdlc/c1/plan.md >(tee x)',
       'grep --file=/dev/stdin x docs/sdlc/c1/plan.md', 'head --output=x docs/sdlc/c1/plan.md',
+      // a flag the shell reads through quotes, an escape or ANSI-C quoting
+      `git diff '--output=/tmp/x' docs/sdlc/c1/plan.md`, 'git diff "--ext-diff" docs/sdlc/c1/plan.md', 'git diff --out""put=/tmp/x docs/sdlc/c1/plan.md',
+      'git diff \\--output=/tmp/x docs/sdlc/c1/plan.md', `grep '--file=/dev/stdin' x docs/sdlc/c1/plan.md`, `git diff $'\\x2d\\x2doutput=/tmp/x' docs/sdlc/c1/plan.md`,
+      `git diff $'--output=/tmp/x' docs/sdlc/c1/plan.md`, 'cat $HOME/x docs/sdlc/c1/plan.md', `g'i't diff --ext-diff docs/sdlc/c1/plan.md`,
       // an interpreter asks even to read: use cat
       `node -e "console.log(require('fs').readFileSync('docs/sdlc/c1/plan.md','utf8'))"`, `python3 -c "print(open('docs/sdlc/c1/plan.md').read())"`]) {
       assert.equal(bash(c), 'ask', c);
@@ -79,7 +83,7 @@ describe('the shell: any write to a gated artifact asks', () => {
 
   test('reading a plan is fine', () => {
     for (const c of ['cat docs/sdlc/c1/plan.md', 'grep -n Plan docs/sdlc/c1/plan.md', 'head -5 docs/sdlc/c1/plan.md 2>/dev/null', 'cat docs/sdlc/c1/plan.md 2>&1 | wc -l',
-      'git diff docs/sdlc/c1/plan.md', 'git log -p -- docs/sdlc/c1/plan.md', 'cd docs/sdlc/c1 && cat plan.md', 'Get-Content docs/sdlc/c1/plan.md']) {
+      'git diff docs/sdlc/c1/plan.md', 'git log -p -- docs/sdlc/c1/plan.md', `grep -n 'Plan' "docs/sdlc/c1/plan.md"`, '"cat" docs/sdlc/c1/plan.md', 'cd docs/sdlc/c1 && cat plan.md', 'Get-Content docs/sdlc/c1/plan.md']) {
       assert.equal(bash(c), 'allow', c);
     }
   });

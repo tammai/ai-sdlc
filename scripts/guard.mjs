@@ -131,8 +131,11 @@ function readsOnly(text) {
   for (let i = 0, parts = clean.split(SEGMENT); i < parts.length; i += 2) {
     const seg = parts[i];
     // redirects, substitutions, process substitution, sub-expressions and script blocks all run or write something
-    if (/[<>`(){}]|\$\(/.test(seg)) return false;
-    const words = seg.trim().split(/\s+/).filter(Boolean);
+    // ($ also covers ${…}, $VAR and $'\x2d\x2doutput', which spells a flag through an escape)
+    if (/[<>`(){}$]/.test(seg)) return false;
+    // Quotes and backslashes are removed before the words are judged: the shell does, so '--output=x', --out""put=x and
+    // \--output=x are all the flag --output=x, and "cat" is cat.
+    const words = seg.trim().split(/\s+/).filter(Boolean).map((w) => w.replace(/["'\\]/g, ''));
     if (!words.length) continue;
     // no VAR=value in front (LESSOPEN, GIT_EXTERNAL_DIFF, PAGER…), and no wrapper such as env or command: the first word is the command
     if (/^[A-Za-z_]\w*=/.test(words[0])) return false;
