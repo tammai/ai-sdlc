@@ -39,7 +39,7 @@ Unit tests ran on Windows unless noted.
 - **Grep and `.gitignore`.** The content-Grep check assumes Claude Code's Grep skips gitignored files like ripgrep; unconfirmed. `grep -r` is checked against all files, ignored or not.
 - **Nested projects.** A nested `.git` or `.sdlc` in the cwd (a submodule or package) moves the project root, so the parent's custom `secretPaths` are not applied. Not changed: it needs a decision about monorepos.
 - **Not run:** `bff-web-nuxt`, `site-marketing-nuxt` and `edge-web-nuxt` builds with the Nitro fix; `media-seed.mjs`; Tauri `clippy` and `cargo test` on Windows; workerd and Hermes at long paths; the desktop app and `claude --debug` from Git Bash.
-- **A missing tool is known-red, not a failure** (see A). The scaffolded evals have not been run on Windows with Git Bash; `hook-prod-gate` runs only on Linux, macOS or WSL.
+- **A missing tool is known-red, not a failure** (see A). The scaffolded evals have not been run on Windows with Git Bash; `hook-prod-gate` runs only on Linux, macOS or WSL (it passed under WSL 2 after `claude update`, `claude auth login`, `apt install bubblewrap socat` and a temporary `HOME`; see CONTRIBUTING.md).
 
 ## How to confirm a fix
 
