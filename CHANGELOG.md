@@ -3,6 +3,46 @@
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 
+## [0.7.0] — 2026-10-08
+
+### Added
+- **Plan approval is a human act.** `approvalGate` in `.sdlc/config.json` (default `["plan"]`) makes the guard pause at the permission prompt for `sdlc approve plan` (flags in any order), for a Write/Edit/MultiEdit that leaves a gated artifact with `status: approved` (judged on the file the edit would produce, not on the edit's text), and for a shell command that writes the artifact. `SDLC_APPROVER=<name>` in the launching shell pre-authorizes and is recorded as the approver; headless runs need it. It applies only in a repo that has set up ai-sdlc, and only to a `plan.md` that can be an artifact (a `PLAN.md` elsewhere is untouched).
+- **A prompt hook** (`route-prompt.mjs`, `UserPromptSubmit`) adds a short note to each message in a set-up repo: which skill fits which kind of request, and the active change's next step. A hook cannot call a skill, so Claude still decides. Skipped for `/slash` commands; `routePrompts: false` turns it off.
+- **`sdlc verify` is incremental.** It records the git tree it passed on; an unchanged tree finishes at once, and a changed one runs everything or only the checks whose optional `paths` match a changed file. `--force` runs all. Docs, artifacts and top-level notes (`verifyIgnore`) neither mark the change unverified nor trigger a run. The pass is tied to the verify list that produced it, so adding or changing a check runs everything once. `sdlc verify` also says when a check was skipped as known-red only because its tool is missing.
+- **`sdlc doctor`** reports whether the hooks fire at all (a hook that cannot start `node` is silent).
+- **The Stop gate catches changes made through the shell** (`python3`, `sed -i`, codegen in a Bash call): the prompt hook records the working tree at the start of each turn, and the gate blocks if it differs at the end and was not the last verified tree.
+- **Tests for the plugin itself.** `node test/run.mjs` runs unit tests, `claude plugin validate`, and the `claude plugin eval` cases the change affects (`--full` before a release). CI runs the unit tests on Linux, macOS and Windows across Node 18, 20 and 22. See CONTRIBUTING.md.
+
+### Changed
+- **The secrets guard covers Grep and Glob and reads shell commands properly.** `.env`, keys and credentials are denied through: a Grep `path`, a directory of secrets, or a `glob` (`.env*`, `*.{env,pem}`, `.[e]nv`, and `*`, which overrides `.gitignore` in ripgrep); quotes, `".e"nv`, `${x:-.env}`, `$HOME`, `$'\x2eenv'`, braces and wildcards in any path segment; `git show HEAD:secrets/db.json`; recursive searches (`grep -r`, `rg -u`, `findstr /s`, `Select-String -Recurse`) over a tree that holds a secret; and, on Windows, `.env.` and `.env::$DATA`. Files under `node_modules` are not secrets. A path or command too long or too intricate to check in time (6 s budget) asks instead of running unchecked.
+- **Edits to `.sdlc/config.json` ask only when they would weaken the guard**: a secret or protected path dropped, more allowed, the approval, production, plan or stop gate turned off, the artifacts directory moved, or a file that no longer parses. Everyday edits (`verify`, `formatOnEdit`, presets, added paths) go through. `.sdlc/local/**` and a shell write to either still ask.
+- **The default `secretAllow` is narrower**: `.env.example`, `.env.sample`, `.env.template`, `*.example.{json,yaml,yml,toml,txt,md,env}` and `**/node_modules/**`. It was `*.example.*`, which let `api.example.com.pem` through. A saved `secretAllow` is untouched.
+- **The guard works in the session project.** When `CLAUDE_PROJECT_DIR` has set up ai-sdlc, every hook uses it as the root, so a shell that has `cd`'d into a nested package does not move the config, state, protected paths and test lock; otherwise the root of the current directory is used, as before. Relative paths in a command resolve against the shell's directory, not the project root.
+- **The production gate ignores prose**: a heredoc that edits docs, or a commit message, may say "production" and "deploy". A heredoc that feeds a shell (`bash <<EOF`, `ssh host <<EOF`) is still read.
+- **Skills are shell-neutral.** `sdlc` is run inline as `node "<path>" <args>`, `&&` chains are split, and `gh` takes `--body-file`, so they work under zsh and PowerShell. `system-design` also triggers on "what breaks if" and load or size growth questions.
+- **Detection**: a Tauri app's `src-tauri` is not also detected as a Rust app (the tests ran three times) and `clippy` denies warnings; verify commands quote directories with spaces; detected PHP and Ruby tests run through `php` and `ruby`.
+
+### Fixed
+- **Windows.**
+  - A verify or formatter timeout kills the whole process tree, not just `cmd.exe` (eslint and cargo kept file locks).
+  - `./gradlew` and similar run as `.\gradlew`.
+  - A BOM in `.sdlc/config.json` or an artifact no longer drops its settings.
+  - **`nuxt generate` returned `500` on every route** (Nitro compared its `inline` list against Windows paths with backslashes, so Nuxt's runtime stayed external). `bff-web-nuxt`, `edge-web-nuxt`, `spa-web-nuxt`, `site-landing-nuxt` and `site-marketing-nuxt` now set `nitro.externals.inline` with a function matcher; a project scaffolded earlier needs the same line.
+  - `media-seed` and the eval runner no longer re-split their arguments at spaces, and the POSIX-only examples have a PowerShell form.
+- **The guard failed open on a BOM, a case or link difference, or a secret in the home directory**; a very long or deep path no longer outlasts the 10 s hook limit (which counts as "no objection"); a malformed glob (`[z-a]`, an unbalanced `{`) no longer throws.
+
+### Upgrading
+- Run `/plugin marketplace update ai-sdlc`, then `/plugin update ai-sdlc@ai-sdlc`.
+- A `formatOnEdit` that already wraps `{file}` in quotes now gets the file quoted twice: remove your quotes (the hook quotes it for the shell it runs in).
+- Headless runs (`claude -p`) that approve a plan need `SDLC_APPROVER` set, because the approval now pauses for a person.
+- Reading a gated artifact (`plan.md`) with an interpreter or `git` asks, because those can also write; use `cat`, `grep` or `Get-Content`.
+
+### Known limits
+- The secrets guard and the approval gate read shell text with regexes, not a shell parser. A command built at run time (`eval`, `$(printf …)`, a variable assembled across statements, `find … -exec cat`, `xargs cat`) can still name a secret file or a plan the guard never sees, and each review round found another route. The lasting fix for approval is to make `sdlc approve` require something only a person has.
+- `ssh -i ~/.ssh/id_rsa`, `ls ~/.ssh`, `cp .env.example .env` and `git rm --cached .env` are denied on purpose: they name a secret file or directory. Change `secretPaths` or `secretAllow` per project if you want otherwise.
+- A verify check whose tool is missing (for example `make`) is known-red: `sdlc verify` warns but still passes.
+- On Windows, keep the project directory under about 100 characters: Node cannot read a `package.json` whose full path is 260 characters or more, even with long paths enabled. Not tested: workerd and Hermes at long paths, the desktop app, `tauri dev` and `tauri build`.
+
 ## [0.6.1] — 2026-10-07
 
 ### Fixed
