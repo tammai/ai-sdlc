@@ -175,6 +175,15 @@ function listDir(d) {
   return dirCache.get(d);
 }
 
+// Every trailing sub-path of a path (a/b/c → a/b/c, b/c, c): `**/.aws/credentials` and `**/.ssh/**` match under any parent.
+// Building them costs more than the path's length squared, so a path nobody writes by hand asks instead of being scanned.
+const MAX_SEGMENTS = 64;
+function tailsOf(p) {
+  const segs = p.normalize('NFC').split(/[\\/]+/).filter(Boolean);
+  if (segs.length > MAX_SEGMENTS) decide('ask', 'This path is too deep for the guard to check in time; review it manually.');
+  return segs.map((_, i) => segs.slice(i).join('/'));
+}
+
 // One path segment's wildcards (`*`, `?`, `[class]`) matched without regex backtracking: a file name the agent made up
 // (`aaaa…a`) against `*a*a*a*b` must not be able to stall the guard past its timeout.
 function segTokens(pat) {
@@ -259,8 +268,7 @@ function secretName(c, t, dirs, expandedAlready = false) {
   const abs = path.resolve(input.cwd || root, expanded);
   const rel = toRel(root, abs) ?? t;
   // outside the repo (home dir, absolute paths): the repo-relative globs apply to every trailing sub-path
-  const segs = abs.normalize('NFC').split(/[\\/]+/).filter(Boolean);
-  const tails = isInside(rel) ? [] : segs.map((_, i) => segs.slice(i).join('/'));
+  const tails = isInside(rel) ? [] : tailsOf(abs);
   // `git show HEAD:.env`, `git cat-file -p :secrets/db.json` name the file after the colon (not a URL)
   const afterRev = !t.includes('://') && /^(?![A-Za-z]:[\\/])[^:\\/]*:/.test(t) ? t.replace(/^[^:\\/]*:/, '') : null;
   const candidates = [rel, t.replace(/^~[\\/]/, ''), ...tails, ...(afterRev ? [afterRev] : [])];
@@ -290,9 +298,8 @@ function secretName(c, t, dirs, expandedAlready = false) {
 function secretDirectory(p) {
   return ['__grep__', 'credentials'].some((name) => { // credentials: **/.aws/credentials
     const probe = path.join(p, name);
-    const segs = path.resolve(root, probe).normalize('NFC').split(/[\\/]+/).filter(Boolean);
     const r = toRel(root, probe);
-    return [r, ...(isInside(r) ? [] : segs.map((_, i) => segs.slice(i).join('/')))]
+    return [r, ...(isInside(r) ? [] : tailsOf(path.resolve(root, probe)))]
       .some((x) => matchesAny(x, cfg.secretPaths) && !matchesAny(x, cfg.secretAllow));
   });
 }
@@ -302,8 +309,7 @@ function secretDirectory(p) {
 function secretFile(p, { fast = false } = {}) {
   const rel = fast ? path.relative(root, p).split(path.sep).join('/') : toRel(root, p);
   if (isInside(rel)) return isSecretPath(cfg, rel);
-  const segs = path.resolve(p).normalize('NFC').split(/[\\/]+/).filter(Boolean);
-  return segs.some((_, i) => isSecretPath(cfg, segs.slice(i).join('/')));
+  return tailsOf(path.resolve(p)).some((tail) => isSecretPath(cfg, tail));
 }
 
 // Files under a directory, bounded in count and depth so a scan cannot outlast the hook's timeout.
@@ -519,6 +525,7 @@ if (SEARCH_TOOLS.has(tool)) {
 const rawPath = ti.file_path || ti.notebook_path || ti.path;
 // a search with only a glob has no path, but its glob is still checked below
 if (!rawPath && !(SEARCH_TOOLS.has(tool) && ti.glob)) process.exit(0);
+if (rawPath && String(rawPath).length > 8192) decide('ask', 'This path is too long for the guard to check; review it manually.');
 const filePath = rawPath && path.resolve(input.cwd || root, process.platform === 'win32' ? ntfsPath(rawPath) : rawPath);
 if (tool === 'Grep' && filePath && secretDirectory(filePath)) {
   decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);

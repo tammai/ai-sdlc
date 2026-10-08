@@ -263,3 +263,19 @@ describe('limits that must not become blind spots', () => {
     assert.equal(bash(dir, 'cat a/.e*'), 'ask');
   });
 });
+
+describe('a path nobody writes by hand', () => {
+  test('a Read of a very deep or very long path asks quickly instead of grinding', () => {
+    const dir = makeRepo({});
+    for (const file_path of ['a/'.repeat(9000) + '.env', 'a'.repeat(20000)]) {
+      const { r, ms } = timed(() => decision(dir, 'Read', { file_path }));
+      assert.equal(r, 'ask');
+      assert.ok(ms < 3000, `${ms} ms`);
+    }
+  });
+
+  test('ordinary deep paths still work', () => {
+    const dir = makeRepo({ files: { 'a/b/c/d/e/f/g/h/i/j/k/l/m.ts': 'x' } });
+    assert.equal(decision(dir, 'Read', { file_path: path.join(dir, 'a/b/c/d/e/f/g/h/i/j/k/l/m.ts') }), 'allow');
+  });
+});
