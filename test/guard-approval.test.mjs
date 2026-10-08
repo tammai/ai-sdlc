@@ -71,6 +71,10 @@ describe('the shell: any write to a gated artifact asks', () => {
       `LESSOPEN='|x' less docs/sdlc/c1/plan.md`, 'GIT_EXTERNAL_DIFF=x git diff docs/sdlc/c1/plan.md', 'less docs/sdlc/c1/plan.md', 'bat docs/sdlc/c1/plan.md',
       'env cat docs/sdlc/c1/plan.md', 'command cat docs/sdlc/c1/plan.md', 'cat <(sed -i x docs/sdlc/c1/plan.md)', 'cat docs/sdlc/c1/plan.md >(tee x)',
       'grep --file=/dev/stdin x docs/sdlc/c1/plan.md', 'head --output=x docs/sdlc/c1/plan.md',
+      // git runs what .git/config or .gitattributes names (diff.external, core.pager, a textconv driver), so even a plain read asks
+      'git diff docs/sdlc/c1/plan.md', 'git log -p -- docs/sdlc/c1/plan.md', 'git show HEAD:docs/sdlc/c1/plan.md', 'git status docs/sdlc/c1/plan.md',
+      // a wildcard may expand to a file named like a flag (--output=x), so it is not a plain operand
+      'cat docs/sdlc/c1/*.md', 'grep x docs/sdlc/c1/pl?n.md', 'cat docs/sdlc/c1/[p]lan.md', 'head docs/sdlc/*/plan.md', 'Get-Content docs\\sdlc\\c1\\*.md',
       // a flag the shell reads through quotes, an escape or ANSI-C quoting
       `git diff '--output=/tmp/x' docs/sdlc/c1/plan.md`, 'git diff "--ext-diff" docs/sdlc/c1/plan.md', 'git diff --out""put=/tmp/x docs/sdlc/c1/plan.md',
       'git diff \\--output=/tmp/x docs/sdlc/c1/plan.md', `grep '--file=/dev/stdin' x docs/sdlc/c1/plan.md`, `git diff $'\\x2d\\x2doutput=/tmp/x' docs/sdlc/c1/plan.md`,
@@ -83,7 +87,7 @@ describe('the shell: any write to a gated artifact asks', () => {
 
   test('reading a plan is fine', () => {
     for (const c of ['cat docs/sdlc/c1/plan.md', 'grep -n Plan docs/sdlc/c1/plan.md', 'head -5 docs/sdlc/c1/plan.md 2>/dev/null', 'cat docs/sdlc/c1/plan.md 2>&1 | wc -l',
-      'git diff docs/sdlc/c1/plan.md', 'git log -p -- docs/sdlc/c1/plan.md', `grep -n 'Plan' "docs/sdlc/c1/plan.md"`, '"cat" docs/sdlc/c1/plan.md', 'cd docs/sdlc/c1 && cat plan.md', 'Get-Content docs/sdlc/c1/plan.md']) {
+      `grep -n 'Plan' "docs/sdlc/c1/plan.md"`, '"cat" docs/sdlc/c1/plan.md', 'cd docs/sdlc/c1 && cat plan.md', 'Get-Content docs/sdlc/c1/plan.md']) {
       assert.equal(bash(c), 'allow', c);
     }
   });
@@ -91,5 +95,23 @@ describe('the shell: any write to a gated artifact asks', () => {
   test('the CLI approval asks too', () => {
     assert.equal(bash('node scripts/sdlc.mjs approve plan'), 'ask');
     assert.equal(decision(dir, 'Bash', { command: 'node scripts/sdlc.mjs approve plan' }, { SDLC_APPROVER: 'tam' }), 'allow');
+  });
+});
+
+describe('the gate sees an artifact named by its file name, not only by the full path', () => {
+  const dir = makeRepo({ active: 'c1', plan: 'draft' });
+  const bash = (command) => decision(dir, 'Bash', { command });
+
+  test('after a cd, through a wildcard, a class, a brace or a bare *', () => {
+    for (const c of ['cd docs/sdlc/c1 && sed -i s/draft/approved/ plan.md', 'sed -i s/draft/approved/ docs/sdlc/c1/p*.md', 'sed -i s/draft/approved/ docs/sdlc/c1/pla[n].md',
+      'sed -i s/draft/approved/ docs/sdlc/c1/{plan,x}.md', 'rm docs/sdlc/c1/*', 'cd docs/sdlc/c1; tee plan.md < /tmp/x', 'cp /tmp/x plan.md', 'sed -i s/draft/approved/ p?an.md']) {
+      assert.equal(bash(c), 'ask', c);
+    }
+  });
+
+  test('reading it, and commands that name no gated file, are untouched', () => {
+    for (const c of ['cd docs/sdlc/c1 && cat plan.md', 'ls docs/sdlc/c1', 'sed -i s/a/b/ src/app.ts', 'rm src/old.js', 'cp a.txt b.txt', 'cat spec.md']) {
+      assert.equal(bash(c), 'allow', c);
+    }
   });
 });

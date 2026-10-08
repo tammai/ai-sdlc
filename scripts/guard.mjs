@@ -113,6 +113,23 @@ function afterEdit(abs) {
   return text;
 }
 
+// The gated stage a command's words could name by file name alone: `plan.md` after a `cd`, `p*.md`, `pla[n].md`, `{plan,x}.md`,
+// or a bare `*` in the artifacts directory. The full path docs/sdlc/<change>/plan.md is matched separately; this catches the
+// spellings that do not carry it.
+function gatedFileNamed(text) {
+  const files = ['intent', 'design', 'ui', 'spec', 'plan', 'review'].filter(gated).map((s) => `${s}.md`);
+  if (!files.length) return null;
+  for (const raw of text.replace(/\\/g, '/').split(/[\s;|&<>()=]+/)) {
+    for (const word of expandBraces(raw.replace(/["']/g, ''))) {
+      const base = word.split('/').pop();
+      if (!base) continue;
+      const hit = GLOB_CHARS.test(base) ? files.find((f) => wildMatch(segTokens(base), f)) : files.find((f) => f === base.toLowerCase());
+      if (hit) return hit.slice(0, -3);
+    }
+  }
+  return null;
+}
+
 // A command that names a gated artifact is allowed through only when everything in it merely reads, by a positive grammar:
 // one of a few commands, plain flags, plain operands. A list of the ways to write (sed -i, tee, cp, an interpreter, awk,
 // ed, patch, git apply…) is a list someone can walk around, and so is a list of "read" commands that have options which
@@ -120,10 +137,8 @@ function afterEdit(abs) {
 // Anything outside the grammar asks.
 const READ_ONLY = new Set(['cat', 'head', 'tail', 'grep', 'egrep', 'fgrep', 'wc', 'ls', 'dir', 'type', 'get-content', 'gc',
   'sls', 'select-string', 'cd', 'pwd', 'echo', 'printf']);
-const GIT_READ = new Set(['diff', 'show', 'log', 'status', 'blame', 'ls-files']);
-// git's read-only flags; --output, -O, --ext-diff, --textconv, -c and --exec-path are not on it
-const GIT_FLAGS = new Set(['-p', '-n', '--patch', '--stat', '--name-only', '--name-status', '--oneline', '--no-color', '--color', '--cached',
-  '--staged', '--follow', '--', '--shortstat', '--numstat', '--no-pager']);
+// (git is not on the list: diff, show and log run whatever diff.external, core.pager or a textconv driver in .git/config or
+// .gitattributes names, and the agent may have written those earlier. Read a plan's history with cat or a person's git.)
 const PLAIN_FLAG = /^-{1,2}[A-Za-z0-9][A-Za-z0-9-]*$/;
 function readsOnly(text) {
   // `2>/dev/null` and `2>&1` write nothing (and the & in the latter is not a separator); any other > or >> does
@@ -133,6 +148,9 @@ function readsOnly(text) {
     // redirects, substitutions, process substitution, sub-expressions and script blocks all run or write something
     // ($ also covers ${…}, $VAR and $'\x2d\x2doutput', which spells a flag through an escape)
     if (/[<>`(){}$]/.test(seg)) return false;
+    // A wildcard expands to whatever the directory holds, including a file the agent named `--output=x` or `-n`: the
+    // command's own flags are then not the ones written here. Name the file.
+    if (/[*?[\]]/.test(seg)) return false;
     // Quotes and backslashes are removed before the words are judged: the shell does, so '--output=x', --out""put=x and
     // \--output=x are all the flag --output=x, and "cat" is cat.
     const words = seg.trim().split(/\s+/).filter(Boolean).map((w) => w.replace(/["'\\]/g, ''));
@@ -140,11 +158,6 @@ function readsOnly(text) {
     // no VAR=value in front (LESSOPEN, GIT_EXTERNAL_DIFF, PAGER…), and no wrapper such as env or command: the first word is the command
     if (/^[A-Za-z_]\w*=/.test(words[0])) return false;
     const name = words[0].toLowerCase().replace(/\.exe$/, '');
-    if (name === 'git') {
-      if (!GIT_READ.has(words[1] || '')) return false;
-      for (const a of words.slice(2)) if (a.startsWith('-') && !GIT_FLAGS.has(a) && !/^-\d+$/.test(a)) return false;
-      continue;
-    }
     if (!READ_ONLY.has(name)) return false;
     // a flag outside plain `-x` / `--word` (no =value, so no --output=FILE or --pre=CMD) asks
     for (const a of words.slice(1)) if (a.startsWith('-') && a !== '--' && !/^-\d+$/.test(a) && !PLAIN_FLAG.test(a)) return false;
@@ -577,7 +590,8 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   const art = sans.replace(/\\/g, '/').match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
   // a command naming a gated artifact asks unless all of it only reads: a list of writers can be walked around (`sed -i s/draft/$s/`
   // builds the word at run time; awk, ed, patch, git apply and any interpreter write too)
-  if (art && gated(art[1].toLowerCase()) && !readsOnly(sans)) approvalAsk(art[1].toLowerCase());
+  const stage = (art && art[1].toLowerCase()) || gatedFileNamed(sans);
+  if (stage && gated(stage) && !readsOnly(sans)) approvalAsk(stage);
 
   // 5. production gate
   // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
