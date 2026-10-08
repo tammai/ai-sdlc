@@ -296,3 +296,14 @@ describe('padding does not turn a deny into a prompt', () => {
     assert.equal(decision(dir, 'Read', { file_path: 'a/'.repeat(9000) + 'app.ts' }), 'ask');
   });
 });
+
+describe('a release approval does not cover a command too long to read', () => {
+  const dir = makeRepo({});
+  const env = { RELEASE_APPROVAL: 'TICKET-1' };
+
+  test('npm publish with an approval passes, but not when padded past the scan limit', () => {
+    assert.equal(bash(dir, 'npm publish', env), 'allow');
+    assert.notEqual(bash(dir, `npm publish ${'x '.repeat(15000)}`, env), 'allow');
+    assert.notEqual(bash(dir, `npm publish ${'x '.repeat(15000)}`), 'allow');
+  });
+});

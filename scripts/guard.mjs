@@ -505,7 +505,8 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   const bare = cmd.replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
   const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(bare));
   if (prod) {
-    if (process.env.RELEASE_APPROVAL) process.exit(0);
+    // an approval covers a release command, not a command too long to have been read (see tooLong below)
+    if (process.env.RELEASE_APPROVAL && !tooLong) process.exit(0);
     const why = `Production gate: "${cmd.slice(0, 120)}" crosses the release boundary. A named human must authorize it ` +
       `(set RELEASE_APPROVAL=<ticket or approver> in the launching shell, or approve this prompt). ` +
       `Route: open a PR and let branch protection + the release manager decide.`;
