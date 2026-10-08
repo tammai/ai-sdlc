@@ -117,3 +117,24 @@ describe('the gate sees an artifact named by its file name, not only by the full
     }
   });
 });
+
+describe('a wildcard is resolved against the directory the shell is really in', () => {
+  const dir = makeRepo({ active: 'c1', plan: 'draft' });
+  const abs = path.join(dir, 'docs', 'sdlc', 'c1').split(path.sep).join('/');
+  const bash = (command) => decision(dir, 'Bash', { command });
+
+  test('absolute paths, .., chained cds and unresolved variables reach the artifacts', () => {
+    for (const c of [`cd /tmp && rm ${abs}/*`, 'cd src && rm ../docs/sdlc/c1/*', 'cd docs && rm sdlc/c1/*', 'cd docs/sdlc && rm c1/p*.md',
+      'cd docs && cd sdlc && rm */*', 'rm docs/sdlc/x/../c1/*', 'rm $PLANS/*', 'rm ~/proj/docs/sdlc/c1/*', 'cd $D && rm *', 'cd d* && rm *',
+      'cd docs/sdlc/c1 && cp /tmp/x *.md']) {
+      assert.equal(bash(c), 'ask', c);
+    }
+  });
+
+  test('a wildcard elsewhere, or one that cannot match a gated file, is not the artifact', () => {
+    for (const c of ['cd src && rm *', 'cd docs && ls *', 'cd docs && rm *.tmp', 'rm docs/sdlc/c1/*.tmp', 'cd /tmp && rm /tmp/build/*', 'cd docs/sdlc/c1 && cd ../../.. && rm *',
+      'cd build && cp -r * ../dist']) {
+      assert.equal(bash(c), 'allow', c);
+    }
+  });
+});

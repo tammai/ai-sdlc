@@ -120,13 +120,27 @@ function gatedFileNamed(text) {
   const files = ['intent', 'design', 'ui', 'spec', 'plan', 'review'].filter(gated).map((s) => `${s}.md`);
   if (!files.length) return null;
   const artDir = cfg.artifactsDir.split('/').filter(Boolean);
-  const norm = text.replace(/\\/g, '/');
-  // "here" is the artifacts directory: the shell is in it, or the command cd's there
-  const cwdRel = toRel(root, input.cwd || root);
-  const here = (isInside(cwdRel) && `${cwdRel}/`.toLowerCase().startsWith(`${artDir.join('/').toLowerCase()}/`)) ||
-    norm.toLowerCase().includes(artDir.join('/').toLowerCase());
-  for (const raw of norm.split(/[\s;|&<>()=]+/)) {
-    for (const word of expandBraces(raw.replace(/["']/g, ''))) {
+  const unresolved = /[$~]/; // a variable or ~ in a path: where it points is not known here, so assume it reaches
+  // Where a wildcard's directory is: the shell's directory, moved by every cd earlier in the command, then the word's own
+  // directory part, resolved (`..` and absolute paths included). It reaches the artifacts if that lies in the artifacts directory.
+  let eff = input.cwd || root;
+  let lost = false;
+  const reaches = (dirPart) => {
+    if (lost || unresolved.test(dirPart)) return true;
+    const rel = toRel(root, path.resolve(eff, dirPart || '.'));
+    if (rel === '' || !isInside(rel)) return false;
+    const segs = rel.split('/');
+    return segs.length >= artDir.length && artDir.every((seg, i) => wildMatch(segTokens(segs[i]), seg));
+  };
+  const words = text.replace(/\\/g, '/').split(/[\s;|&<>()=]+/).map((w) => w.replace(/["']/g, ''));
+  for (let k = 0; k < words.length; k++) {
+    if (/^(?:cd|pushd|set-location|sl)$/i.test(words[k]) && words[k + 1] !== undefined) {
+      const target = words[++k];
+      if (unresolved.test(target) || GLOB_CHARS.test(target) || /[{}]/.test(target)) lost = true;
+      else eff = path.resolve(eff, target);
+      continue;
+    }
+    for (const word of expandBraces(words[k])) {
       const parts = word.split('/');
       const base = parts.pop();
       if (!base) continue;
@@ -135,9 +149,7 @@ function gatedFileNamed(text) {
       if (!hit) continue;
       // a literal gated file name counts wherever it is; a wildcard (`*`, `p*.md`) only where it can reach the artifacts directory,
       // or `ls *` and `git add *` would all ask
-      const dir = parts.filter((p) => p && p !== '.' && p !== '..');
-      const reaches = dir.length === 0 ? here : dir.slice(0, artDir.length).every((seg, i) => wildMatch(segTokens(seg), artDir[i]));
-      if (!wild || reaches) return hit.slice(0, -3);
+      if (!wild || reaches(parts.join('/'))) return hit.slice(0, -3);
     }
   }
   return null;
