@@ -15,5 +15,5 @@ For working on ai-sdlc itself. (The `evals` scaffold in the [README](README.md#s
   - **Hook** cases check that a guardrail holds in a real session.
   - **Outcome** cases check what a skill delivers: `ship` stops without a review, `build` won't implement a draft plan under pressure, `fix` writes the reproducing test before the code.
 - **Selection:** `test/select.mjs` maps changed paths to tags. Shared code (`lib.mjs`, `sdlc.mjs`, the manifest, `evals/_fixtures/`) and unknown paths run everything.
-- **Windows:** Claude Code won't grant a shell tool it can't sandbox, so cases that need Bash (`hook-prod-gate`) are skipped there. Run them on Linux, macOS or in CI.
-- **CI** (`.github/workflows/plugin-tests.yml`): the unit job runs on PRs and pushes to main (except template- or docs-only changes); evals run only on manual dispatch (quick or full) with a `CLAUDE_CODE_OAUTH_TOKEN` secret.
+- **Windows:** Claude Code won't grant a shell tool it can't sandbox, so cases that need Bash (`hook-prod-gate`) are skipped there. Run them on Linux, macOS or in WSL (`node test/run.mjs --only hook-prod-gate`).
+- **CI** (`.github/workflows/plugin-tests.yml`) runs only the free unit job, on PRs and pushes to main (except template- or docs-only changes). Evals run locally on your own Claude login, so no token is stored in GitHub: run `node test/run.mjs` before pushing a skill or hook change, and `--full` before a release.

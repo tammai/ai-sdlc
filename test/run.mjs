@@ -76,11 +76,11 @@ if (!has('--no-evals')) {
     console.log(tags ? `eval tags: ${[...tags].join(', ') || '(none)'}` : 'eval tags: ALL (a shared or unmapped file changed)');
   }
   let cases = listCases().filter((c) => !tags || c.tags.some((t) => tags.has(t)));
-  // Claude Code refuses to grant a shell tool where it cannot sandbox it (Windows today). Those cases run in CI.
+  // Claude Code refuses to grant a shell tool where it cannot sandbox it (Windows today). Run those on Linux, macOS or WSL.
   const shellOk = process.platform !== 'win32';
   if (!shellOk) {
     const skipped = cases.filter((c) => c.shell).map((c) => c.name);
-    if (skipped.length) console.log(`skipped on Windows (needs a sandboxed shell — runs in CI): ${skipped.join(', ')}`);
+    if (skipped.length) console.log(`skipped on Windows (needs a sandboxed shell — run on Linux, macOS or WSL): ${skipped.join(', ')}`);
     cases = cases.filter((c) => !c.shell);
   }
   if (!cases.length) console.log('\nno eval case covers these changes — skipping evals');

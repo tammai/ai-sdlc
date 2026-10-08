@@ -1,8 +1,6 @@
 name: Plugin tests
-# The plugin's own quality checks (test/run.mjs).
-# - unit: hook, CLI and packaging tests + `claude plugin validate`. Free, no token, every PR and push.
-# - evals: `claude plugin eval` cases, on demand only (they spend plan usage). Choose quick (only the cases
-#   that cover what changed vs main) or full (every case, 3 runs, with/without-plugin delta).
+# The plugin's own unit tests (test/run.mjs --no-evals): hook, CLI and packaging tests + `claude plugin validate`.
+# Free, no Claude token. Eval cases (`claude plugin eval`) run locally on the maintainer's own login — see CONTRIBUTING.md.
 on:
   pull_request:
     paths-ignore: ['templates/apps/**', 'docs/**']
@@ -10,21 +8,10 @@ on:
     branches: [main]
     paths-ignore: ['templates/apps/**', 'docs/**']
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Eval scope'
-        type: choice
-        options: [quick, full]
-        default: quick
-      only:
-        description: 'Optional: run only cases with these comma-separated tags (e.g. hooks,skill-fix)'
-        type: string
-        default: ''
 permissions:
   contents: read
 jobs:
   unit:
-    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,31 +20,3 @@ jobs:
         with: { node-version: 22 }
       - run: npm install -g @anthropic-ai/claude-code
       - run: node test/run.mjs --no-evals
-
-  evals:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }   # quick mode diffs against origin/main
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm install -g @anthropic-ai/claude-code
-      # the eval sandbox confines granted shell tools with bubblewrap on Linux
-      - run: sudo apt-get update && sudo apt-get install -y bubblewrap socat
-      - name: Run evals
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}   # from `claude setup-token` (subscription)
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}             # or: API key instead
-          MODE: ${{ inputs.mode }}
-          ONLY: ${{ inputs.only }}
-        run: |
-          args="--evals-only"
-          [ "$MODE" = full ] && args="$args --full"
-          [ -n "$ONLY" ] && args="$args --only $ONLY"
-          mkdir -p evals/results
-          node test/run.mjs $args -- --no-publish -j 4 --json evals/results/ci.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with: { name: eval-results, path: evals/results/ }
