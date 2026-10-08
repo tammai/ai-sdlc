@@ -48,6 +48,14 @@ export function makeRepo({ init = true, config = {}, state, active, plan, files 
   return dir;
 }
 
+// Turn the fake `.git` that makeRepo creates into a real repository with one empty commit.
+export function realGit(dir) {
+  fs.rmSync(path.join(dir, '.git'), { recursive: true });
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir });
+  return dir;
+}
+
 export function state(dir) {
   return JSON.parse(read(dir, '.sdlc/local/state.json'));
 }

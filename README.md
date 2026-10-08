@@ -89,7 +89,7 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 |---|---|
 | PreToolUse `guard.mjs` | Blocks reads/writes of secret files and secret-looking strings; protected/generated paths; locked tests; code edits before plan approval; production commands (deploy to prod, `wrangler deploy`, `terraform apply`, push to main/force-push, store releases…) are `ask`, or `deny` with `prodGate: "deny"`; `RELEASE_APPROVAL=<ticket or approver>` in the launching shell lets them through |
 | PostToolUse `post-edit.mjs` | Runs the file-scoped formatter; marks the change as having unverified edits |
-| Stop `stop-gate.mjs` | Sends Claude back once to run `sdlc verify` before it reports done |
+| Stop `stop-gate.mjs` | Sends Claude back once to run `sdlc verify` before it reports done: when an edit tool touched the change, or when the working tree differs from the one the turn started on (so shell edits, formatters and codegen count too; the prompt hook records that baseline) |
 | SessionStart `session-start.mjs` | Re-hydrates the active change and its next step |
 | UserPromptSubmit `route-prompt.mjs` | Checks every message against the ai-sdlc skills and tells Claude which one to call (with a keyword hint and the active change's next step). Skipped for `/slash` commands; off with `"routePrompts": false` in `.sdlc/config.json` |
 

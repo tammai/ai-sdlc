@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PLUGIN, makeRepo, hook, state, read } from './helpers.mjs';
+import { PLUGIN, makeRepo, hook, state, read, write, realGit, sdlc } from './helpers.mjs';
 
 describe('hooks.json', () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'hooks/hooks.json'), 'utf8'));
@@ -72,6 +72,53 @@ describe('stop-gate', () => {
     assert.equal(stop(makeRepo({ state: { dirty: true } })), null);
     assert.equal(stop(makeRepo({ init: false, active: 'c1', state: { dirty: true } })), null);
     assert.equal(stop(makeRepo({ active: 'c1', state: { dirty: true }, config: { requireVerifyOnStop: false } })), null);
+  });
+});
+
+describe('stop-gate: changes made without an edit tool', () => {
+  const stop = (dir) => hook('stop-gate.mjs', dir, { hook_event_name: 'Stop' }).json;
+  const startTurn = (dir) => hook('route-prompt.mjs', dir, { hook_event_name: 'UserPromptSubmit', prompt: 'do it' });
+  const repo = () => realGit(makeRepo({ active: 'c1', config: { verify: [{ name: 'ok', cmd: 'node -e "process.exit(0)"' }] }, files: { 'src/a.js': '1', '.gitignore': '.sdlc/local/\n' } }));
+
+  test('a shell edit during the turn blocks the stop, and a verify afterwards releases it', () => {
+    const dir = repo();
+    startTurn(dir);
+    assert.equal(stop(dir), null, 'nothing changed yet');
+    write(dir, 'src/a.js', '2'); // what `python3` / `sed -i` in a Bash call does: no edit hook runs
+    assert.equal(stop(dir)?.decision, 'block');
+    assert.equal(state(dir).dirty, true, 'stays enforced for the next turn');
+    assert.equal(sdlc(dir, ['verify']).code, 0);
+    assert.equal(stop(dir), null);
+  });
+
+  test('docs-only changes, reverted edits and unchanged turns stop freely', () => {
+    const dir = repo();
+    startTurn(dir);
+    write(dir, 'docs/notes.md', 'x');
+    assert.equal(stop(dir), null);
+    write(dir, 'src/a.js', '2');
+    write(dir, 'src/a.js', '1');
+    assert.equal(stop(dir), null);
+  });
+
+  test('the baseline moves with each prompt, so earlier work is not re-reported', () => {
+    const dir = repo();
+    startTurn(dir);
+    write(dir, 'src/a.js', '2');
+    assert.equal(sdlc(dir, ['verify']).code, 0);
+    startTurn(dir);
+    assert.equal(stop(dir), null);
+  });
+
+  test('without a git repo or an active change it stays out of the way', () => {
+    const plain = makeRepo({ active: 'c1' });
+    startTurn(plain);
+    write(plain, 'src/a.js', '2');
+    assert.equal(stop(plain), null);
+    const idle = realGit(makeRepo({ files: { 'src/a.js': '1' } }));
+    startTurn(idle);
+    write(idle, 'src/a.js', '2');
+    assert.equal(stop(idle), null);
   });
 });
 
