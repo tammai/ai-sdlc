@@ -34,6 +34,7 @@ export const DEFAULT_CONFIG = {
   artifactsDir: 'docs/sdlc',
   enforcePlan: true,
   requireVerifyOnStop: true,
+  routePrompts: true, // UserPromptSubmit: check every message against the ai-sdlc skills (set false to turn off)
   prodGate: 'ask', // "ask" pauses for a human; "deny" blocks unless RELEASE_APPROVAL is set
   prodPatterns: [
     '\\bdeploy\\b.*\\bprod(uction)?\\b',

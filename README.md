@@ -91,10 +91,11 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 | PostToolUse `post-edit.mjs` | Runs the file-scoped formatter; marks the change as having unverified edits |
 | Stop `stop-gate.mjs` | Sends Claude back once to run `sdlc verify` before it reports done |
 | SessionStart `session-start.mjs` | Re-hydrates the active change and its next step |
+| UserPromptSubmit `route-prompt.mjs` | Checks every message against the ai-sdlc skills and tells Claude which one to call (with a keyword hint and the active change's next step). Skipped for `/slash` commands; off with `"routePrompts": false` in `.sdlc/config.json` |
 
 **What's active where:**
 - **Every session where the plugin is enabled**, set up or not: the secrets guard (blocks `.env`, keys, credentials) and the production-deploy prompt.
-- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on) and the session-start summary.
+- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on), the session-start summary and the per-message skill routing.
 - **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
 
 ## Gates and how strictly they apply

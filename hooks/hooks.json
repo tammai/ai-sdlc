@@ -1,9 +1,14 @@
 {
-  "description": "ai-sdlc guardrails: secrets + protected paths + test lock + plan gate + production gate (PreToolUse), formatter + unverified-work tracking (PostToolUse), verify-before-done (Stop), chain status on session start.",
+  "description": "ai-sdlc guardrails: secrets + protected paths + test lock + plan gate + production gate (PreToolUse), formatter + unverified-work tracking (PostToolUse), verify-before-done (Stop), chain status on session start, skill routing note on every prompt.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs\"", "timeout": 10 }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/route-prompt.mjs\"", "timeout": 10 }]
       }
     ],
     "PreToolUse": [
