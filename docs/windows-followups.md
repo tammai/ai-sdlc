@@ -27,9 +27,7 @@ Start with **A (verify first)**: those are claims nobody has run. Then fix **B**
    - `templates/apps/go-api/app/internal/db/dbtest/dbtest.go:21`: comment `DATABASE_URL=… go test ./...`; add the PowerShell form.
    - `templates/apps/tauri-nuxt` and `tauri-react` `CLAUDE.stack.md:1`: `cd src-tauri && cargo clippy … && cargo test` fails in PowerShell 5.1 (`&&` needs 7+). The `template.json` verify entries are fine (they run in cmd). Reword the doc line as separate steps.
 4. **Timeouts only kill `cmd.exe`** — `scripts/post-edit.mjs:25` (20 s formatter) and `scripts/sdlc.mjs:270,314` (verify/baseline, 15 min). The grandchild (eslint, cargo) survives and holds file locks. Fix: `taskkill /T /F /PID` on win32 after a timeout, or spawn detached and kill the tree.
-5. **Guard gaps:**
-   - A quoted Windows path with a space (`"C:\Users\Jane Doe\.aws\credentials"`) is split on the quote, so the existence check fails (`scripts/guard.mjs`, `tokens()`).
-   - The hook matcher has no `Grep`/`Glob`, so `Grep` with a `.env` path leaks it (all platforms; found in this audit, not Windows-specific).
+5. **Guard gap:** a quoted Windows path with a space (`"C:\Users\Jane Doe\.aws\credentials"`) is split on the quote, so the existence check fails (`scripts/guard.mjs`, `tokens()`).
 6. **Evals on Windows** — `test/run.mjs` skips only cases whose `allowed_tools` include Bash/PowerShell (`hook-prod-gate`). The other 18 use `evals/*/scaffold.sh` (`#!/usr/bin/env bash`). Without Git Bash, or with `C:\Windows\System32\bash.exe` (WSL) shadowing it, they fail or behave differently. Either skip every scaffolded case on win32 or document the Git Bash requirement. `CONTRIBUTING.md` currently says only `hook-prod-gate` is affected.
 7. **README Requirements** (line 19) omits what Windows users need: Docker Desktop or WSL for the Go API's Postgres compose, Rust with the MSVC build tools and WebView2 for Tauri, the Flutter SDK, `gh`, `wrangler`, and `git config core.longpaths true`. Tauri `clippy`/`cargo test` run only on Linux CI, so Windows and macOS Tauri builds are unverified.
 

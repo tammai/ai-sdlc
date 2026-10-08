@@ -13,6 +13,7 @@ import {
 } from './lib.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const SEARCH_TOOLS = new Set(['Grep', 'Glob']);
 const SECRET_CONTENT = [
   [/AKIA[0-9A-Z]{16}/, 'AWS access key'],
   [/-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/, 'private key'],
@@ -111,13 +112,27 @@ if (tool === 'Bash' || tool === 'PowerShell') {
 }
 
 const filePath = ti.file_path || ti.notebook_path || ti.path;
-if (!filePath) process.exit(0);
+if (!filePath && !(SEARCH_TOOLS.has(tool) && ti.glob)) process.exit(0);
 const rel = toRel(root, filePath);
 const inside = isInside(rel);
 
 // 1. secrets — paths
 if (['Read', ...EDIT_TOOLS].includes(tool) && isSecretPath(cfg, inside ? rel : path.basename(filePath))) {
   decide('deny', `${rel} is a secret file (secretPaths in .sdlc/config.json). Do not read or write it; reference the variable name instead.`);
+}
+// Grep/Glob read contents too: a search aimed at a secret file or directory (path, or Grep's glob filter) is a read.
+// A search with no path walks the repo and skips gitignored files, which is where .env normally lives.
+if (SEARCH_TOOLS.has(tool)) {
+  // a Grep glob filter like `.env*` or `*.pem` is tried with its wildcards removed and replaced
+  const globVariants = ti.glob ? [ti.glob, ti.glob.replace(/[*?]/g, ''), ti.glob.replace(/\*/g, '.x').replace(/\?/g, 'x')] : [];
+  for (const target of [filePath, ...globVariants].filter(Boolean)) {
+    const r = toRel(root, target);
+    // a directory such as `secrets` or `.ssh` matches its `dir/**` glob only through a child path
+    if (isInside(r) && (isSecretPath(cfg, r) || isSecretPath(cfg, `${r}/x`))) {
+      decide('deny', `${r} is a secret path (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
+    }
+    if (!isInside(r) && isSecretPath(cfg, path.basename(target))) decide('deny', `${target} is a secret file. Do not search it.`);
+  }
 }
 if (!EDIT_TOOLS.has(tool)) process.exit(0);
 

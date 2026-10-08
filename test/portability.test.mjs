@@ -135,3 +135,33 @@ describe('quoting and atomic writes', () => {
     assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.tmp')), []);
   });
 });
+
+describe('search tools', () => {
+  const dir = makeRepo({ files: { 'secrets/deploy': 'x', 'src/a.ts': 'x' } });
+
+  test('Grep and Glob aimed at a secret file or directory are denied', () => {
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, '.env') }).decision, 'deny');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, 'secrets') }).decision, 'deny');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', glob: '.env' }).decision, 'deny');
+    assert.equal(guard(dir, 'Glob', { pattern: '*.pem', path: f(dir, 'secrets') }).decision, 'deny');
+  });
+
+  test('ordinary searches pass', () => {
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, 'src') }).decision, 'allow');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY' }).decision, 'allow');
+    assert.equal(guard(dir, 'Glob', { pattern: '**/*.ts' }).decision, 'allow');
+    assert.equal(guard(dir, 'Grep', { pattern: 'KEY', path: f(dir, '.env.example') }).decision, 'allow');
+  });
+
+  test('the hook matcher covers them', () => {
+    const hooks = JSON.parse(read(path.resolve(SCRIPTS, '..'), 'hooks/hooks.json'));
+    const matcher = hooks.hooks.PreToolUse[0].matcher.split('|');
+    assert.ok(matcher.includes('Grep') && matcher.includes('Glob'));
+  });
+});
+
+test('a Grep glob filter with wildcards still hits secret files', () => {
+  const dir = makeRepo();
+  for (const glob of ['.env*', '*.pem', 'id_rsa*']) assert.equal(guard(dir, 'Grep', { pattern: 'K', glob }).decision, 'deny', glob);
+  assert.equal(guard(dir, 'Grep', { pattern: 'K', glob: '*.ts' }).decision, 'allow');
+});
