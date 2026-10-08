@@ -9,7 +9,7 @@ import {
   STAGES, DEFAULT_CONFIG, spawnShell, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
   readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIERS, TIER_TO_COMPLEXITY, routeAgent,
   GATE_LEVELS, DEFAULT_GATES, gateLevel, crossModelCfg, readinessProblems, openItems,
-  treeId, changedSince, matchesAny, readHeartbeat
+  treeId, changedSince, verifyKey, matchesAny, readHeartbeat
 } from './lib.mjs';
 import { detectProject, detectedVerify, packageManager, globExists } from './detect.mjs';
 import { scaffoldApp } from './scaffold-app.mjs';
@@ -289,7 +289,7 @@ function verify() {
 
   // Incremental: if the last full pass was green, only what changed since needs checking. Nothing changed (docs and
   // artifacts excluded) → done at once. A check with `paths` is skipped when no changed file matches one of them.
-  const inc = !only && !f.force && vfile && prevMeta.status === 'passed' ? changedSince(root, cfg, prevMeta.tree) : null;
+  const inc = !only && !f.force && vfile && prevMeta.status === 'passed' && prevMeta.checks === verifyKey(cfg) ? changedSince(root, cfg, prevMeta.tree) : null;
   if (inc && !inc.files.length) {
     console.log(`VERIFY: all green — nothing changed since the last full pass (${st.lastVerify || prevMeta.last_run}); \`sdlc verify --force\` re-runs everything`);
     if (st.dirty) saveState(root, { ...st, dirty: false });
@@ -327,7 +327,8 @@ function verify() {
     const meta = {
       id: st.active, artifact: 'verify', status: full ? 'passed' : passed ? prev.status || 'partial' : 'failed',
       attempts, first_pass: prev.first_pass || (full ? String(attempts === 1) : ''), last_run: nowIso(), run_by: 'agent-session',
-      tree: full ? treeAfter || '' : prev.tree || ''
+      tree: full ? treeAfter || '' : prev.tree || '',
+      checks: full ? verifyKey(cfg) : prev.checks || ''
     };
     const body = ['# Verification evidence', '', `Change: ${st.active} · run ${attempts} · ${meta.last_run}`, '',
       ...results.flatMap((r) => [`## ${r.name} — ${r.knownRed ? `KNOWN-RED baseline (exit ${r.code}), not enforced` : r.ok ? 'PASS' : `FAIL (exit ${r.code})`} · ${r.secs}s`, '', '```', `$ ${r.cmd}`, tail(r.out, 25), '```', ''])];

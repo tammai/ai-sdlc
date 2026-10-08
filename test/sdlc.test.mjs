@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { makeRepo, sdlc, state, read, write, guard, hook } from './helpers.mjs';
-import { readDoc } from '../scripts/lib.mjs';
+import { readDoc, loadConfig, verifiedUnchanged } from '../scripts/lib.mjs';
 
 // An initialized repo with one active change; returns [dir, id].
 function withChange(tier = 'M', config) {
@@ -239,5 +239,57 @@ describe('approver attribution', () => {
     write(dir, 'docs/sdlc/c1/intent.md', '---\nstatus: draft\ntier: M\n---\n# Intent\n');
     assert.equal(sdlc(dir, ['approve', 'intent', '--by', 'someone else'], { SDLC_APPROVER: 'Tam Mai' }).code, 0);
     assert.equal(readDoc(path.join(dir, 'docs/sdlc/c1/intent.md')).meta.approved_by, 'Tam Mai');
+  });
+});
+
+describe('incremental verify: a passed tree vouches only for the gate it passed', () => {
+  const run = (dir, ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const ok = { name: 'ok', cmd: 'node -e "process.exit(0)"' };
+  function gitRepo(verify = [ok]) {
+    const dir = makeRepo({ active: 'c1', config: { verify }, files: { 'src/a.js': '1', '.gitignore': '.sdlc/local/\n' } });
+    fs.rmSync(path.join(dir, '.git'), { recursive: true });
+    run(dir, 'init', '-q');
+    run(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
+    return dir;
+  }
+  const setVerify = (dir, verify) => {
+    const file = path.join(dir, '.sdlc/config.json');
+    fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), verify }, null, 2));
+  };
+
+  test('a check added after a green run is run, and its failure is reported', () => {
+    const dir = gitRepo();
+    assert.equal(sdlc(dir, ['verify']).code, 0);
+    assert.match(sdlc(dir, ['verify']).out, /nothing changed/);
+    setVerify(dir, [ok, { name: 'new', cmd: 'node -e "process.exit(3)"' }]);
+    const r = sdlc(dir, ['verify']);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /FAIL\s+new/);
+    assert.doesNotMatch(r.out, /nothing changed/);
+  });
+
+  test('a changed command, path list or baseline re-runs everything; a docs edit does not', () => {
+    const dir = gitRepo();
+    sdlc(dir, ['verify']);
+    write(dir, 'docs/notes.md', 'x');
+    assert.match(sdlc(dir, ['verify']).out, /nothing changed/);
+    for (const changed of [[{ ...ok, cmd: 'node -e "process.exit(0);"' }], [{ ...ok, paths: ['src/**'] }], [{ ...ok, baseline: 'red' }]]) {
+      setVerify(dir, changed);
+      assert.doesNotMatch(sdlc(dir, ['verify']).out, /nothing changed/, JSON.stringify(changed));
+    }
+  });
+
+  test('the Stop gate does not count the old pass either, and a verify written before this field existed has no baseline', () => {
+    const dir = gitRepo();
+    sdlc(dir, ['verify']);
+    const cfg = () => loadConfig(dir);
+    assert.equal(verifiedUnchanged(dir, cfg(), 'c1'), true);
+    setVerify(dir, [ok, { name: 'new', cmd: 'node -e "process.exit(3)"' }]);
+    assert.equal(verifiedUnchanged(dir, cfg(), 'c1'), false);
+    setVerify(dir, [ok]);
+    assert.equal(verifiedUnchanged(dir, cfg(), 'c1'), true, 'back to the gate that passed');
+    const file = path.join(dir, 'docs/sdlc/c1/verify.md');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^checks:.*\n/m, ''));
+    assert.equal(verifiedUnchanged(dir, cfg(), 'c1'), false, 'an older verify.md has no gate fingerprint');
   });
 });

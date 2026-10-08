@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 export const STAGES = ['intent', 'spec', 'plan'];
@@ -160,10 +161,17 @@ export function changedSince(root, cfg, baseTree) {
   return { tree: now, files: names.filter((n) => !matchesAny(n, skip)) };
 }
 
+// The identity of the verify gate: its checks (name, command, paths, timeout, baseline) and what it ignores. A passed tree
+// vouches only for the gate it passed: edit the verify list and the next run has no baseline, whatever the tree says.
+export function verifyKey(cfg) {
+  const checks = (cfg.verify || []).map((v) => [v.name, v.cmd, v.paths || null, v.timeoutMs || null, v.baseline || null]);
+  return crypto.createHash('sha256').update(JSON.stringify([checks, cfg.verifyIgnore || [], cfg.artifactsDir || ''])).digest('hex').slice(0, 16);
+}
+
 // The change's last full verify passed on a tree identical (ignoring docs/artifacts) to the current one.
 export function verifiedUnchanged(root, cfg, id) {
   const meta = id && readDoc(path.join(changeDir(root, cfg, id), 'verify.md'))?.meta;
-  if (!meta || meta.status !== 'passed' || !meta.tree) return false;
+  if (!meta || meta.status !== 'passed' || !meta.tree || meta.checks !== verifyKey(cfg)) return false;
   return changedSince(root, cfg, meta.tree)?.files.length === 0;
 }
 
