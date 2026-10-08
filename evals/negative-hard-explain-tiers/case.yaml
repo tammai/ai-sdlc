@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: negative-hard-explain-tiers
+context:
+  scaffold_script: scaffold.sh
