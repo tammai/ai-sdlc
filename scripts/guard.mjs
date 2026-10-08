@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath
 } from './lib.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -42,27 +42,36 @@ function stripProse(cmd) {
   return cmd
     .replace(/<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2[ \t]*(?=\n|$)/g, '<<$2$3')
     .replace(/@(['"])[\s\S]*?\n\1@/g, '')                                   // PowerShell here-strings
-    .replace(/(\s(?:-m|--message|-F)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1MSG');
+    .replace(/(\s(?:-m|--message)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, '$1MSG');
 }
 
 // A command-line token is a secret access when it names a distinctive secret file (.env, *.pem,
 // id_rsa…) or matches a directory-style secret glob (secrets/**, .ssh/**) AND that path exists.
 // "D1/secrets/deploy" in prose matches secrets/** but exists nowhere, so it is allowed.
-function secretToken(cfg, t, dirs) {
-  if (!/[\\/.]/.test(t)) return false;
+function secretToken(cfg, raw, dirs) {
+  const t = raw.replace(/^@/, ''); // curl -F file=@.env
   const home = process.env.USERPROFILE || process.env.HOME || '';
-  const expanded = /^~[\\/]/.test(t) ? path.join(home, t.slice(2)) : t;
+  const expanded = /^~[\\/]/.test(t) ? path.join(home, t.slice(2))
+    : t.replace(/^(?:\$\{?(?:HOME|USERPROFILE)\}?|%USERPROFILE%|\$env:USERPROFILE)(?=[\\/])/i, home);
   const rel = toRel(root, expanded) ?? t;
-  const candidates = isInside(rel) ? [rel] : [rel, t.replace(/^~[\\/]/, '')];
+  // outside the repo (home dir, absolute paths): the repo-relative globs apply to every trailing sub-path
+  const segs = expanded.normalize('NFC').split(/[\\/]+/).filter(Boolean);
+  const tails = isInside(rel) ? [] : segs.map((_, i) => segs.slice(i).join('/'));
+  const candidates = [rel, t.replace(/^~[\\/]/, ''), ...tails];
   if (candidates.some((c) => matchesAny(c, cfg.secretAllow))) return false;
   const byName = cfg.secretPaths.filter((g) => !g.includes('/'));
   const byDir = cfg.secretPaths.filter((g) => g.includes('/'));
   if (candidates.some((c) => matchesAny(c, byName))) return true;
+  if (!/[\\/.]/.test(t)) return false;
   if (!candidates.some((c) => matchesAny(c, byDir))) return false;
-  return dirs.some((d) => fs.existsSync(path.resolve(d, expanded)));
+  return dirs.some((d) => fs.existsSync(path.resolve(d, expanded)) || fs.existsSync(path.resolve(d, expanded.split('\\').join('/'))));
 }
 
-const input = await readStdinJson();
+// A guard that crashes exits 1, which Claude Code treats as non-blocking: that would silently switch every
+// check off. Unreadable input or an unexpected error pauses for a human instead.
+process.on('uncaughtException', (e) => decide('ask', `The guard failed (${e.message}); review this action manually.`));
+const input = await readStdinJson({ strict: true });
+if (input.invalidInput) decide('ask', 'The guard could not parse its input; review this action manually.');
 const tool = input.tool_name;
 const ti = input.tool_input || {};
 const root = findRoot(input.cwd);
@@ -80,13 +89,17 @@ if (tool === 'Bash' || tool === 'PowerShell') {
 
   // 3. test lock — destructive commands against locked tests
   const locked = state.testLock || [];
-  if (locked.length && /\b(rm|del|mv|sed\s+-i|truncate|git\s+(checkout|restore|rm)|Remove-Item|Set-Content|Out-File)\b|>/.test(cmd)) {
-    const hit = locked.find((p) => cmd.includes(p) || cmd.includes(p.split('/').join('\\')));
+  const WRITERS = /\b(rm|ri|rd|del|erase|mv|move|mi|ren|rni|cp|copy|tee|ac|truncate|(?:sed|perl)\s+-\S*i|git\s+(?:checkout|restore|rm)|Remove-Item|Move-Item|Rename-Item|Copy-Item|Set-Content|Add-Content|Clear-Content|Out-File)\b|>/i;
+  if (locked.length && WRITERS.test(cmd)) {
+    // the full path, or just the file name (`cd tests && rm a.test.ts`), compared the way the filesystem does
+    const hay = foldPath(cmd).split('\\').join('/');
+    const hit = locked.find((p) => hay.includes(foldPath(p)) || hay.includes(foldPath(path.posix.basename(p))));
     if (hit) decide('deny', `${hit} is locked while the fix is in progress. Fix the code, not the test. Unlock only after verify passes.`);
   }
 
   // 5. production gate
-  const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(cmd));
+  const bare = cmd.replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
+  const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(bare));
   if (prod) {
     if (process.env.RELEASE_APPROVAL) process.exit(0);
     const why = `Production gate: "${cmd.slice(0, 120)}" crosses the release boundary. A named human must authorize it ` +
@@ -121,7 +134,7 @@ if (matchesAny(rel, cfg.protectedPaths)) {
 }
 
 // 3. test lock
-if ((state.testLock || []).includes(rel)) {
+if ((state.testLock || []).some((p) => foldPath(p) === foldPath(rel))) {
   decide('deny', `${rel} is the locked failing test for the current fix. Fix the code, not the test (playbook Stage 4).`);
 }
 

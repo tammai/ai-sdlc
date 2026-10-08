@@ -52,12 +52,33 @@ export const DEFAULT_CONFIG = {
   ],
   protectedPaths: [],
   alwaysEditable: [],
-  secretPaths: ['.env', '.env.*', '*.pem', '*.key', '*.p12', 'id_rsa*', 'id_ed25519*', 'secrets/**', '**/secrets/**', '.aws/credentials', '.ssh/**'],
+  secretPaths: ['.env', '.env.*', '*.pem', '*.key', '*.p12', 'id_rsa*', 'id_ed25519*', 'secrets/**', '**/secrets/**', '**/.aws/credentials', '**/.ssh/**'],
   secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.*'],
   testGlobs: ['**/*.test.*', '**/*.spec.*', '**/*_test.*', '**/test_*.py', '**/tests/**', '**/test/**', '**/__tests__/**', '**/itest/**'],
   formatOnEdit: null,
   verify: []
 };
+
+// Windows editors (Notepad, PowerShell 5.1 Out-File) prepend a BOM, which makes JSON.parse throw and
+// the front-matter regex miss; every read of a config, state or artifact file goes through here.
+export const stripBom = (text) => (text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text);
+export const readText = (file) => stripBom(fs.readFileSync(file, 'utf8'));
+
+const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// Write to a sibling temp file, then rename over the target, so a hook reading in parallel never sees a
+// truncated file. Windows antivirus/indexers can hold the target briefly (EBUSY/EPERM): retry a few times.
+export function writeFileAtomic(file, text) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text);
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(tmp, file); return; }
+    catch (e) {
+      if (i >= 5 || !['EBUSY', 'EPERM', 'EACCES'].includes(e.code)) { fs.rmSync(tmp, { force: true }); throw e; }
+      sleepMs(20 * (i + 1));
+    }
+  }
+}
 
 export function findRoot(start = process.env.CLAUDE_PROJECT_DIR || process.cwd()) {
   let dir = path.resolve(start);
@@ -77,21 +98,31 @@ export function loadConfig(root) {
   const file = path.join(root, '.sdlc', 'config.json');
   let user = {};
   if (fs.existsSync(file)) {
-    try { user = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { user = {}; }
+    try { user = JSON.parse(readText(file)); } catch { user = {}; }
   }
-  return { ...DEFAULT_CONFIG, ...user };
+  const cfg = { ...DEFAULT_CONFIG, ...user };
+  // artifactsDir is compared with '/'-separated relative paths; accept a Windows-style setting
+  cfg.artifactsDir = String(cfg.artifactsDir).split('\\').join('/').replace(/\/+$/, '');
+  return cfg;
 }
 
 const statePath = (root) => path.join(root, '.sdlc', 'local', 'state.json');
 
 export function loadState(root) {
-  try { return { active: null, dirty: false, testLock: [], ...JSON.parse(fs.readFileSync(statePath(root), 'utf8')) }; }
-  catch { return { active: null, dirty: false, testLock: [] }; }
+  for (let i = 0; ; i++) {
+    try { return { active: null, dirty: false, testLock: [], ...JSON.parse(readText(statePath(root))) }; }
+    catch (e) {
+      if (e.code === 'ENOENT') break;
+      if (i >= 2) break;
+      sleepMs(20); // EBUSY/EPERM from a scanner holding the file, or a reader racing a writer
+    }
+  }
+  return { active: null, dirty: false, testLock: [] };
 }
 
 export function saveState(root, state) {
   fs.mkdirSync(path.dirname(statePath(root)), { recursive: true });
-  fs.writeFileSync(statePath(root), JSON.stringify(state, null, 2) + '\n');
+  writeFileAtomic(statePath(root), JSON.stringify(state, null, 2) + '\n');
 }
 
 export function changeDir(root, cfg, id) {
@@ -101,7 +132,7 @@ export function changeDir(root, cfg, id) {
 // --- frontmatter (flat key: value only) ---------------------------------
 export function readDoc(file) {
   if (!fs.existsSync(file)) return null;
-  const text = fs.readFileSync(file, 'utf8');
+  const text = readText(file);
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   const meta = {};
   if (m) {
@@ -118,15 +149,33 @@ export function writeMeta(file, patch) {
   if (!doc) throw new Error(`missing ${file}`);
   const meta = { ...doc.meta, ...patch };
   const fm = Object.entries(meta).map(([k, v]) => `${k}: ${v ?? ''}`).join('\n');
-  fs.writeFileSync(file, `---\n${fm}\n---\n${doc.body}`);
+  writeFileAtomic(file, `---\n${fm}\n---\n${doc.body}`);
 }
 
 // --- paths & globs -------------------------------------------------------
+// realpath of the nearest existing ancestor, plus the not-yet-created tail. Resolves macOS /var → /private/var,
+// symlinks and Windows junctions, so a link to a protected path is judged by where it really points.
+export function realish(p) {
+  let head = path.resolve(p);
+  const tail = [];
+  for (;;) {
+    try { return path.join(fs.realpathSync.native(head), ...tail.reverse()); }
+    catch {
+      const up = path.dirname(head);
+      if (up === head) return path.resolve(p);
+      tail.push(path.basename(head));
+      head = up;
+    }
+  }
+}
+
 export function toRel(root, p) {
   if (!p) return null;
-  const abs = path.resolve(root, p);
-  return path.relative(root, abs).split(path.sep).join('/');
+  return path.relative(realish(root), realish(path.resolve(root, p))).split(path.sep).join('/');
 }
+
+// Compare paths the way macOS (APFS: case-insensitive, NFD names) and Windows do.
+export const foldPath = (p) => p.normalize('NFC').toLowerCase();
 
 export function isInside(rel) {
   return rel && !rel.startsWith('../') && rel !== '..' && !path.isAbsolute(rel);
@@ -148,13 +197,14 @@ export function globToRegExp(glob) {
     } else if (c === '?') re += '[^/]';
     else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }
-  return new RegExp(`^${re}$`, process.platform === 'win32' ? 'i' : '');
+  // case-insensitive everywhere: Windows and default macOS volumes are, and over-blocking `.ENV` on Linux is harmless
+  return new RegExp(`^${re}$`, 'i');
 }
 
 // gitignore-ish: a pattern without "/" matches the basename anywhere.
 export function matchesAny(rel, globs = []) {
   if (!rel) return false;
-  const norm = rel.split('\\').join('/');
+  const norm = rel.normalize('NFC').split('\\').join('/');
   const base = norm.split('/').pop();
   return globs.some((g) => {
     const re = globToRegExp(g);
@@ -171,10 +221,19 @@ export function nowIso() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export async function readStdinJson() {
+export async function readStdinJson({ strict = false } = {}) {
   let data = '';
+  process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) data += chunk;
-  try { return JSON.parse(data || '{}'); } catch { return {}; }
+  data = stripBom(data);
+  try { return JSON.parse(data || '{}'); } catch { return strict ? { invalidInput: true } : {}; }
+}
+
+// A path or command fragment as one POSIX shell word, or a cmd.exe double-quoted word (null when cmd cannot
+// quote it safely: %VAR% expands even inside quotes).
+export function shellQuote(text, platform = process.platform) {
+  if (platform === 'win32') return /[%"\r\n]/.test(text) ? null : `"${text}"`;
+  return `'${text.replaceAll("'", `'\\''`)}'`;
 }
 
 // Status of the active change's chain: what's approved and what comes next.

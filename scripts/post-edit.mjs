@@ -3,7 +3,7 @@
 // change "dirty" so the Stop gate knows the session has unverified work.
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { findRoot, isInitialized, loadConfig, loadState, saveState, toRel, isInside, matchesAny, readStdinJson } from './lib.mjs';
+import { findRoot, isInitialized, loadConfig, loadState, saveState, toRel, isInside, matchesAny, readStdinJson, shellQuote } from './lib.mjs';
 
 const input = await readStdinJson();
 const ti = input.tool_input || {};
@@ -20,8 +20,9 @@ const fmt = typeof cfg.formatOnEdit === 'string'
   ? cfg.formatOnEdit
   : (cfg.formatOnEdit || []).find((e) => matchesAny(rel, [e.glob]))?.cmd;
 if (fmt) {
-  const cmd = fmt.replaceAll('{file}', JSON.stringify(path.resolve(root, rel)));
-  spawnSync(cmd, { cwd: root, shell: true, stdio: 'ignore', timeout: 20000 });
+  // the file name is model-chosen: quote it for the shell that will run it, or skip when it cannot be quoted safely
+  const quoted = shellQuote(path.resolve(root, rel));
+  if (quoted) spawnSync(fmt.replaceAll('{file}', () => quoted), { cwd: root, shell: true, stdio: 'ignore', timeout: 20000 });
 }
 
 const state = loadState(root);
