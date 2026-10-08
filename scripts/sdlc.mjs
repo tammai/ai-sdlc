@@ -195,7 +195,7 @@ function setStatus(status) {
   const prior = readDoc(file)?.meta || {};
   for (const g of Object.keys(DEFAULT_GATES)) if (prior[`${g}_override`] && !gatePatch[`${g}_override`]) gatePatch[`${g}_override`] = '';
   const patch = { status, ...gatePatch };
-  if (status === 'approved') Object.assign(patch, { approved_by: f.by || gitUser(root), approved_at: nowIso() });
+  if (status === 'approved') Object.assign(patch, { approved_by: process.env.SDLC_APPROVER || f.by || gitUser(root), approved_at: nowIso() });
   if (status === 'rejected') Object.assign(patch, { rejected_by: f.by || gitUser(root), rejected_at: nowIso(), reason: f.reason || '' });
   writeMeta(file, patch);
   console.log(`${id}/${kind}.md → ${status}`);

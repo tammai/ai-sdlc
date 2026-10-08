@@ -101,6 +101,8 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 ## Gates and how strictly they apply
 **Verify is incremental.** After a full pass, `sdlc verify` stores the git tree it passed on. The next run compares trees: nothing changed (docs and the artifact folder excluded, plus whatever is in `verifyIgnore`) → it finishes at once; something changed → it runs everything, or only the checks whose `paths` match a changed file. `--force` runs all. The Stop hook uses the same comparison, so ending a turn after only editing docs, or after reverting an edit, doesn't demand a re-run. Needs a git repo; without one it always runs everything.
 
+**Approval is a human act.** `approvalGate` in `.sdlc/config.json` (default `["plan"]`; add `"intent"`, `"spec"`, `"review"`, or `[]` to turn off) makes the guard pause at the permission prompt for `sdlc approve <stage>`, for a hand-written `status: approved` in that stage's artifact, and for shell edits of it. Claude can't answer the prompt. `SDLC_APPROVER=<name>` in the launching shell pre-authorizes (CI, headless runs) and is recorded as the approver; the same text inside a command does nothing. Shell forgery detection is heuristic.
+
 **`sdlc doctor`** says whether the hooks actually fire (the guard leaves a heartbeat before every tool call). If `node` is not on the PATH hooks run with, they fail silently and every guard is off; run it once after setup.
 
 Two checks sit on the approval commands, next to the hooks. Each has a level, so a team can start gentle and tighten:

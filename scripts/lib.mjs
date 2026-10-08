@@ -37,6 +37,9 @@ export const DEFAULT_CONFIG = {
   requireVerifyOnStop: true,
   // edits to these never mark the change unverified, and never make `sdlc verify` re-run (docs and top-level notes)
   verifyIgnore: ['docs/**', '{README,CHANGELOG,CONTRIBUTING,CLAUDE,REVIEW,DESIGN}.md'],
+  // stages whose approval needs a human at the permission prompt (or SDLC_APPROVER in the launching shell);
+  // Claude must not approve its own plan. Add 'intent', 'spec', 'review' for stricter teams, [] to turn off.
+  approvalGate: ['plan'],
   routePrompts: true, // UserPromptSubmit: check every message against the ai-sdlc skills (set false to turn off)
   prodGate: 'ask', // "ask" pauses for a human; "deny" blocks unless RELEASE_APPROVAL is set
   prodPatterns: [

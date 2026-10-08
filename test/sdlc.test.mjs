@@ -222,3 +222,12 @@ describe('doctor', () => {
     assert.match(r.out, /hooks: OK/);
   });
 });
+
+describe('approver attribution', () => {
+  test('SDLC_APPROVER from the launching shell wins over a model-supplied --by', () => {
+    const dir = makeRepo({ active: 'c1' });
+    write(dir, 'docs/sdlc/c1/intent.md', '---\nstatus: draft\ntier: M\n---\n# Intent\n');
+    assert.equal(sdlc(dir, ['approve', 'intent', '--by', 'someone else'], { SDLC_APPROVER: 'Tam Mai' }).code, 0);
+    assert.equal(readDoc(path.join(dir, 'docs/sdlc/c1/intent.md')).meta.approved_by, 'Tam Mai');
+  });
+});

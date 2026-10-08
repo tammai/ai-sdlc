@@ -24,7 +24,7 @@ Speed comes from collapsing handoffs, not from skipping judgment. You generate a
 Bug report instead of feature → hand over to the **fix** skill.
 
 ## 2. Run the stages
-Follow each stage's skill. After each artifact, show the user a ≤10-line summary plus "approve / change X", and only then run `sdlc approve <stage>`:
+Follow each stage's skill. After each artifact, show the user a ≤10-line summary plus "approve / change X", and only then run `sdlc approve <stage>` (the plan, and any stage in `approvalGate`, pauses at a permission prompt that the user must accept; never approve on your own):
 1. **intent** skill → `intent.md` → user approves (`sdlc approve intent`).
 2. Design, when it applies (both can run; each is its own approval):
    - **system-design** skill → `design.md` + ADRs (via **architecture**) → architecture review → approve. *Required for tier L; for M when adding a service, store, queue, integration or cross-surface contract.*

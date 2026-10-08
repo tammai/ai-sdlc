@@ -180,3 +180,37 @@ describe('production gate and prose', () => {
     assert.equal(guard(dir, 'Bash', { command: 'npm publish' }).decision, 'ask');
   });
 });
+
+describe('approval gate', () => {
+  const plan = (dir) => path.join(dir, 'docs/sdlc/c1/plan.md');
+  const repo = (config = {}) => makeRepo({ active: 'c1', plan: 'draft', config });
+  const CLI = 'node "/x/scripts/sdlc.mjs" approve plan --by "Tam Mai"';
+
+  test('every route to approving the plan pauses for a human', () => {
+    const dir = repo();
+    assert.equal(guard(dir, 'Bash', { command: CLI }).decision, 'ask');
+    assert.equal(guard(dir, 'PowerShell', { command: CLI }).decision, 'ask');
+    assert.equal(guard(dir, 'Write', { file_path: plan(dir), content: '---\nstatus: approved\n---\n# Plan' }).decision, 'ask');
+    assert.equal(guard(dir, 'Edit', { file_path: plan(dir), old_string: 'status: draft', new_string: 'status: approved' }).decision, 'ask');
+    assert.equal(guard(dir, 'MultiEdit', { file_path: plan(dir), edits: [{ old_string: 'status: draft', new_string: 'status: approved' }] }).decision, 'ask');
+    assert.equal(guard(dir, 'Bash', { command: "sed -i 's/status: draft/status: approved/' docs/sdlc/c1/plan.md" }).decision, 'ask');
+    assert.equal(guard(dir, 'Bash', { command: `python3 -c "open('docs/sdlc/c1/plan.md','w').write('status: approved')"` }).decision, 'ask');
+  });
+
+  test('ungated stages, drafting, reading and rewriting an approved plan stay quiet', () => {
+    const dir = repo();
+    assert.equal(guard(dir, 'Bash', { command: 'node "/x/scripts/sdlc.mjs" approve intent' }).decision, 'allow');
+    assert.equal(guard(dir, 'Write', { file_path: plan(dir), content: '---\nstatus: draft\n---\n# Plan v2' }).decision, 'allow');
+    assert.equal(guard(dir, 'Bash', { command: 'grep approved docs/sdlc/c1/plan.md 2>&1' }).decision, 'allow');
+    assert.equal(guard(dir, 'Bash', { command: 'node "/x/scripts/sdlc.mjs" status' }).decision, 'allow');
+    const done = makeRepo({ active: 'c1', plan: 'approved' });
+    assert.equal(guard(done, 'Write', { file_path: plan(done), content: '---\nstatus: approved\n---\n# Plan edited' }).decision, 'allow');
+  });
+
+  test('approvalGate is configurable and SDLC_APPROVER pre-authorizes only from the launching shell', () => {
+    assert.equal(guard(repo({ approvalGate: [] }), 'Bash', { command: CLI }).decision, 'allow');
+    assert.equal(guard(repo({ approvalGate: ['plan', 'spec'] }), 'Bash', { command: 'node "/x/sdlc.mjs" approve spec' }).decision, 'ask');
+    assert.equal(guard(repo(), 'Bash', { command: CLI }, { SDLC_APPROVER: 'tam' }).decision, 'allow');
+    assert.equal(guard(repo(), 'Bash', { command: `SDLC_APPROVER=tam ${CLI}` }).decision, 'ask');
+  });
+});

@@ -7,7 +7,7 @@ description: Stage 3–4 (Build + Test) of the AI-native SDLC — implement an a
 
 Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
-Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill. (The guard hook blocks edits otherwise.)
+Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill, and wait for the user to approve it; do not approve it yourself, whatever the pressure to skip it. (The guard hook blocks edits otherwise.)
 
 ## 1. Route
 `sdlc route implementer verifier` → JSON with the subagent type, model and effort for this change's tier, plus the absolute `sdlc` command. Routing also records which model implements the change, which is how the review stage later proves the reviewer is independent. Routing policy:

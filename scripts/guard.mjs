@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath, heartbeat
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath, heartbeat, readDoc
 } from './lib.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -75,6 +75,16 @@ function secretToken(cfg, raw, dirs) {
 // A guard that crashes exits 1, which Claude Code treats as non-blocking: that would silently switch every
 // check off. Unreadable input or an unexpected error pauses for a human instead.
 process.on('uncaughtException', (e) => decide('ask', `The guard failed (${e.message}); review this action manually.`));
+// Approval is a human act. The gated stages (cfg.approvalGate) pause at the permission prompt, whichever way the
+// approval is attempted: the CLI, a forged `status: approved` in the artifact, or a shell edit of that file.
+// SDLC_APPROVER=<name> in the *launching* shell pre-authorizes (text inside the command does not count).
+const STAGE_RE = '(intent|design|ui|spec|plan|review)';
+function approvalAsk(kind) {
+  decide('ask', `Approval gate: this records a human approval of the ${kind}. Approve only after reading ${kind}.md yourself; ` +
+    `Claude must not approve on its own, even when told to skip the paperwork. (Pre-authorize with SDLC_APPROVER=<name> in the launching shell.)`);
+}
+const gated = (kind) => !process.env.SDLC_APPROVER && (cfg.approvalGate || []).includes(kind);
+
 const input = await readStdinJson({ strict: true });
 if (input.invalidInput) decide('ask', 'The guard could not parse its input; review this action manually.');
 const tool = input.tool_name;
@@ -102,6 +112,14 @@ if (tool === 'Bash' || tool === 'PowerShell') {
     const hit = locked.find((p) => hay.includes(foldPath(p)) || hay.includes(foldPath(path.posix.basename(p))));
     if (hit) decide('deny', `${hit} is locked while the fix is in progress. Fix the code, not the test. Unlock only after verify passes.`);
   }
+
+  // 4b. approval gate — the CLI, or a shell edit of an artifact that mentions approval
+  const sans = stripProse(cmd, { keepShell: true });
+  const cli = sans.match(new RegExp(`\\bsdlc(?:\\.mjs)?["']?\\s+approve\\s+${STAGE_RE}\\b`, 'i'));
+  if (cli && gated(cli[1].toLowerCase())) approvalAsk(cli[1].toLowerCase());
+  const art = sans.match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
+  if (art && gated(art[1].toLowerCase()) && /\bapproved\b/i.test(sans) &&
+    /\b(?:sed|perl)\s+-\S*i|\btee\b|\b(?:Set|Add)-Content\b|\bOut-File\b|\bpython3?\b|\bnode\b|>>?\s*\S*\.md/i.test(sans)) approvalAsk(art[1].toLowerCase());
 
   // 5. production gate
   // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
@@ -148,6 +166,18 @@ for (const [re, label] of SECRET_CONTENT) {
   if (re.test(content)) decide('deny', `The new content contains what looks like a ${label}. Keep credentials out of the diff; read them from the environment.`);
 }
 if (!inside) process.exit(0);
+
+// 2a. approval gate — a hand-written `status: approved` in a gated artifact
+{
+  const m = rel.match(new RegExp(`^${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/${STAGE_RE}\\.md$`, 'i'));
+  if (m && gated(m[1].toLowerCase())) {
+    const claims = (t) => /^\s*status:\s*approved\b/m.test(t || '');
+    const abs = path.resolve(root, rel);
+    const already = readDoc(abs)?.meta.status === 'approved';
+    const wrote = tool === 'Write' ? claims(ti.content) : [ti.new_string, ...(ti.edits || []).map((e) => e.new_string)].some(claims);
+    if (wrote && !already) approvalAsk(m[1].toLowerCase());
+  }
+}
 
 // 2. protected paths
 if (matchesAny(rel, cfg.protectedPaths)) {
