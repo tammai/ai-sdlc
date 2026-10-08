@@ -1,6 +1,7 @@
 // Shared helpers for the ai-sdlc hooks and CLI. Zero dependencies, Node >= 18.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 
 export const STAGES = ['intent', 'spec', 'plan'];
@@ -34,6 +35,8 @@ export const DEFAULT_CONFIG = {
   artifactsDir: 'docs/sdlc',
   enforcePlan: true,
   requireVerifyOnStop: true,
+  // edits to these never mark the change unverified, and never make `sdlc verify` re-run (docs and top-level notes)
+  verifyIgnore: ['docs/**', '{README,CHANGELOG,CONTRIBUTING,CLAUDE,REVIEW,DESIGN}.md'],
   routePrompts: true, // UserPromptSubmit: check every message against the ai-sdlc skills (set false to turn off)
   prodGate: 'ask', // "ask" pauses for a human; "deny" blocks unless RELEASE_APPROVAL is set
   prodPatterns: [
@@ -124,6 +127,58 @@ export function loadState(root) {
 export function saveState(root, state) {
   fs.mkdirSync(path.dirname(statePath(root)), { recursive: true });
   writeFileAtomic(statePath(root), JSON.stringify(state, null, 2) + '\n');
+}
+
+// --- incremental verify ----------------------------------------------------
+// The git tree id of the whole working tree (tracked + untracked, minus .gitignore), built in a throwaway index so
+// the real one is untouched. Equal ids mean identical content, whatever was committed in between. null: not a git repo.
+export function treeId(root) {
+  const git = (args, env = {}) => execFileSync('git', args, { cwd: root, encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).trim();
+  const tmp = path.join(os.tmpdir(), `ai-sdlc-index-${process.pid}-${Date.now()}`);
+  try {
+    try { fs.copyFileSync(path.resolve(root, git(['rev-parse', '--git-path', 'index'])), tmp); } catch { /* no index yet */ }
+    git(['add', '-A', '--', '.'], { GIT_INDEX_FILE: tmp });
+    return git(['write-tree'], { GIT_INDEX_FILE: tmp });
+  } catch { return null; }
+  finally { fs.rmSync(tmp, { force: true }); }
+}
+
+// Files that differ between a verified tree and the working tree now, minus artifacts and cfg.verifyIgnore.
+// null when that cannot be known (no base, not a git repo, base object gone): callers then run everything.
+export function changedSince(root, cfg, baseTree) {
+  const now = baseTree && treeId(root);
+  if (!now) return null;
+  if (now === baseTree) return { tree: now, files: [] };
+  let names;
+  try {
+    names = execFileSync('git', ['diff-tree', '-r', '--name-only', '--no-renames', '-z', baseTree, now], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).split('\0').filter(Boolean);
+  } catch { return null; }
+  const skip = [`${cfg.artifactsDir}/**`, '.sdlc/**', ...(cfg.verifyIgnore || [])];
+  return { tree: now, files: names.filter((n) => !matchesAny(n, skip)) };
+}
+
+// The change's last full verify passed on a tree identical (ignoring docs/artifacts) to the current one.
+export function verifiedUnchanged(root, cfg, id) {
+  const meta = id && readDoc(path.join(changeDir(root, cfg, id), 'verify.md'))?.meta;
+  if (!meta || meta.status !== 'passed' || !meta.tree) return false;
+  return changedSince(root, cfg, meta.tree)?.files.length === 0;
+}
+
+// Hooks leave a timestamp so `sdlc doctor` can tell whether they fire at all (a hook that cannot start `node`
+// fails silently and non-blocking). Throttled: one write per event per 30 s.
+const heartbeatFile = (root) => path.join(root, '.sdlc', 'local', 'hooks.json');
+export function heartbeat(root, event) {
+  try {
+    const file = heartbeatFile(root);
+    let hb = {};
+    try { hb = JSON.parse(readText(file)); } catch { /* first beat */ }
+    if (Date.now() - (hb[event] || 0) < 30000) return;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, JSON.stringify({ ...hb, [event]: Date.now() }));
+  } catch { /* never let bookkeeping break a hook */ }
+}
+export function readHeartbeat(root) {
+  try { return JSON.parse(readText(heartbeatFile(root))); } catch { return {}; }
 }
 
 export function changeDir(root, cfg, id) {

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // SessionStart: re-hydrate the artifact chain so a vibe session picks up where the last one left off.
 import { fileURLToPath } from 'node:url';
-import { findRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson } from './lib.mjs';
+import { findRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson, heartbeat } from './lib.mjs';
 
 const input = await readStdinJson();
 const root = findRoot(input.cwd);
 if (!isInitialized(root)) process.exit(0);
 const cfg = loadConfig(root);
 const state = loadState(root);
+heartbeat(root, 'session-start');
 
 const cli = fileURLToPath(new URL('./sdlc.mjs', import.meta.url));
 const lines = [

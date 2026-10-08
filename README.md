@@ -99,6 +99,10 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 - **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
 
 ## Gates and how strictly they apply
+**Verify is incremental.** After a full pass, `sdlc verify` stores the git tree it passed on. The next run compares trees: nothing changed (docs and the artifact folder excluded, plus whatever is in `verifyIgnore`) → it finishes at once; something changed → it runs everything, or only the checks whose `paths` match a changed file. `--force` runs all. The Stop hook uses the same comparison, so ending a turn after only editing docs, or after reverting an edit, doesn't demand a re-run. Needs a git repo; without one it always runs everything.
+
+**`sdlc doctor`** says whether the hooks actually fire (the guard leaves a heartbeat before every tool call). If `node` is not on the PATH hooks run with, they fail silently and every guard is off; run it once after setup.
+
 Two checks sit on the approval commands, next to the hooks. Each has a level, so a team can start gentle and tighten:
 
 | Level | Behaviour |
@@ -193,7 +197,7 @@ Known limits:
 - **go-api:** tests don't use `-race` (needs cgo). Rate limits are per instance; add edge rate limiting. There are no email-verification or password-reset endpoints yet.
 
 ## CLI
-`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · gates · ready · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
+`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · gates · ready · new · draft · approve · reject · reopen · status · activate · deactivate · verify · doctor · lock-tests · unlock-tests · close · metrics · detect`.
 
 ## Scaffolds (`sdlc scaffold …`)
 `claude-md`, `review` (REVIEW.md), `evals` (worktree-isolated agent eval runner), `ci-evals`, `ci-review` (claude-code-action review + `@claude`), `ci-triage` (failed-build triage), `ci-monitor` (detect → diagnose → intent PR), `babysit-command`, `design-md` (DESIGN.md contract), `managed-settings` (regulated-org reference).

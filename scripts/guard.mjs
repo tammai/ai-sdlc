@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, planApproved, readStdinJson, foldPath, heartbeat
 } from './lib.mjs';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
@@ -82,6 +82,7 @@ const ti = input.tool_input || {};
 const root = findRoot(input.cwd);
 const cfg = loadConfig(root);
 const state = loadState(root);
+if (isInitialized(root)) heartbeat(root, 'guard');
 
 if (tool === 'Bash' || tool === 'PowerShell') {
   const cmd = String(ti.command || '');

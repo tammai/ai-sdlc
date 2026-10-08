@@ -26,7 +26,7 @@ if (fmt) {
 }
 
 const state = loadState(root);
-if (state.active && !state.dirty) {
+if (state.active && !state.dirty && !matchesAny(rel, cfg.verifyIgnore)) {
   state.dirty = true;
   saveState(root, state);
 }

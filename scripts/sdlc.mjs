@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import {
   STAGES, DEFAULT_CONFIG, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
   readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIERS, TIER_TO_COMPLEXITY, routeAgent,
-  GATE_LEVELS, DEFAULT_GATES, gateLevel, crossModelCfg, readinessProblems, openItems
+  GATE_LEVELS, DEFAULT_GATES, gateLevel, crossModelCfg, readinessProblems, openItems,
+  treeId, changedSince, matchesAny, readHeartbeat
 } from './lib.mjs';
 import { detectProject, detectedVerify, packageManager, globExists } from './detect.mjs';
 import { scaffoldApp } from './scaffold-app.mjs';
@@ -251,6 +252,26 @@ function status() {
   if (st.testLock?.length) console.log(`  locked tests: ${st.testLock.join(', ')}`);
 }
 
+// --------------------------------------------------------------- doctor ---
+// Are the plugin's hooks firing? Every tool call runs the guard first, so a `sdlc` command run through Claude's Bash
+// tool must find a guard heartbeat from seconds ago. Hooks that cannot start `node` fail silently, and then it is stale.
+function doctor() {
+  need();
+  const ageSec = (t) => (t ? Math.round((Date.now() - t) / 1000) : null);
+  const hb = readHeartbeat(root);
+  const g = ageSec(hb.guard);
+  console.log(`node ${process.version} at ${process.execPath}`);
+  console.log(`platform ${process.platform}, shell ${process.env.SHELL || process.env.ComSpec || 'unknown'}`);
+  console.log(`guard last ran: ${g == null ? 'never' : `${g}s ago`} · session-start: ${hb['session-start'] ? `${ageSec(hb['session-start'])}s ago` : 'never'}`);
+  if (g != null && g < 90) { console.log('hooks: OK — the guard ran just before this command.'); return; }
+  console.log('hooks: NOT CONFIRMED — the guard did not run in the last 90 s.\n' +
+    '  Inside Claude Code that means the hooks are not firing, and every guard (secrets, plan gate, production gate) is off.\n' +
+    '  Most often `node` is not on the PATH of the shell that runs hooks (nvm/fnm/volta are set up only in ~/.zshrc, or Claude\n' +
+    '  was launched from the Dock). Put `node` on the PATH in ~/.zshenv (zsh) or ~/.profile, or symlink it into /usr/local/bin,\n' +
+    '  restart Claude Code, then run `sdlc doctor` again. Run in your own terminal this message is expected.');
+  process.exitCode = 1;
+}
+
 // --------------------------------------------------------------- verify ---
 function tail(text, n = 40) {
   const lines = text.trimEnd().split(/\r?\n/);
@@ -263,9 +284,21 @@ function verify() {
   if (!cfg.verify?.length) die('no verify commands in .sdlc/config.json — add {"name","cmd"} entries (playbook: one command, non-zero on failure)');
   const st = loadState(root);
   const only = f._.length ? new Set(f._) : null;
+  const vfile = st.active ? path.join(changeDir(root, cfg, st.active), 'verify.md') : null;
+  const prevMeta = (vfile && readDoc(vfile)?.meta) || {};
+
+  // Incremental: if the last full pass was green, only what changed since needs checking. Nothing changed (docs and
+  // artifacts excluded) → done at once. A check with `paths` is skipped when no changed file matches one of them.
+  const inc = !only && !f.force && vfile && prevMeta.status === 'passed' ? changedSince(root, cfg, prevMeta.tree) : null;
+  if (inc && !inc.files.length) {
+    console.log(`VERIFY: all green — nothing changed since the last full pass (${st.lastVerify || prevMeta.last_run}); \`sdlc verify --force\` re-runs everything`);
+    if (st.dirty) saveState(root, { ...st, dirty: false });
+    process.exit(0);
+  }
   const results = [];
   for (const v of cfg.verify) {
     if (only && !only.has(v.name)) continue;
+    if (inc && v.paths?.length && !inc.files.some((n) => matchesAny(n, v.paths))) { console.log(`SKIP  ${v.name}  (nothing changed under ${v.paths.join(', ')} since it last passed)`); continue; }
     const t0 = Date.now();
     const r = spawnSync(v.cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
     const out = `${r.stdout || ''}${r.stderr || ''}${r.error ? `\n${r.error.message}` : ''}`;
@@ -283,13 +316,15 @@ function verify() {
   const passed = results.every((r) => r.ok) && (!only || results.length === only.size);
   const full = passed && !only;
 
+  const treeAfter = full ? treeId(root) : null; // after the run: a build may write files, and those belong to the passed tree
   if (st.active) {
-    const file = path.join(changeDir(root, cfg, st.active), 'verify.md');
-    const prev = readDoc(file)?.meta || {};
+    const file = vfile;
+    const prev = prevMeta;
     const attempts = Number(prev.attempts || 0) + 1;
     const meta = {
       id: st.active, artifact: 'verify', status: full ? 'passed' : passed ? prev.status || 'partial' : 'failed',
-      attempts, first_pass: prev.first_pass || (full ? String(attempts === 1) : ''), last_run: nowIso(), run_by: 'agent-session'
+      attempts, first_pass: prev.first_pass || (full ? String(attempts === 1) : ''), last_run: nowIso(), run_by: 'agent-session',
+      tree: full ? treeAfter || '' : prev.tree || ''
     };
     const body = ['# Verification evidence', '', `Change: ${st.active} · run ${attempts} · ${meta.last_run}`, '',
       ...results.flatMap((r) => [`## ${r.name} — ${r.knownRed ? `KNOWN-RED baseline (exit ${r.code}), not enforced` : r.ok ? 'PASS' : `FAIL (exit ${r.code})`} · ${r.secs}s`, '', '```', `$ ${r.cmd}`, tail(r.out, 25), '```', ''])];
@@ -775,7 +810,8 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
   reopen  intent|spec|plan|review    back to draft
   status [--json] [--all]            the chain for every open change
   activate <id> | deactivate         choose the change the plan gate guards
-  verify [name...] [--all]           run configured build/test/lint; write verify.md evidence
+  verify [name...] [--all] [--force] run configured build/test/lint; write verify.md evidence. Skips what is unchanged since the last full pass (--force: run all)
+  doctor                             check that the plugin's hooks fire (guard heartbeat) and where node comes from
   lock-tests <file...> | unlock-tests   fix flow: protect the failing test
   close [shipped|abandoned|superseded] [--pr URL]
   metrics [--json]                   playbook leading/lagging indicators from the chain + git
@@ -794,7 +830,7 @@ const HELP = `ai-sdlc — AI-native SDLC artifact chain
 Common flag: --id <change-id> to target a non-active change.`;
 
 const COMMANDS = {
-  init, inspect, baseline, 'scaffold-app': scaffoldAppCmd, scaffold, adr, stack, route, gates, ready, new: create, draft, status, list: status, activate, deactivate, close, verify, metrics, detect,
+  init, inspect, baseline, 'scaffold-app': scaffoldAppCmd, scaffold, adr, stack, route, gates, ready, new: create, draft, status, list: status, activate, deactivate, close, verify, doctor, metrics, detect,
   approve: () => setStatus('approved'), reject: () => setStatus('rejected'), reopen: () => setStatus('draft'),
   'lock-tests': lockTests, 'unlock-tests': unlockTests, help: () => console.log(HELP)
 };

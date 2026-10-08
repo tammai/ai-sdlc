@@ -21,6 +21,8 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inli
    - `formatOnEdit`: for an **existing** project, off unless the user agrees (it rewrites each edited file; §5a asks). For a **new** project it is set by `sdlc stack` in §5b, which says what it did; nothing to decide here.
    - `prodGate`: `ask` (default — the user approves in the permission prompt) or `deny` (requires `RELEASE_APPROVAL=<ticket>` in the launching shell).
    - Override `prodPatterns` only to add the repo's real deploy commands.
+   - `paths` on a `verify` entry (e.g. `"paths": ["website/**"]`) makes `sdlc verify` skip that check unless a file under it changed since the last full pass. Suggest it for a repo with independent apps (a site next to a desktop app) when the checks are slow; leave it off for anything other code depends on. `verifyIgnore` (default: `docs/**` and top-level notes) lists edits that never need a re-verify.
+4. Run `sdlc doctor`: it confirms the plugin's hooks fire in this session. If it says NOT CONFIRMED, tell the user: `node` is not on the PATH the hooks run with, so every guard is off until they fix that (the message says how).
 
 ## 2. CLAUDE.md (institutional knowledge)
 - If none exists: `sdlc scaffold claude-md`, then fill it from the repo (what `/init` would find): commands, conventions, architecture, and "Things Claude gets wrong" (start empty). Trim to one page.
