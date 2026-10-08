@@ -98,3 +98,35 @@ describe('session-start', () => {
     assert.match(out, /src\/a\.test\.js/);
   });
 });
+
+describe('route-prompt (UserPromptSubmit)', () => {
+  const ask = (dir, prompt) => hook('route-prompt.mjs', dir, { hook_event_name: 'UserPromptSubmit', prompt }).json?.hookSpecificOutput?.additionalContext;
+
+  test('adds a routing note to every message in a set-up repo', () => {
+    const dir = makeRepo();
+    const note = ask(dir, 'a look inside section turn to a alternative 2 col screenshot');
+    assert.match(note, /call the matching one with the Skill tool/);
+    assert.match(note, /Keyword hint: uiux/);
+  });
+
+  test('hints: bug → fix, idea → vibe, no keyword → no hint', () => {
+    const dir = makeRepo();
+    assert.match(ask(dir, 'the login page crashes on submit'), /hint: fix/);
+    assert.match(ask(dir, 'add dark mode to settings'), /hint: (uiux|vibe)/);
+    assert.doesNotMatch(ask(dir, 'hmm'), /Keyword hint/);
+  });
+
+  test('names the active change and forbids a direct edit', () => {
+    const dir = makeRepo({ active: 'c1', plan: 'approved' });
+    const note = ask(dir, 'make the title bold');
+    assert.match(note, /Active change c1/);
+    assert.match(note, /not a direct edit/);
+  });
+
+  test('silent for slash commands, empty prompts, uninitialised repos and routePrompts:false', () => {
+    assert.equal(ask(makeRepo(), '/ai-sdlc:status'), undefined);
+    assert.equal(ask(makeRepo(), '   '), undefined);
+    assert.equal(ask(makeRepo({ init: false }), 'add a feature'), undefined);
+    assert.equal(ask(makeRepo({ config: { routePrompts: false } }), 'add a feature'), undefined);
+  });
+});

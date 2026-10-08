@@ -7,7 +7,7 @@ description: Stage 3–4 (Build + Test) of the AI-native SDLC — implement an a
 
 Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inline as `node "<that path>" <args>` every time; never put the command in a shell variable (zsh does not word-split `$sdlc`) and never define a shell function (it does not parse in PowerShell).
 
-Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill. (The guard hook blocks edits otherwise.)
+Preconditions: `sdlc status` shows `plan:approved` for the active change. If not → **plan** skill, and wait for the user to approve it; do not approve it yourself, whatever the pressure to skip it. (The guard hook blocks edits otherwise.)
 
 ## 1. Route
 `sdlc route implementer verifier` → JSON with the subagent type, model and effort for this change's tier, plus the absolute `sdlc` command. Routing also records which model implements the change, which is how the review stage later proves the reviewer is independent. Routing policy:
@@ -26,7 +26,7 @@ Bump a single step with `sdlc route implementer --complexity complex` when it to
 - Keep the main session as the steerer: read reports, not diffs; intervene when a report says "blocked by plan error" (→ fix plan.md, re-approve with `sdlc reopen plan` + `sdlc approve plan`).
 
 ## 3. Feedback loop (non-negotiable)
-- `sdlc verify` runs every configured build/lint/test command and writes `docs/sdlc/<id>/verify.md`. Iterate until `VERIFY: all green`. The Stop hook blocks ending the turn while edits are unverified.
+- `sdlc verify` runs every configured build/lint/test command and writes `docs/sdlc/<id>/verify.md`. Iterate until `VERIFY: all green`. It is incremental: it re-runs only what changed since the last full pass (checks with `paths` skip when nothing under them changed; docs and artifacts never count), so call it freely, and use `--force` only when you suspect a stale result. The Stop hook blocks ending the turn while edits are unverified.
 - A failing test means fix the code. Never skip, delete, or loosen a test or a lint rule to get green; if a test is genuinely wrong, say so and ask the user.
 - UI work: take screenshots of the changed screen (browser/screenshot tool if available) and compare with the mock/spec — 2–3 rounds.
 - Plan departures: the implementer appends to plan.md `## Deviations` in the same commit. Check `git diff --stat` against "Files that change" yourself.

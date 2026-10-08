@@ -8,7 +8,7 @@ const SHARED = [/^scripts\/(lib|sdlc)\.mjs$/, /^\.claude-plugin\//, /^evals\/_fi
 // Covered by the unit tests or by their own CI; no eval case exercises them.
 const NO_EVALS = [/^test\//, /^templates\//, /^docs\//, /^\.github\//, /^\.claude\/CLAUDE\.md$/, /^agents(-src)?\//, /^scripts\/(build-agents|scaffold-app|detect)\.mjs$/,
   /^evals\/results\//, /^[^/]+\.md$/, /^LICENSE$/, /^\.gitignore$/];
-const HOOK_SCRIPTS = { 'guard.mjs': 'guard', 'post-edit.mjs': 'post-edit', 'stop-gate.mjs': 'stop-gate', 'session-start.mjs': 'session-start' };
+const HOOK_SCRIPTS = { 'guard.mjs': 'guard', 'post-edit.mjs': 'post-edit', 'stop-gate.mjs': 'stop-gate', 'session-start.mjs': 'session-start', 'route-prompt.mjs': 'hooks' };
 
 export function evalTags(files) {
   const tags = new Set();

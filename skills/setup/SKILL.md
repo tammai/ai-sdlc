@@ -21,6 +21,8 @@ Below, `sdlc` means `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"`. Run it inli
    - `formatOnEdit`: for an **existing** project, off unless the user agrees (it rewrites each edited file; §5a asks). For a **new** project it is set by `sdlc stack` in §5b, which says what it did; nothing to decide here.
    - `prodGate`: `ask` (default — the user approves in the permission prompt) or `deny` (requires `RELEASE_APPROVAL=<ticket>` in the launching shell).
    - Override `prodPatterns` only to add the repo's real deploy commands.
+   - `paths` on a `verify` entry (e.g. `"paths": ["website/**"]`) makes `sdlc verify` skip that check unless a file under it changed since the last full pass. Suggest it for a repo with independent apps (a site next to a desktop app) when the checks are slow; leave it off for anything other code depends on. `verifyIgnore` (default: `docs/**` and top-level notes) lists edits that never need a re-verify.
+4. Run `sdlc doctor`: it confirms the plugin's hooks fire in this session. If it says NOT CONFIRMED, tell the user: `node` is not on the PATH the hooks run with, so every guard is off until they fix that (the message says how).
 
 ## 2. CLAUDE.md (institutional knowledge)
 - If none exists: `sdlc scaffold claude-md`, then fill it from the repo (what `/init` would find): commands, conventions, architecture, and "Things Claude gets wrong" (start empty). Trim to one page.
@@ -135,7 +137,7 @@ Existing projects (§5a) never get this question: the look is in the code, and t
 - Recommend branch protection on main: PR required, code-owner approval, required checks = the verify commands. Agents never push to main (the prod gate also asks on `git push … main`).
 - Show what was created, the known-red checks (if any), and what still needs a human (secrets, branch protection). Suggest one commit for the whole setup, `chore: adopt ai-sdlc` (it includes the scaffold; the stack skill's per-scaffold message is for scaffolding outside setup).
 - **Website:** list these as their own short checklist: the real contact address (`contactEmail` in `app/data/site.ts`; it ships as `hello@example.com`), the real host in `public/robots.txt`, `NUXT_PUBLIC_SITE_URL` at build time, and the production deploy. For a marketing site add the R2 steps with the real names from `wrangler.jsonc` (`<app>-media`, `<app>-media-staging`, `<app>-media-production`): `wrangler r2 bucket create <name>` once per environment, then upload media with `wrangler r2 object put <bucket>/<key> --file <path> --content-type <type> --remote`.
-- Note in one line: the plugin's secrets guard and production-deploy prompt are active in every session where the plugin is enabled, set up or not; the plan gate, verify gate and formatter only act in repos set up like this one.
+- Note in one line: the plugin's secrets guard and production-deploy prompt are active in every session where the plugin is enabled, set up or not; the plan gate, verify gate and formatter only act in repos set up like this one. From now on every message in this repo is checked against the ai-sdlc skills (a `UserPromptSubmit` hook adds a routing note; `"routePrompts": false` in `.sdlc/config.json` turns it off).
 
 ## Mode: `/ai-sdlc:setup ci` (only when asked)
 CI automation runs Claude without a person present, so it needs a credential stored as a GitHub secret. Ask which one with AskUserQuestion:

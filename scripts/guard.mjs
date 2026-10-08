@@ -14,7 +14,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath
+  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
+  heartbeat, readDoc
 } from './lib.mjs';
 
 // A hook that outlives its timeout (10 s) is killed, and Claude Code treats that as "no objection". So every scan is
@@ -73,17 +74,30 @@ function tokens(cmd) {
 // Prose is not a file access: drop heredoc bodies (keep the header line, which holds redirects like `> .env`) and
 // commit/tag messages. Text the shell still runs is not prose: an unquoted heredoc, a "…" here-string or a "…" message
 // expands $(…) and backticks, and a `<<X` inside a quoted string is not a heredoc at all. Those are kept.
+// `keepShell`: leave heredoc bodies alone when they feed a shell (`bash <<EOF`, `ssh host <<EOF`), because those lines
+// run as commands: the production and approval gates need them, the secret scan does not.
 const EXPANDS = /\$\(|`/;
-function stripProse(cmd) {
+const SHELLISH = /\b(?:ba|z|da|k)?sh\b|\bssh\b|\beval\b|\bsource\b|\bpwsh\b|\bpowershell\b/i;
+function stripProse(cmd, { keepShell = false } = {}) {
   return cmd
     .replace(/<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1([^\n]*)\n([\s\S]*?)\n[ \t]*\2[ \t]*(?=\n|$)/g, (m, q, delim, rest, body, offset, all) => {
       const before = all.slice(all.lastIndexOf('\n', offset - 1) + 1, offset);
       const insideQuote = (before.match(/"/g) || []).length % 2 === 1 || (before.match(/'/g) || []).length % 2 === 1;
-      return insideQuote || (!q && EXPANDS.test(body)) ? m : `<<${delim}${rest}`;
+      return insideQuote || (!q && EXPANDS.test(body)) || (keepShell && SHELLISH.test(before + rest)) ? m : `<<${delim}${rest}`;
     })
     .replace(/@(['"])([\s\S]*?)\n\1@/g, (m, q, body) => (q === '"' && EXPANDS.test(body) ? m : '')) // PowerShell here-strings
     .replace(/(\s(?:-m|--message)\s*)("(?:[^"\\]|\\.)*"|'[^']*')/g, (m, flag, msg) => (msg[0] === '"' && EXPANDS.test(msg) ? m : `${flag}MSG`));
 }
+
+// Approval is a human act. The gated stages (cfg.approvalGate) pause at the permission prompt, whichever way the
+// approval is attempted: the CLI, a forged `status: approved` in the artifact, or a shell edit of that file.
+// SDLC_APPROVER=<name> in the *launching* shell pre-authorizes (text inside the command does not count).
+const STAGE_RE = '(intent|design|ui|spec|plan|review)';
+function approvalAsk(kind) {
+  decide('ask', `Approval gate: this records a human approval of the ${kind}. Approve only after reading ${kind}.md yourself; ` +
+    `Claude must not approve on its own, even when told to skip the paperwork. (Pre-authorize with SDLC_APPROVER=<name> in the launching shell.)`);
+}
+const gated = (kind) => !process.env.SDLC_APPROVER && (cfg.approvalGate || []).includes(kind);
 
 // `echo ".env" >> .gitignore` names .env without reading it: what echo prints is prose. Keep its redirect targets and
 // any $(…) it runs; keep everything when its output is piped on (`echo .env | xargs cat`).
@@ -463,6 +477,7 @@ ti = input.tool_input || {};
 root = findRoot(process.env.CLAUDE_PROJECT_DIR || input.cwd);
 cfg = loadConfig(root);
 state = loadState(root);
+if (isInitialized(root)) heartbeat(root, 'guard');
 
 if (tool === 'Bash' || tool === 'PowerShell') {
   const full = String(ti.command || '');
@@ -483,7 +498,7 @@ if (tool === 'Bash' || tool === 'PowerShell') {
   for (const s of recursiveSearches(cmd)) {
     for (const target of s.targets) {
       const found = secretsUnder(target, { all: s.all, excludeDirs: s.excludeDirs });
-      if (found.length) decide('deny', `A recursive search of ${target} would print the contents of ${found[0]}. Search a source directory instead.`);
+      if (found.length) decide('deny', `A recursive search of ${target} would print the contents of "${found[0]}", which matches a secret path. Search a source directory instead.`);
     }
   }
 
@@ -501,8 +516,17 @@ if (tool === 'Bash' || tool === 'PowerShell') {
     if (hit) decide('deny', `${hit} is locked while the fix is in progress. Fix the code, not the test. Unlock only after verify passes.`);
   }
 
+  // 4b. approval gate — the CLI, or a shell edit of an artifact that mentions approval
+  const sans = stripProse(cmd, { keepShell: true });
+  const cli = sans.match(new RegExp(`\\bsdlc(?:\\.mjs)?["']?\\s+approve\\s+${STAGE_RE}\\b`, 'i'));
+  if (cli && gated(cli[1].toLowerCase())) approvalAsk(cli[1].toLowerCase());
+  const art = sans.match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));
+  if (art && gated(art[1].toLowerCase()) && /\bapproved\b/i.test(sans) &&
+    /\b(?:sed|perl)\s+-\S*i|\btee\b|\b(?:Set|Add)-Content\b|\bOut-File\b|\bpython3?\b|\bnode\b|>>?\s*\S*\.md/i.test(sans)) approvalAsk(art[1].toLowerCase());
+
   // 5. production gate
-  const bare = cmd.replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
+  // prose is not a deploy: a heredoc that edits docs, or a commit message, may say "production" and "deploy"
+  const bare = stripProse(cmd, { keepShell: true }).replace(/\b([\w-]+)\.(?:cmd|exe|ps1|bat)\b(?=\s|$)/gi, '$1'); // npm.cmd publish → npm publish
   const prod = [...(cfg.prodPatterns || []), ...(cfg.prodPatternsExtra || [])].find((p) => new RegExp(p, 'i').test(bare));
   if (prod) {
     // an approval covers a release command, not a command too long to have been read (see tooLong below)
@@ -522,14 +546,14 @@ if (SEARCH_TOOLS.has(tool)) {
     decide('ask', 'The search glob is too long or too intricate for the guard to check in time; review it manually.');
   }
   if (tool === 'Grep' && globNamesSecret(glob)) {
-    decide('deny', `Grep glob "${glob}" targets secret files (secretPaths in .sdlc/config.json). Do not read them; reference the variable name instead.`);
+    decide('deny', `Grep glob "${glob}" matches a secret path (secretPaths in .sdlc/config.json). Do not read them; reference the variable name instead.`);
   }
   if (tool === 'Grep' && ti.output_mode === 'content') {
     // a positive glob overrides .gitignore in ripgrep (`-g '*'` searches ignored files), so then ignored files count too
     const positive = glob && !glob.startsWith('!');
     const found = secretsUnder(ti.path || input.cwd || root, { all: Boolean(positive), glob: positive && !/\s/.test(glob) ? glob : null });
     if (found.length) {
-      decide('deny', `This search would print the contents of ${found[0]}${found.length > 1 ? ` and ${found.length - 1} more secret file(s)` : ''}. ` +
+      decide('deny', `This search would print the contents of "${found[0]}", which matches a secret path${found.length > 1 ? ` and ${found.length - 1} more secret file(s)` : ''}. ` +
         'Narrow the path or glob to source files, use output_mode files_with_matches, or add the secret file to .gitignore.');
     }
   }
@@ -545,7 +569,7 @@ if (rawPath && String(rawPath).length > 8192) {
 }
 const filePath = rawPath && path.resolve(input.cwd || root, process.platform === 'win32' ? ntfsPath(rawPath) : rawPath);
 if (tool === 'Grep' && filePath && secretDirectory(filePath)) {
-  decide('deny', `${filePath} holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
+  decide('deny', `"${filePath}" matches a secret path: it holds secret files (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
 }
 const rel = toRel(root, filePath);
 const inside = isInside(rel);
@@ -563,9 +587,9 @@ if (SEARCH_TOOLS.has(tool)) {
     const r = toRel(root, target);
     // a directory such as `secrets` or `.ssh` matches its `dir/**` glob only through a child path
     if (isInside(r) && (isSecretPath(cfg, r) || isSecretPath(cfg, `${r}/x`))) {
-      decide('deny', `${r} is a secret path (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
+      decide('deny', `"${r}" matches a secret path (secretPaths in .sdlc/config.json). Do not search it; reference the variable name instead.`);
     }
-    if (!isInside(r) && secretFile(target)) decide('deny', `${target} is a secret file. Do not search it.`);
+    if (!isInside(r) && secretFile(target)) decide('deny', `"${target}" matches a secret path. Do not search it.`);
   }
 }
 if (!EDIT_TOOLS.has(tool)) process.exit(0);
@@ -580,6 +604,18 @@ if (!inside) process.exit(0);
 // the guard's own config and state: an agent that can rewrite secretPaths has switched the guard off, so a person confirms
 if (matchesAny(rel, ['.sdlc/config.json', '.sdlc/local/**'])) {
   decide('ask', `${rel} holds the guard's own settings or state (secretPaths, protectedPaths, test lock). A person should confirm this change.`);
+}
+
+// 2a. approval gate — a hand-written `status: approved` in a gated artifact
+{
+  const m = rel.match(new RegExp(`^${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^/]+/${STAGE_RE}\\.md$`, 'i'));
+  if (m && gated(m[1].toLowerCase())) {
+    const claims = (t) => /^\s*status:\s*approved\b/m.test(t || '');
+    const abs = path.resolve(root, rel);
+    const already = readDoc(abs)?.meta.status === 'approved';
+    const wrote = tool === 'Write' ? claims(ti.content) : [ti.new_string, ...(ti.edits || []).map((e) => e.new_string)].some(claims);
+    if (wrote && !already) approvalAsk(m[1].toLowerCase());
+  }
 }
 
 // 2. protected paths

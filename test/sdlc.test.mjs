@@ -3,7 +3,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeRepo, sdlc, state, read, write, guard } from './helpers.mjs';
+import { spawnSync } from 'node:child_process';
+import { makeRepo, sdlc, state, read, write, guard, hook } from './helpers.mjs';
 import { readDoc } from '../scripts/lib.mjs';
 
 // An initialized repo with one active change; returns [dir, id].
@@ -146,5 +147,97 @@ describe('test lock', () => {
     const r = sdlc(makeRepo(), ['lock-tests', 'src/missing.test.js']);
     assert.equal(r.code, 1);
     assert.match(r.out, /write the failing test first/);
+  });
+});
+
+describe('incremental verify', () => {
+  const run = (dir, ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  // a real git repo (makeRepo only fakes .git) with one active change and counting verify commands
+  function gitRepo(extra = {}) {
+    const dir = makeRepo({ active: 'c1', config: { verify: [
+      { name: 'web', cmd: 'node -e "require(\'fs\').appendFileSync(\'ran.log\',\'web\\n\')"', paths: ['web/**'] },
+      { name: 'api', cmd: 'node -e "require(\'fs\').appendFileSync(\'ran.log\',\'api\\n\')"', paths: ['api/**'] },
+      { name: 'all', cmd: 'node -e "require(\'fs\').appendFileSync(\'ran.log\',\'all\\n\')"' }
+    ], ...extra }, files: { 'web/a.ts': '1', 'api/b.go': '1', '.gitignore': 'ran.log\n.sdlc/local/\n' } });
+    fs.rmSync(path.join(dir, '.git'), { recursive: true });
+    run(dir, 'init', '-q');
+    run(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
+    return dir;
+  }
+  const ran = (dir) => (fs.existsSync(path.join(dir, 'ran.log')) ? fs.readFileSync(path.join(dir, 'ran.log'), 'utf8').trim().split('\n') : []);
+
+  test('a second run on an unchanged tree runs nothing; --force runs everything', () => {
+    const dir = gitRepo();
+    assert.equal(sdlc(dir, ['verify']).code, 0);
+    assert.deepEqual(ran(dir), ['web', 'api', 'all']);
+    const again = sdlc(dir, ['verify']);
+    assert.match(again.out, /nothing changed since the last full pass/);
+    assert.equal(ran(dir).length, 3);
+    sdlc(dir, ['verify', '--force']);
+    assert.equal(ran(dir).length, 6);
+  });
+
+  test('only checks whose paths changed (and path-less ones) run', () => {
+    const dir = gitRepo();
+    sdlc(dir, ['verify']);
+    write(dir, 'web/a.ts', '2');
+    const r = sdlc(dir, ['verify']);
+    assert.match(r.out, /SKIP\s+api/);
+    assert.deepEqual(ran(dir).slice(3), ['web', 'all']);
+    assert.equal(readDoc(path.join(dir, 'docs/sdlc/c1/verify.md')).meta.status, 'passed');
+  });
+
+  test('docs and artifacts do not count as changes', () => {
+    const dir = gitRepo();
+    sdlc(dir, ['verify']);
+    write(dir, 'docs/notes.md', 'x');
+    write(dir, 'README.md', 'x');
+    assert.match(sdlc(dir, ['verify']).out, /nothing changed/);
+    assert.equal(ran(dir).length, 3);
+  });
+
+  test('a failing run is never skipped next time', () => {
+    const dir = gitRepo({ verify: [{ name: 'bad', cmd: 'node -e "process.exit(2)"' }] });
+    assert.equal(sdlc(dir, ['verify']).code, 1);
+    assert.equal(sdlc(dir, ['verify']).code, 1);
+  });
+
+  test('the stop gate lets go when the tree is the verified one, and blocks when it is not', () => {
+    const dir = gitRepo();
+    sdlc(dir, ['verify']);
+    write(dir, '.sdlc/local/state.json', JSON.stringify({ active: 'c1', dirty: true }));
+    assert.equal(hook('stop-gate.mjs', dir, { hook_event_name: 'Stop' }).json, null);
+    assert.equal(state(dir).dirty, false);
+    write(dir, 'web/a.ts', '3');
+    write(dir, '.sdlc/local/state.json', JSON.stringify({ active: 'c1', dirty: true }));
+    assert.equal(hook('stop-gate.mjs', dir, { hook_event_name: 'Stop' }).json?.decision, 'block');
+  });
+
+  test('editing a doc through the edit tools does not mark the change dirty', () => {
+    const dir = gitRepo();
+    hook('post-edit.mjs', dir, { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'docs/x.md') } });
+    assert.equal(state(dir).dirty ?? false, false);
+    hook('post-edit.mjs', dir, { tool_name: 'Write', tool_input: { file_path: path.join(dir, 'web/a.ts') } });
+    assert.equal(state(dir).dirty, true);
+  });
+});
+
+describe('doctor', () => {
+  test('confirms hooks after the guard ran, flags a missing heartbeat', () => {
+    const dir = makeRepo();
+    assert.match(sdlc(dir, ['doctor']).out, /NOT CONFIRMED/);
+    guard(dir, 'Read', { file_path: path.join(dir, 'a.ts') });
+    const r = sdlc(dir, ['doctor']);
+    assert.equal(r.code, 0);
+    assert.match(r.out, /hooks: OK/);
+  });
+});
+
+describe('approver attribution', () => {
+  test('SDLC_APPROVER from the launching shell wins over a model-supplied --by', () => {
+    const dir = makeRepo({ active: 'c1' });
+    write(dir, 'docs/sdlc/c1/intent.md', '---\nstatus: draft\ntier: M\n---\n# Intent\n');
+    assert.equal(sdlc(dir, ['approve', 'intent', '--by', 'someone else'], { SDLC_APPROVER: 'Tam Mai' }).code, 0);
+    assert.equal(readDoc(path.join(dir, 'docs/sdlc/c1/intent.md')).meta.approved_by, 'Tam Mai');
   });
 });

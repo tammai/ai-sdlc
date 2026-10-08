@@ -93,13 +93,20 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 | PostToolUse `post-edit.mjs` | Runs the file-scoped formatter; marks the change as having unverified edits |
 | Stop `stop-gate.mjs` | Sends Claude back once to run `sdlc verify` before it reports done |
 | SessionStart `session-start.mjs` | Re-hydrates the active change and its next step |
+| UserPromptSubmit `route-prompt.mjs` | Checks every message against the ai-sdlc skills and tells Claude which one to call (with a keyword hint and the active change's next step). Skipped for `/slash` commands; off with `"routePrompts": false` in `.sdlc/config.json` |
 
 **What's active where:**
 - **Every session where the plugin is enabled**, set up or not: the secrets guard (blocks `.env`, keys, credentials) and the production-deploy prompt.
-- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on) and the session-start summary.
+- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on), the session-start summary and the per-message skill routing.
 - **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
 
 ## Gates and how strictly they apply
+**Verify is incremental.** After a full pass, `sdlc verify` stores the git tree it passed on. The next run compares trees: nothing changed (docs and the artifact folder excluded, plus whatever is in `verifyIgnore`) → it finishes at once; something changed → it runs everything, or only the checks whose `paths` match a changed file. `--force` runs all. The Stop hook uses the same comparison, so ending a turn after only editing docs, or after reverting an edit, doesn't demand a re-run. Needs a git repo; without one it always runs everything.
+
+**Approval is a human act.** `approvalGate` in `.sdlc/config.json` (default `["plan"]`; add `"intent"`, `"spec"`, `"review"`, or `[]` to turn off) makes the guard pause at the permission prompt for `sdlc approve <stage>`, for a hand-written `status: approved` in that stage's artifact, and for shell edits of it. Claude can't answer the prompt. `SDLC_APPROVER=<name>` in the launching shell pre-authorizes (CI, headless runs) and is recorded as the approver; the same text inside a command does nothing. Shell forgery detection is heuristic.
+
+**`sdlc doctor`** says whether the hooks actually fire (the guard leaves a heartbeat before every tool call). If `node` is not on the PATH hooks run with, they fail silently and every guard is off; run it once after setup.
+
 Two checks sit on the approval commands, next to the hooks. Each has a level, so a team can start gentle and tighten:
 
 | Level | Behaviour |
@@ -194,7 +201,7 @@ Known limits:
 - **go-api:** tests don't use `-race` (needs cgo). Rate limits are per instance; add edge rate limiting. There are no email-verification or password-reset endpoints yet.
 
 ## CLI
-`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · gates · ready · new · draft · approve · reject · reopen · status · activate · deactivate · verify · lock-tests · unlock-tests · close · metrics · detect`.
+`node scripts/sdlc.mjs help`: `init · inspect · baseline · scaffold-app · scaffold · adr · stack · route · gates · ready · new · draft · approve · reject · reopen · status · activate · deactivate · verify · doctor · lock-tests · unlock-tests · close · metrics · detect`.
 
 ## Scaffolds (`sdlc scaffold …`)
 `claude-md`, `review` (REVIEW.md), `evals` (worktree-isolated agent eval runner), `ci-evals`, `ci-review` (claude-code-action review + `@claude`), `ci-triage` (failed-build triage), `ci-monitor` (detect → diagnose → intent PR), `babysit-command`, `design-md` (DESIGN.md contract), `managed-settings` (regulated-org reference).
