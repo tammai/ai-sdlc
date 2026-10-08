@@ -138,3 +138,22 @@ describe('a wildcard is resolved against the directory the shell is really in', 
     }
   });
 });
+
+describe('a directory the guard cannot track is assumed to be the artifacts directory', () => {
+  const dir = makeRepo({ active: 'c1', plan: 'draft' });
+  const bash = (command) => decision(dir, 'Bash', { command });
+
+  test('cd -, pushd +1, a bare cd, popd, -C, --work-tree, find and xargs', () => {
+    for (const c of ['cd docs/sdlc/c1; cd src; cd -; rm *', 'pushd docs/sdlc/c1; pushd src; pushd +1; rm *', 'cd; rm *', 'pushd docs/sdlc/c1; popd; rm *',
+      'git -C docs/sdlc/c1 rm *.md', 'git --work-tree=docs/sdlc/c1 rm p*.md', 'find docs/sdlc/c1 -name "*.md" -delete', 'ls docs/sdlc/c1 | xargs rm',
+      'find docs/sdlc/c1 -exec sed -i s/draft/approved/ {} +']) {
+      assert.equal(bash(c), 'ask', c);
+    }
+  });
+
+  test('the same tools on something else are ordinary', () => {
+    for (const c of ['find . -name "*.md"', 'ls src | xargs wc -l', 'git -C src status', 'cd src && cd - && ls', 'cd; ls', 'pushd src; popd; ls']) {
+      assert.equal(bash(c), 'allow', c);
+    }
+  });
+});

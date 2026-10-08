@@ -132,11 +132,26 @@ function gatedFileNamed(text) {
     const segs = rel.split('/');
     return segs.length >= artDir.length && artDir.every((seg, i) => wildMatch(segTokens(segs[i]), seg));
   };
-  const words = text.replace(/\\/g, '/').split(/[\s;|&<>()=]+/).map((w) => w.replace(/["']/g, ''));
+  // words, with a '\0' where a command ends (`;`, `|`, `&`, a newline, a redirect): `cd; rm *` is a bare cd, then rm
+  const BOUNDARY = '\0';
+  const words = [];
+  for (const piece of text.replace(/\\/g, '/').split(/([\s;|&<>()=]+)/)) {
+    if (/^[\s;|&<>()=]+$/.test(piece)) { if (/[;|&\n<>()]/.test(piece)) words.push(BOUNDARY); } else if (piece) words.push(piece.replace(/["']/g, ''));
+  }
+  // Things that move the working directory out of sight, or walk from a root named elsewhere: where they appear in a command
+  // that mentions the artifacts directory, a wildcard is assumed to reach it.
+  const MOVERS = /^(?:-C|--git-dir|--work-tree|--directory|--prefix|find|xargs|-exec|-execdir|popd|dirs)$/i;
+  if (words.some((w) => MOVERS.test(w)) && text.replace(/\\/g, '/').toLowerCase().includes(artDir.join('/').toLowerCase())) {
+    lost = true;
+    // `ls docs/sdlc/c1 | xargs rm` names no file at all: the artifacts reach the writer through the pipe. The read-only check decides.
+    return files[0].slice(0, -3);
+  }
   for (let k = 0; k < words.length; k++) {
-    if (/^(?:cd|pushd|set-location|sl)$/i.test(words[k]) && words[k + 1] !== undefined) {
-      const target = words[++k];
-      if (unresolved.test(target) || GLOB_CHARS.test(target) || /[{}]/.test(target)) lost = true;
+    if (words[k] === BOUNDARY) continue;
+    if (/^(?:cd|pushd|set-location|sl)$/i.test(words[k])) {
+      const target = words[k + 1] === BOUNDARY ? undefined : words[++k];
+      // `cd -` and `pushd +1` go somewhere that was visited before; no target means home. Neither is known here.
+      if (target === undefined || /^[-+]/.test(target) || unresolved.test(target) || GLOB_CHARS.test(target) || /[{}]/.test(target)) lost = true;
       else eff = path.resolve(eff, target);
       continue;
     }
