@@ -96,7 +96,7 @@ export function verifyFor(root, rel, kind, prefix) {
     if (build) out.push({ name: name('build'), cmd: cd + run(build) });
   }
   if (kind === 'tauri' && has('src-tauri/Cargo.toml')) {
-    out.push({ name: name('clippy'), cmd: `cd ${rel === '.' ? '' : rel + '/'}src-tauri && cargo clippy --all-targets` });
+    out.push({ name: name('clippy'), cmd: `cd ${rel === '.' ? '' : rel + '/'}src-tauri && cargo clippy --all-targets -- -D warnings` });
     out.push({ name: name('rust-test'), cmd: `cd ${rel === '.' ? '' : rel + '/'}src-tauri && cargo test` });
   }
   if (kind === 'go') {
@@ -134,7 +134,10 @@ export function detectProject(root) {
     if (c) apps.push({ dir: rel, ...c });
   }
   // a plain root package.json is a workspace shell when sub-apps were found
-  const filtered = apps.length > 1 ? apps.filter((a) => !(a.dir === '.' && a.kind === 'node')) : apps;
+  // a Tauri app's src-tauri crate is covered by the Tauri app's own clippy/test commands
+  const tauriCrates = new Set(apps.filter((a) => a.kind === 'tauri').map((a) => (a.dir === '.' ? 'src-tauri' : `${a.dir}/src-tauri`)));
+  const own = apps.filter((a) => !tauriCrates.has(a.dir));
+  const filtered = own.length > 1 ? own.filter((a) => !(a.dir === '.' && a.kind === 'node')) : own;
   const multi = filtered.length > 1;
   for (const a of filtered) {
     a.verify = verifyFor(root, a.dir, a.kind, multi ? (a.dir === '.' ? a.kind : path.basename(a.dir)) : null);
@@ -147,8 +150,13 @@ export function detectProject(root) {
 export function detectedVerify(root) {
   const d = detectProject(root);
   if (d.rootMake.length) return d.rootMake;
-  const seen = new Set();
-  return d.apps.flatMap((a) => a.verify).filter((v) => (seen.has(v.name) ? false : seen.add(v.name)));
+  const names = new Set();
+  const cmds = new Set();
+  return d.apps.flatMap((a) => a.verify).filter((v) => {
+    if (names.has(v.name) || cmds.has(v.cmd)) return false;
+    names.add(v.name); cmds.add(v.cmd);
+    return true;
+  });
 }
 
 // Static prefix of a glob ("web/.nuxt/**" → "web/.nuxt"); "" when it starts with a wildcard.
