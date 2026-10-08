@@ -97,7 +97,8 @@ function approvalAsk(kind) {
   decide('ask', `Approval gate: this records a human approval of the ${kind}. Approve only after reading ${kind}.md yourself; ` +
     `Claude must not approve on its own, even when told to skip the paperwork. (Pre-authorize with SDLC_APPROVER=<name> in the launching shell.)`);
 }
-const gated = (kind) => !process.env.SDLC_APPROVER && (cfg.approvalGate || []).includes(kind);
+// (only in a repo that has set up ai-sdlc: a PLAN.md in any other repo is nobody's approval artifact)
+const gated = (kind) => isInitialized(root) && !process.env.SDLC_APPROVER && (cfg.approvalGate || []).includes(kind);
 
 // The file as an Edit/MultiEdit/Write would leave it. The gate judges that, not the fragment: replacing `draft` with
 // `approved` never says `status:`, and two edits can add up to an approval.
@@ -162,9 +163,9 @@ function gatedFileNamed(text) {
       const wild = GLOB_CHARS.test(base);
       const hit = wild ? files.find((f) => wildMatch(segTokens(base), f)) : files.find((f) => f === base.toLowerCase());
       if (!hit) continue;
-      // a literal gated file name counts wherever it is; a wildcard (`*`, `p*.md`) only where it can reach the artifacts directory,
-      // or `ls *` and `git add *` would all ask
-      if (!wild || reaches(parts.join('/'))) return hit.slice(0, -3);
+      // a gated file name (`plan.md`) or a wildcard that could be one (`*`, `p*.md`) counts only where it can reach the artifacts
+      // directory: a PLAN.md at the repo root, or `ls *` and `git add *`, are not the approval artifact
+      if (reaches(parts.join('/'))) return hit.slice(0, -3);
     }
   }
   return null;

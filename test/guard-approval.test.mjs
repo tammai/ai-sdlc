@@ -104,7 +104,7 @@ describe('the gate sees an artifact named by its file name, not only by the full
 
   test('after a cd, through a wildcard, a class, a brace or a bare *', () => {
     for (const c of ['cd docs/sdlc/c1 && sed -i s/draft/approved/ plan.md', 'sed -i s/draft/approved/ docs/sdlc/c1/p*.md', 'sed -i s/draft/approved/ docs/sdlc/c1/pla[n].md',
-      'sed -i s/draft/approved/ docs/sdlc/c1/{plan,x}.md', 'rm docs/sdlc/c1/*', 'cd docs/sdlc/c1; tee plan.md < /tmp/x', 'cp /tmp/x plan.md', 'cd docs/sdlc/c1 && sed -i s/draft/approved/ p?an.md', 'cd docs/sdlc/c1 && rm *']) {
+      'sed -i s/draft/approved/ docs/sdlc/c1/{plan,x}.md', 'rm docs/sdlc/c1/*', 'cd docs/sdlc/c1; tee plan.md < /tmp/x', 'cd docs/sdlc/c1 && cp /tmp/x plan.md', 'cd docs/sdlc/c1 && sed -i s/draft/approved/ p?an.md', 'cd docs/sdlc/c1 && rm *']) {
       assert.equal(bash(c), 'ask', c);
     }
   });
@@ -155,5 +155,23 @@ describe('a directory the guard cannot track is assumed to be the artifacts dire
     for (const c of ['find . -name "*.md"', 'ls src | xargs wc -l', 'git -C src status', 'cd src && cd - && ls', 'cd; ls', 'pushd src; popd; ls']) {
       assert.equal(bash(c), 'allow', c);
     }
+  });
+});
+
+describe('a plan.md that is not the approval artifact is nobody\'s business', () => {
+  const ordinary = ['git add PLAN.md', 'vim plan.md', 'npx prettier --write PLAN.md', "git commit -am 'update PLAN.md'", 'git rm plan.md', 'echo x > plan.md',
+    'sed -i s/a/b/ PLAN.md', 'cp /tmp/x spec.md', 'mv notes.md plan.md', 'cd src && sed -i s/a/b/ plan.md'];
+
+  test('in a repo that never set up ai-sdlc, nothing is gated', () => {
+    const plain = makeRepo({ init: false });
+    for (const c of ordinary) assert.equal(decision(plain, 'Bash', { command: c }), 'allow', c);
+    assert.equal(decision(plain, 'Write', { file_path: path.join(plain, 'docs/sdlc/c1/plan.md'), content: '---\nstatus: approved\n---\n' }), 'allow');
+    assert.equal(decision(plain, 'Bash', { command: 'node scripts/sdlc.mjs approve plan' }), 'allow');
+  });
+
+  test('in a set-up repo, a plan.md outside the artifacts directory is also free', () => {
+    const dir = makeRepo({ active: 'c1', plan: 'draft' });
+    for (const c of ordinary) assert.equal(decision(dir, 'Bash', { command: c }), 'allow', c);
+    assert.equal(decision(dir, 'Bash', { command: 'git add docs/sdlc/c1/plan.md' }), 'ask', 'the real artifact still asks');
   });
 });
