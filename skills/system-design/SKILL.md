@@ -1,6 +1,6 @@
 ---
 name: system-design
-description: Design the system for a change before its spec — requirements and NFRs with numbers, back-of-envelope capacity checked against the stack's real limits (Workers/D1/KV/R2, Go/Postgres, Flutter, Tauri), components and boundaries, data ownership, contracts, consistency, failure modes, security, observability and the evolution path — in design.md, then an adversarial architecture review. Required for tier L, available for any change ("how should we architect X", "design a system for", "will this scale", new service/integration/data flow); or /ai-sdlc:system-design.
+description: Design the system for a change before its spec — requirements and NFRs with numbers, back-of-envelope capacity checked against the stack's real limits (Workers/D1/KV/R2, Go/Postgres, Flutter, Tauri), components and boundaries, data ownership, contracts, consistency, failure modes, security, observability and the evolution path — in design.md, then an adversarial architecture review. Required for tier L, available for any change. Use when asked how to architect something, whether it will scale or hold up, or what breaks when load, file size, data volume or user count grows ("how should we architect X", "design a system for", "will this scale", "what breaks if…", "can we handle 10x"), and for a new service, store, queue, integration or data flow; or /ai-sdlc:system-design.
 argument-hint: "[what to design, or empty for the active change]"
 ---
 
