@@ -2,7 +2,7 @@
 // UserPromptSubmit: in a repo set up with /ai-sdlc:setup, every message is checked against the ai-sdlc skills
 // before Claude acts. A hook cannot invoke a skill, so it adds a short routing note (plus a keyword hint and the
 // active change's state) to the turn; Claude decides and calls the Skill. Off with `"routePrompts": false`.
-import { findRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson, saveState, treeId } from './lib.mjs';
+import { hookRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson, saveState, treeId } from './lib.mjs';
 
 // First match wins; a hint, never a decision. Anything that matches nothing gets the note without a suggestion.
 const HINTS = [
@@ -19,7 +19,7 @@ const HINTS = [
 
 const input = await readStdinJson();
 const prompt = String(input.prompt || '').trim();
-const root = findRoot(input.cwd);
+const root = hookRoot(input);
 if (!prompt || !isInitialized(root)) process.exit(0);
 const cfg = loadConfig(root);
 const state = loadState(root);

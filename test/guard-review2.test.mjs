@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { makeRepo, guard } from './helpers.mjs';
+import { makeRepo, guard, hook, state } from './helpers.mjs';
 
 const decision = (dir, tool, input, env) => guard(dir, tool, input, env).decision;
 const bash = (dir, command, env) => decision(dir, 'Bash', { command }, env);
@@ -305,5 +305,50 @@ describe('a release approval does not cover a command too long to read', () => {
     assert.equal(bash(dir, 'npm publish', env), 'allow');
     assert.notEqual(bash(dir, `npm publish ${'x '.repeat(15000)}`, env), 'allow');
     assert.notEqual(bash(dir, `npm publish ${'x '.repeat(15000)}`), 'allow');
+  });
+});
+
+describe('listing the files a search would read stays within the hook time limit', () => {
+  test('a repo with a very large node_modules is listed without it', () => {
+    const files = Object.fromEntries(Array.from({ length: 4000 }, (_, i) => [`node_modules/pkg${i % 40}/f${i}.js`, 'x']));
+    const dir = gitRepo({ files: { '.env': 'K=1', 'src/a.ts': 'x', ...files } });
+    // a positive glob makes ripgrep read ignored files too, so the whole tree is listed, node_modules included unless skipped
+    const { r, ms } = timed(() => decision(dir, 'Grep', { pattern: 'K', output_mode: 'content', glob: '*.ts' }));
+    assert.equal(r, 'allow');
+    assert.ok(ms < 5000, `${ms} ms`);
+    const hit = timed(() => decision(dir, 'Grep', { pattern: 'K', output_mode: 'content', glob: '*' }));
+    assert.equal(hit.r, 'deny', 'the .env is still found');
+    assert.ok(hit.ms < 5000, `${hit.ms} ms`);
+    assert.equal(bash(dir, 'grep -rn foo .'), 'deny', 'grep -r still sees the .env, ignored or not');
+  });
+});
+
+describe('every hook works in the same root', () => {
+  // a session project that has set up ai-sdlc, with a nested package that has its own .git and .sdlc
+  function nested({ outerInit }) {
+    const outer = makeRepo({ init: outerInit, active: outerInit ? 'c1' : undefined, files: { 'src/a.ts': '1' } });
+    const inner = path.join(outer, 'pkg');
+    fs.mkdirSync(path.join(inner, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(inner, '.sdlc'), { recursive: true });
+    fs.writeFileSync(path.join(inner, '.sdlc/config.json'), JSON.stringify({ protectedPaths: ['gen/**'] }));
+    return { outer, inner };
+  }
+  const env = (outer) => ({ CLAUDE_PROJECT_DIR: outer });
+
+  test('a set-up session project wins in the guard and in post-edit, so they share one state.json', () => {
+    const { outer, inner } = nested({ outerInit: true });
+    hook('post-edit.mjs', inner, { tool_name: 'Edit', tool_input: { file_path: path.join(outer, 'src/a.ts') } }, env(outer));
+    assert.equal(state(outer).dirty, true, 'the session project is marked dirty');
+    assert.equal(fs.existsSync(path.join(inner, '.sdlc/local/state.json')), false, 'not the nested package');
+    // the session's plan gate (an active change without an approved plan) applies, not the package's protectedPaths
+    const r = guard(inner, 'Write', { file_path: path.join(inner, 'gen/a.ts'), content: '' }, env(outer));
+    assert.equal(r.decision, 'deny');
+    assert.match(r.reason, /No approved plan/);
+    assert.doesNotMatch(r.reason, /protected/);
+  });
+
+  test('a session project that never set up ai-sdlc falls back to the nested package, as in 0.6.1', () => {
+    const { outer, inner } = nested({ outerInit: false });
+    assert.equal(decision(inner, 'Write', { file_path: path.join(inner, 'gen/a.ts'), content: '' }, env(outer)), 'deny', 'the package\'s protectedPaths apply');
   });
 });

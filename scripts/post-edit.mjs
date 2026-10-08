@@ -2,12 +2,12 @@
 // PostToolUse on edits: run the file-scoped formatter (if configured) and mark the active
 // change "dirty" so the Stop gate knows the session has unverified work.
 import path from 'node:path';
-import { spawnShell, findRoot,isInitialized, loadConfig, loadState, saveState, toRel, isInside, matchesAny, readStdinJson, shellQuote } from './lib.mjs';
+import { spawnShell, hookRoot, isInitialized, loadConfig, loadState, saveState, toRel, isInside, matchesAny, readStdinJson, shellQuote } from './lib.mjs';
 
 const input = await readStdinJson();
 const ti = input.tool_input || {};
 const filePath = ti.file_path || ti.notebook_path;
-const root = findRoot(input.cwd);
+const root = hookRoot(input);
 if (!filePath || !isInitialized(root)) process.exit(0);
 
 const cfg = loadConfig(root);

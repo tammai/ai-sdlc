@@ -2,11 +2,11 @@
 // Stop hook: "every session checks its own work before a human sees it."
 // If the active change has unverified edits, push Claude back once to run the feedback loop.
 import { fileURLToPath } from 'node:url';
-import { findRoot, isInitialized, loadConfig, loadState, saveState, readStdinJson, verifiedUnchanged, changedSince } from './lib.mjs';
+import { hookRoot, isInitialized, loadConfig, loadState, saveState, readStdinJson, verifiedUnchanged, changedSince } from './lib.mjs';
 
 const input = await readStdinJson();
 if (input.stop_hook_active) process.exit(0); // never loop
-const root = findRoot(input.cwd);
+const root = hookRoot(input);
 if (!isInitialized(root)) process.exit(0);
 const cfg = loadConfig(root);
 const state = loadState(root);

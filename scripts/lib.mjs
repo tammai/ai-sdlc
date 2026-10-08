@@ -98,6 +98,16 @@ export function findRoot(start = process.env.CLAUDE_PROJECT_DIR || process.cwd()
   }
 }
 
+// The root a hook works in: the session's own project (CLAUDE_PROJECT_DIR) when it has set up ai-sdlc, so a shell that has
+// cd'd into a nested package or submodule (which may have its own .git) does not move the config, state, protected paths
+// and test lock; otherwise the root of the directory the hook was called in. Every hook uses this one rule, so they agree
+// on which state.json they read.
+export function hookRoot(input = {}) {
+  const session = process.env.CLAUDE_PROJECT_DIR ? findRoot(process.env.CLAUDE_PROJECT_DIR) : null;
+  if (session && isInitialized(session)) return session;
+  return findRoot(input.cwd);
+}
+
 export function isInitialized(root) {
   return fs.existsSync(path.join(root, '.sdlc', 'config.json'));
 }

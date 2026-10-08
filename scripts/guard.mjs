@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  findRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
+  hookRoot, isInitialized, loadConfig, loadState, toRel, isInside, matchesAny, globToRegExp, planApproved, readStdinJson, foldPath, ntfsPath,
   heartbeat, readDoc, parseDoc
 } from './lib.mjs';
 
@@ -479,11 +479,18 @@ function secretsUnder(dir, { all = false, glob = null, excludeDirs = [] } = {}) 
   const skip = (f) => excludeDirs.length > 0 && f.split(/[\\/]/).some((s) => excludeDirs.includes(s));
   const globs = glob ? [glob] : null;
   if (rel === '' || isInside(rel)) {
+    // git gets what is left of the time budget, and not the dependency folders (a monorepo lists 100k+ files there): a hook
+    // that outlives its 10 s is killed and counts as "no objection"
+    const left = BUDGET_MS - (Date.now() - START) - 500;
+    if (left < 500) decide('ask', 'The guard ran out of time before it could list the files this search would read; review it manually.');
     try {
-      const out = execFileSync('git', ['ls-files', '-co', ...(all ? [] : ['--exclude-standard']), '-z', '--', rel || '.'],
-        { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+      const out = execFileSync('git', ['ls-files', '-co', '--exclude=node_modules', ...(all ? [] : ['--exclude-standard']), '-z', '--', rel || '.'],
+        { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], timeout: left });
       return globFilter(out.split('\0').filter((f) => f && isSecretPath(cfg, f) && !skip(f)), globs);
-    } catch { /* not a git repo, or git is missing: walk it */ }
+    } catch (e) {
+      if (e.code === 'ETIMEDOUT') decide('ask', 'Listing the files this search would read took too long for the guard; review it manually.');
+      /* not a git repo, or git is missing: walk it */
+    }
   }
   const { files, truncated } = walkFiles(abs);
   const hits = globFilter(files.filter((p, i) => (i % 500 === 0 && slow(), secretFile(p, { fast: true })) && !skip(p)), globs);
@@ -579,9 +586,10 @@ input = await readStdinJson({ strict: true });
 if (input.invalidInput) decide('ask', 'The guard could not parse its input; review this action manually.');
 tool = input.tool_name;
 ti = input.tool_input || {};
-// The session's project (CLAUDE_PROJECT_DIR) anchors the guard even when the shell has `cd`'d into a nested package or
-// submodule that has its own .git or .sdlc: the config, state, protected paths and test lock are the session's.
-root = findRoot(process.env.CLAUDE_PROJECT_DIR || input.cwd);
+// The session's project (CLAUDE_PROJECT_DIR), when it has set up ai-sdlc, anchors the guard even if the shell has `cd`'d into a
+// nested package or submodule with its own .git or .sdlc: the config, state, protected paths and test lock are the session's.
+// If the session's project has not, the root of the directory the shell is in is used, as before (see hookRoot in lib.mjs).
+root = hookRoot(input);
 cfg = loadConfig(root);
 state = loadState(root);
 if (isInitialized(root)) heartbeat(root, 'guard');
@@ -625,7 +633,8 @@ if (tool === 'Bash' || tool === 'PowerShell') {
 
   // 4b. approval gate — the CLI, or a shell edit of an artifact that mentions approval
   const sans = stripProse(cmd, { keepShell: true });
-  const cli = sans.match(new RegExp(`\\bsdlc(?:\\.mjs)?["']?\\s+approve\\s+${STAGE_RE}\\b`, 'i'));
+  // (flags may sit between `approve` and the stage: `approve --id c1 plan`, `approve --by=bob plan`)
+  const cli = sans.match(new RegExp(`\\bsdlc(?:\\.mjs)?["']?\\s+approve\\b[^\\n;|&]*?[\\s"']${STAGE_RE}(?=[\\s"']|$)`, 'i'));
   if (cli && gated(cli[1].toLowerCase())) approvalAsk(cli[1].toLowerCase());
   // (Windows spells the path docs\sdlc\c1\plan.md)
   const art = sans.replace(/\\/g, '/').match(new RegExp(`${cfg.artifactsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[^\\s'"]*?/${STAGE_RE}\\.md`, 'i'));

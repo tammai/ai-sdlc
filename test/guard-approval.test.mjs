@@ -175,3 +175,22 @@ describe('a plan.md that is not the approval artifact is nobody\'s business', ()
     assert.equal(decision(dir, 'Bash', { command: 'git add docs/sdlc/c1/plan.md' }), 'ask', 'the real artifact still asks');
   });
 });
+
+describe('the approve command with flags, in any order', () => {
+  const dir = makeRepo({ active: 'c1', plan: 'draft' });
+  const bash = (command, env) => decision(dir, 'Bash', { command }, env);
+
+  test('flags between approve and the stage do not hide it', () => {
+    for (const c of ['node scripts/sdlc.mjs approve plan', 'node scripts/sdlc.mjs approve --id c1 plan', 'node scripts/sdlc.mjs approve --by=bob plan',
+      'node "C:\\x\\sdlc.mjs" approve --by "me" plan', 'node scripts/sdlc.mjs approve  plan --by bob', `node 'scripts/sdlc.mjs' approve --id c1 --by x 'plan'`]) {
+      assert.equal(bash(c), 'ask', c);
+    }
+    assert.equal(bash('node scripts/sdlc.mjs approve --by=bob plan', { SDLC_APPROVER: 'bob' }), 'allow');
+  });
+
+  test('other stages and other commands are untouched', () => {
+    for (const c of ['node scripts/sdlc.mjs approve spec', 'node scripts/sdlc.mjs approve --id plan-2 spec', 'node scripts/sdlc.mjs status', 'echo approve plan', 'git log --grep approve']) {
+      assert.equal(bash(c), 'allow', c);
+    }
+  });
+});
