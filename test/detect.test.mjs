@@ -15,3 +15,9 @@ test('tauri app: src-tauri is not detected twice, clippy denies warnings', () =>
   assert.ok(cmds.includes('cd src-tauri && cargo clippy --all-targets -- -D warnings'));
   assert.equal(new Set(cmds).size, cmds.length);
 });
+
+test('a component directory with spaces is quoted in cd', () => {
+  const dir = makeRepo({ init: false, files: { 'apps/my app/go.mod': 'module x\n', 'apps/web/package.json': JSON.stringify({ scripts: { test: 'x' } }) } });
+  const cmds = detectedVerify(dir).map((v) => v.cmd);
+  assert.ok(cmds.some((c) => c.startsWith('cd "apps/my app" && go ')), cmds.join('\n'));
+});

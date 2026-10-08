@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const src = path.join(root, 'agents-src');
 const out = path.join(root, 'agents');
 fs.mkdirSync(out, { recursive: true });
-for (const f of fs.readdirSync(out)) if (f.endsWith('.md')) fs.rmSync(path.join(out, f));
+for (const f of fs.readdirSync(out)) if (f.endsWith('.md')) fs.rmSync(path.join(out, f), { maxRetries: 5, retryDelay: 100 });
 
 for (const [role, tiers] of Object.entries(ROLES)) {
   const text = fs.readFileSync(path.join(src, `${role}.md`), 'utf8');

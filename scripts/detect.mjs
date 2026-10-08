@@ -7,6 +7,8 @@ const SKIP = new Set(['node_modules', '.git', '.sdlc', 'docs', 'dist', 'build', 
   '.nuxt', '.output', '.next', '.open-next', '.dart_tool', '.idea', '.vscode', '.github', '.claude', 'tmp', 'public', 'assets']);
 
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
+// Directory names with spaces or shell characters need quotes; plain ones stay as written.
+const q = (s) => (/^[\w./@+-]+$/.test(s) ? s : JSON.stringify(s));
 const readText = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
 
 // The package manager is decided by the nearest lockfile / packageManager field, walking up to the repo root.
@@ -73,7 +75,7 @@ function classify(root, rel) {
 export function verifyFor(root, rel, kind, prefix) {
   const abs = path.join(root, rel);
   const has = (n) => fs.existsSync(path.join(abs, n));
-  const cd = rel === '.' ? '' : `cd ${rel} && `;
+  const cd = rel === '.' ? '' : `cd ${q(rel)} && `;
   const name = (n) => (prefix ? `${prefix}-${n}` : n);
   const out = [];
   const mk = has('Makefile') ? readText(path.join(abs, 'Makefile')) : '';
@@ -96,8 +98,8 @@ export function verifyFor(root, rel, kind, prefix) {
     if (build) out.push({ name: name('build'), cmd: cd + run(build) });
   }
   if (kind === 'tauri' && has('src-tauri/Cargo.toml')) {
-    out.push({ name: name('clippy'), cmd: `cd ${rel === '.' ? '' : rel + '/'}src-tauri && cargo clippy --all-targets -- -D warnings` });
-    out.push({ name: name('rust-test'), cmd: `cd ${rel === '.' ? '' : rel + '/'}src-tauri && cargo test` });
+    out.push({ name: name('clippy'), cmd: `cd ${q(rel === '.' ? 'src-tauri' : rel + '/src-tauri')} && cargo clippy --all-targets -- -D warnings` });
+    out.push({ name: name('rust-test'), cmd: `cd ${q(rel === '.' ? 'src-tauri' : rel + '/src-tauri')} && cargo test` });
   }
   if (kind === 'go') {
     out.push({ name: name('build'), cmd: `${cd}go build ./...` }, { name: name('vet'), cmd: `${cd}go vet ./...` });

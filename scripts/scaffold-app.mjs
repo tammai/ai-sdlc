@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 
 const RENAMES = { _gitignore: '.gitignore', '_env.example': '.env.example', '_dev.vars.example': '.dev.vars.example', _npmrc: '.npmrc', '_golangci.yml': '.golangci.yml', _dockerignore: '.dockerignore', _prettierrc: '.prettierrc', _editorconfig: '.editorconfig', '_prettierignore': '.prettierignore' };
 const BINARY = /\.(png|jpe?g|gif|webp|ico|icns|woff2?|ttf|otf|zip|gz|jar|keystore|db|sqlite)$/i;
-const KEEP_IN_EMPTY = new Set(['.git', '.sdlc', '.claude', 'docs', 'CLAUDE.md', 'REVIEW.md', 'DESIGN.md', 'README.md', 'LICENSE', '.gitignore', '.gitattributes', '.github', 'contracts']);
+const KEEP_IN_EMPTY = new Set(['.git', '.sdlc', '.claude', 'docs', 'CLAUDE.md', 'REVIEW.md', 'DESIGN.md', 'README.md', 'LICENSE', '.gitignore', '.gitattributes', '.github', 'contracts', '.DS_Store', 'Thumbs.db', 'desktop.ini']);
 
 export const TEMPLATE_IDS = {
   'edge-web': { vue: 'edge-web-nuxt', react: 'edge-web-next', 'react-hono': 'edge-web-hono-react' },

@@ -37,7 +37,7 @@ function run(label, cmd, args) {
   if (dry) return;
   // `claude` is a .cmd shim on Windows, which only a shell can launch
   const win = process.platform === 'win32' && cmd !== process.execPath;
-  const q = (a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+  const q = (a) => (/[\s"&|<>^%]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
   const r = win
     ? spawnSync([cmd, ...args].map(q).join(' '), { cwd: PLUGIN, stdio: 'inherit', shell: true })
     : spawnSync(cmd, args, { cwd: PLUGIN, stdio: 'inherit' });
@@ -83,7 +83,9 @@ if (!has('--no-evals')) {
     if (skipped.length) console.log(`skipped on Windows (needs a sandboxed shell — run on Linux, macOS or WSL): ${skipped.join(', ')}`);
     cases = cases.filter((c) => !c.shell);
   }
-  if (!cases.length) console.log('\nno eval case covers these changes — skipping evals');
+  // an explicit --only that selects nothing (a typo, or every match skipped on this OS) must not read as green
+  if (!cases.length && opt('--only')) failures.push(`evals (--only ${opt('--only')} selected no runnable case on ${process.platform})`);
+  else if (!cases.length) console.log('\nno eval case covers these changes — skipping evals');
   else {
     const args = ['plugin', 'eval', '.', '--runs', runs, '--trust-plugin',
       // hook cases build a fixture repo (--scaffold) and need write tools; trigger cases only use read-only tools

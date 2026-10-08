@@ -10,7 +10,7 @@ export const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 export const SCRIPTS = path.join(PLUGIN, 'scripts');
 
 const made = [];
-process.on('exit', () => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
+process.on('exit', () => { for (const d of made) fs.rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
 
 // The session running these tests may export CLAUDE_PROJECT_DIR (pointing at this repo) or
 // RELEASE_APPROVAL (which silences the production gate). Neither may leak into a fixture run.
@@ -35,7 +35,7 @@ export function read(dir, rel) {
 // A repo root (`.git` stops findRoot) — initialized with `.sdlc/config.json` unless init: false.
 // `active` creates docs/sdlc/<id>/ and makes it the active change; `plan` writes its plan.md status.
 export function makeRepo({ init = true, config = {}, state, active, plan, files = {} } = {}) {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-sdlc-test-')));
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-sdlc-test-')));
   made.push(dir);
   fs.mkdirSync(path.join(dir, '.git'));
   if (init) write(dir, '.sdlc/config.json', JSON.stringify(config, null, 2));

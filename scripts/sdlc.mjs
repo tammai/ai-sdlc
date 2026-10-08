@@ -23,7 +23,9 @@ function flags(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a.startsWith('--')) {
-      const [k, v] = a.slice(2).split('=');
+      const eq = a.indexOf('=');
+      const k = eq < 0 ? a.slice(2) : a.slice(2, eq);
+      const v = eq < 0 ? undefined : a.slice(eq + 1);
       if (v !== undefined) out[k] = v;
       else if (args[i + 1] && !args[i + 1].startsWith('--')) out[k] = args[++i];
       else out[k] = true;
@@ -510,7 +512,7 @@ function stack() {
     }
   }
   const stackFile = path.join(root, '.sdlc', 'stack.json');
-  const sub = (str, dir) => str.replaceAll('cd {dir} && ', dir === '.' ? '' : `cd ${dir} && `).replaceAll('{dir}/', dir === '.' ? '' : `${dir}/`).replaceAll('{dir}', dir);
+  const sub = (str, dir) => str.replaceAll('cd {dir} && ', dir === '.' ? '' : `cd ${/^[\w./@+-]+$/.test(dir) ? dir : JSON.stringify(dir)} && `).replaceAll('{dir}/', dir === '.' ? '' : `${dir}/`).replaceAll('{dir}', dir);
   const union = (a = [], b = []) => [...new Set([...a, ...b])];
   if (fs.existsSync(stackFile) && !f.force && (f.detect || f.surfaces || f.components)) {
     die('.sdlc/stack.json exists — the stack is decided. Changing it is a tier-L change with an ADR; re-run with --force when that is approved.');
