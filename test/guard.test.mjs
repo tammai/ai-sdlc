@@ -147,7 +147,8 @@ describe('plan gate', () => {
   test('the artifact chain and .sdlc stay editable without a plan', () => {
     const dir = makeRepo({ active: 'c1' });
     assert.equal(edit(dir, 'docs/sdlc/c1/plan.md').decision, 'allow');
-    assert.equal(edit(dir, '.sdlc/config.json').decision, 'allow');
+    assert.equal(edit(dir, '.sdlc/stack.json').decision, 'allow');
+    assert.equal(edit(dir, '.sdlc/config.json').decision, 'ask', 'the guard config needs a person');
   });
 
   test('alwaysEditable and the fix-mode reproducing test are exempt', () => {

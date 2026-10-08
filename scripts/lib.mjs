@@ -53,7 +53,7 @@ export const DEFAULT_CONFIG = {
   protectedPaths: [],
   alwaysEditable: [],
   secretPaths: ['.env', '.env.*', '*.pem', '*.key', '*.p12', 'id_rsa*', 'id_ed25519*', 'secrets/**', '**/secrets/**', '**/.aws/credentials', '**/.ssh/**'],
-  secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.*'],
+  secretAllow: ['.env.example', '.env.sample', '.env.template', '*.example.{json,yaml,yml,toml,txt,md,env}'],
   testGlobs: ['**/*.test.*', '**/*.spec.*', '**/*_test.*', '**/test_*.py', '**/tests/**', '**/test/**', '**/__tests__/**', '**/itest/**'],
   formatOnEdit: null,
   verify: []
@@ -177,6 +177,8 @@ export function toRel(root, p) {
 // NTFS opens `.env ` and `.env.` as `.env` (the Win32 API drops trailing dots and spaces) and `.env:x` as a stream of
 // it. Reduce each name to the one the filesystem will open, so a guard matching `.env` also sees these.
 export function ntfsPath(p) {
+  // \\localhost\C$\dir is C:\dir (an admin share of this machine)
+  p = p.replace(/^[\\/]{2}(?:localhost|127\.0\.0\.1)[\\/]([A-Za-z])\$(?=[\\/])/i, '$1:');
   return p.split(/[\\/]/).map((seg) => {
     if (seg === '' || seg === '.' || seg === '..' || /^[A-Za-z]:$/.test(seg)) return seg;
     const name = seg.replace(/:.*$/, '').replace(/[. ]+$/, '');
@@ -199,6 +201,13 @@ export function globToRegExp(glob) {
     if (c === '{') { braces++; re += '(?:'; continue; }
     if (c === '}' && braces) { braces--; re += ')'; continue; }
     if (c === ',' && braces) { re += '|'; continue; }
+    if (c === '[') { // a character class, as ripgrep and gitignore read it: `.[e]nv` is `.env`
+      const j = glob.indexOf(']', i + 2);
+      if (j > 0) {
+        const body = glob.slice(i + 1, j).replace(/^!/, '^').replace(/\\/g, '\\\\');
+        re += `[${body}]`; i = j; continue;
+      }
+    }
     if (c === '*') {
       if (glob[i + 1] === '*') {
         i++;
