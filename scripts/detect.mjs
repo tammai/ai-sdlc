@@ -119,9 +119,9 @@ export function verifyFor(root, rel, kind, prefix) {
     if (has('manage.py')) out.push({ name: name('test'), cmd: `${cd}python manage.py test` });
     else if (has('tests') || has('test') || /pytest/.test(py)) out.push({ name: name('test'), cmd: `${cd}pytest -q` });
   }
-  if (kind === 'php' && has('vendor/bin/phpunit')) out.push({ name: name('test'), cmd: `${cd}vendor/bin/phpunit` });
+  if (kind === 'php' && has('vendor/bin/phpunit')) out.push({ name: name('test'), cmd: `${cd}php vendor/bin/phpunit` });
   if (kind === 'ruby') {
-    if (has('bin/rails')) out.push({ name: name('test'), cmd: `${cd}bin/rails test` });
+    if (has('bin/rails')) out.push({ name: name('test'), cmd: `${cd}ruby bin/rails test` });
     else if (has('spec')) out.push({ name: name('test'), cmd: `${cd}bundle exec rspec` });
   }
   if (kind === 'jvm') out.push({ name: name('test'), cmd: has('gradlew') ? `${cd}./gradlew test` : has('mvnw') ? `${cd}./mvnw test` : `${cd}mvn test` });

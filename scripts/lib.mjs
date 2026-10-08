@@ -1,7 +1,7 @@
 // Shared helpers for the ai-sdlc hooks and CLI. Zero dependencies, Node >= 18.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 export const STAGES = ['intent', 'spec', 'plan'];
 
@@ -234,6 +234,40 @@ export async function readStdinJson({ strict = false } = {}) {
 export function shellQuote(text, platform = process.platform) {
   if (platform === 'win32') return /[%"\r\n]/.test(text) ? null : `"${text}"`;
   return `'${text.replaceAll("'", `'\\''`)}'`;
+}
+
+// On Windows spawnSync's timeout kills only cmd.exe: the grandchild (eslint, cargo) keeps running and holds file
+// locks. So a timed command runs under a small node runner that kills the whole tree (taskkill /T) on timeout.
+// The runner's stdio is the caller's: the command writes straight into the pipes spawnSync is capturing.
+const TREE_RUNNER = `
+const { spawn, spawnSync } = require('node:child_process');
+let timedOut = false;
+const c = spawn(process.env.SDLC_CMD, { shell: true, stdio: 'inherit' });
+const t = setTimeout(() => {
+  timedOut = true;
+  spawnSync('taskkill', ['/T', '/F', '/PID', String(c.pid)], { stdio: 'ignore' });
+}, Number(process.env.SDLC_TIMEOUT));
+c.on('error', (e) => { console.error(e.message); process.exit(1); });
+c.on('close', (code) => {
+  clearTimeout(t);
+  if (timedOut) { console.error('\\ntimed out after ' + process.env.SDLC_TIMEOUT + ' ms'); process.exit(124); }
+  process.exit(code ?? 1);
+});`;
+
+// cmd.exe cannot run `./gradlew test` (and a saved verify command is shared by every OS). Where a command starts
+// with `./tool`, run `tool` from the current directory, which cmd resolves to tool.bat / tool.cmd / tool.exe.
+export function windowsCmd(cmd) {
+  return cmd.replace(/(^|&&\s*|\|\|\s*)\.\/([^\s&|"']+)/g, (_, lead, tool) => `${lead}${tool.split('/').join('\\')}`);
+}
+
+// spawnSync(cmd, { shell: true, ...opts }) whose timeout also kills the command's child processes.
+export function spawnShell(cmd, opts = {}) {
+  const { timeout, env, ...rest } = opts;
+  if (process.platform === 'win32') cmd = windowsCmd(cmd);
+  if (process.platform !== 'win32' || !timeout) return spawnSync(cmd, { shell: true, env, timeout, ...rest });
+  return spawnSync(process.execPath, ['-e', TREE_RUNNER], {
+    ...rest, env: { ...(env || process.env), SDLC_CMD: cmd, SDLC_TIMEOUT: String(timeout) }, timeout: timeout + 15000
+  });
 }
 
 // Status of the active change's chain: what's approved and what comes next.

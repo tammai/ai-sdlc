@@ -3,10 +3,10 @@
 // Usage: node sdlc.mjs <command> [args]   (run `help` for the list)
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  STAGES, DEFAULT_CONFIG, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
+  STAGES, DEFAULT_CONFIG, spawnShell, findRoot, isInitialized, loadConfig, loadState, saveState, changeDir,
   readDoc, writeMeta, toRel, gitUser, nowIso, chainStatus, ROLES, TIERS, TIER_TO_COMPLEXITY, routeAgent,
   GATE_LEVELS, DEFAULT_GATES, gateLevel, crossModelCfg, readinessProblems, openItems
 } from './lib.mjs';
@@ -267,7 +267,7 @@ function verify() {
   for (const v of cfg.verify) {
     if (only && !only.has(v.name)) continue;
     const t0 = Date.now();
-    const r = spawnSync(v.cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
+    const r = spawnShell(v.cmd, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
     const out = `${r.stdout || ''}${r.stderr || ''}${r.error ? `\n${r.error.message}` : ''}`;
     const ok = r.status === 0;
     // a check that was already red before ai-sdlc (sdlc baseline) is reported, not enforced
@@ -311,7 +311,7 @@ function baseline() {
   if (!cfg.verify?.length) die('no verify commands to baseline');
   const red = [];
   for (const v of cfg.verify) {
-    const r = spawnSync(v.cmd, { cwd: root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
+    const r = spawnShell(v.cmd, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: v.timeoutMs || cfg.verifyTimeoutMs || 15 * 60 * 1000 });
     if (r.status === 0) {
       delete v.baseline; delete v.baselineAt; delete v.baselineReason;
       console.log(`green  ${v.name}  (${v.cmd})`);

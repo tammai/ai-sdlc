@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { makeRepo, guard, hook, write, read, cleanEnv, SCRIPTS } from './helpers.mjs';
-import { loadConfig, readDoc, shellQuote, writeFileAtomic, toRel } from '../scripts/lib.mjs';
+import { loadConfig, readDoc, shellQuote, writeFileAtomic, toRel, spawnShell, windowsCmd } from '../scripts/lib.mjs';
 
 const f = (dir, rel) => path.join(dir, rel);
 const BOM = '\uFEFF';
@@ -133,5 +133,42 @@ describe('quoting and atomic writes', () => {
     writeFileAtomic(file, 'two');
     assert.equal(fs.readFileSync(file, 'utf8'), 'two');
     assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.tmp')), []);
+  });
+});
+
+describe('spawnShell', () => {
+  test('captures output and the exit code like spawnSync', () => {
+    const r = spawnShell('node -e "console.log(1); console.error(2); process.exit(3)"', { encoding: 'utf8', timeout: 20000 });
+    assert.equal(r.status, 3);
+    assert.equal(r.stdout.trim(), '1');
+    assert.equal(r.stderr.trim(), '2');
+  });
+
+  test('a timeout fails the command and kills its child processes', () => {
+    const dir = makeRepo({
+      files: {
+        'parent.mjs': "import { spawn } from 'node:child_process';\nspawn(process.execPath, ['child.mjs'], { stdio: 'ignore' });\nsetTimeout(() => {}, 60000);\n",
+        'child.mjs': "import fs from 'node:fs';\nsetTimeout(() => fs.writeFileSync('late.txt', 'x'), 4000);\n"
+      }
+    });
+    const r = spawnShell('node parent.mjs', { cwd: dir, encoding: 'utf8', timeout: 1500 });
+    assert.notEqual(r.status, 0);
+    // POSIX spawnSync kills only the shell; the tree kill is the Windows path
+    if (process.platform !== 'win32') return;
+    const until = Date.now() + 6000;
+    while (Date.now() < until) { /* give a surviving child time to write */ }
+    assert.ok(!fs.existsSync(f(dir, 'late.txt')), 'the grandchild survived the timeout');
+  });
+});
+
+describe('windowsCmd', () => {
+  test('a leading ./tool becomes tool, also after cd and &&', () => {
+    assert.equal(windowsCmd('./gradlew test'), 'gradlew test');
+    assert.equal(windowsCmd('cd app && ./mvnw test'), 'cd app && mvnw test');
+    assert.equal(windowsCmd('./scripts/check.sh --fast'), 'scripts\\check.sh --fast');
+  });
+
+  test('anything else is left alone', () => {
+    for (const c of ['npm test', 'node ./x.mjs', 'echo "./not-a-command"', 'php vendor/bin/phpunit', 'make -C ./sub']) assert.equal(windowsCmd(c), c);
   });
 });
