@@ -4,7 +4,7 @@
 
 # ai-sdlc — vibe coding on the AI-native SDLC
 
-A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook](https://claude.com/resources/articles/the-ai-native-sdlc-playbook) into a working loop. You talk about what you want; Claude carries it through **intent → spec → plan → build/verify → review → ship**. Each stage commits an artifact that the next stage reads. Humans approve at the judgment points, and deterministic hooks enforce the rest.
+A plugin for **developers** that turns [The AI-Native SDLC Playbook](https://claude.com/resources/articles/the-ai-native-sdlc-playbook) into a working loop. In Claude Code or Codex, you describe what you want and use the shared skills to carry it through **intent → spec → plan → build/verify → review → ship**. Each stage commits an artifact that the next stage reads. Humans approve at the judgment points, with host-specific hook guardrails where supported.
 
 > Code is no longer the bottleneck. Keep the speed of vibe coding, and add an audit trail, guardrails and a feedback loop.
 
@@ -16,13 +16,46 @@ A Claude Code plugin for **developers** that turns [The AI-Native SDLC Playbook]
 ```
 When the install dialog asks for a scope, pick **project** (this repo only) to try it out; **user** scope turns the plugin on in every repo you open.
 
+### Codex
+
+The shared skills are available from the Codex plugin package. For a local checkout, copy the checkout (including `.codex-plugin/`, `skills/`, `hooks/`, and `scripts/`) to `~/.codex/plugins/ai-sdlc`. Create `~/.agents/plugins/marketplace.json` with this entry:
+
+```json
+{
+  "name": "ai-sdlc-local",
+  "plugins": [
+    {
+      "name": "ai-sdlc",
+      "source": { "source": "local", "path": "./.codex/plugins/ai-sdlc" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer tools"
+    }
+  ]
+}
+```
+
+Run `codex plugin marketplace add ~/.agents/plugins`, then open Codex desktop, open the Plugins Directory, select **ai-sdlc-local**, and install **ai-sdlc**. After updating the checkout, copy it to the same plugin directory and restart Codex desktop. In Codex, invoke a skill with its `$skill-name` (for example, `$setup` or `$vibe`). The plugin points to the same `skills/` tree as Claude Code.
+
+For Codex CLI, add the marketplace with the same command, then enable the plugin for a trusted project in `.codex/config.toml`:
+
+```toml
+[plugins."ai-sdlc@ai-sdlc-local"]
+enabled = true
+```
+
+Restart Codex CLI in that project and invoke skills with `$skill-name`. Bundled lifecycle hooks are supported only for manually installed Codex desktop plugins; the CLI setup enables the shared skills, not these hooks.
+
+Codex hook support is for manually installed Codex desktop plugins. Review and trust the bundled hooks in Codex before relying on them. Codex CLI skill use does not imply bundled hook coverage; this package does not claim CLI hooks. Codex's `PreToolUse` cannot force Claude Code's approval prompt: a guard result that would ask for approval is denied, with a reason to satisfy the workflow and retry. Codex hooks are best-effort and are not a security boundary.
+
+Codex is a separate host and account surface. This repository does not route Codex to Claude models or use Claude subscription billing.
+
 **Requirements:** git, and Node ≥ 18 for the plugin itself (hooks and CLI have zero dependencies). The app templates need Node ≥ 22.21 (see [Known limits](#app-templates-sdlc-scaffold-app)). `gh` is needed for PR flows.
 
 **On Windows, the app templates also need:** a short project directory (see Known limits); Docker Desktop or WSL for the Go API's Postgres compose file; Rust with the MSVC build tools and WebView2 for the Tauri templates (their `clippy` and `cargo test` run only on Linux CI, so Windows and macOS Tauri builds are unverified); and the Flutter SDK for the Flutter template.
 
-**Platforms:** the plugin's own tests run in CI on Linux, macOS and Windows (Node 18, 20, 22). Hooks run as `node …`, so `node` must be on the PATH of the shell Claude Code launches (with nvm/fnm/volta, start Claude Code from a terminal where `node --version` works; if `node` is missing a hook errors without blocking, so the guards are off). Prefer Git for Windows (Git Bash) on Windows. The app templates have their own limits, below.
+**Platforms:** the plugin's own tests run in CI on Linux, macOS and Windows (Node 18, 20, 22). Hooks run as `node …`, so `node` must be on the PATH of the host shell (with nvm/fnm/volta, start the host from a terminal where `node --version` works; if `node` is missing, the guards are off). Prefer Git for Windows (Git Bash) on Windows. The app templates have their own limits, below.
 
-**No API key needed.** It works on a Claude subscription: review, babysitting, triage and evals run in your own session. GitHub automation is opt-in via `/ai-sdlc:setup ci`, using a `claude setup-token` subscription token (or an API key).
+**No API key needed for the plugin itself.** In Claude Code, review, babysitting, triage and evals run in your own session. GitHub automation is opt-in via `/ai-sdlc:setup ci`, using a `claude setup-token` subscription token (or an API key). Codex uses the account and model configuration of the Codex host.
 
 ## Quick start
 
@@ -75,7 +108,7 @@ Supporting skills: `learn` (if Claude makes the same mistake twice, the fix goes
 - **M** (normal feature): the full chain.
 - **L** (auth, payments, PII, migrations, breaking API, new stack): the full chain, tech-lead approvals, deep review, and an ADR.
 
-### Model routing for subagents
+### Claude Code model routing for subagents
 | Complexity | When | Model / effort | Agents |
 |---|---|---|---|
 | simple | tier S | Sonnet / low | `implementer-simple`, `researcher-simple` |
@@ -95,15 +128,17 @@ For tier L, `sdlc route reviewer` overrides the table: the reviewer runs on a mo
 | SessionStart `session-start.mjs` | Re-hydrates the active change and its next step |
 | UserPromptSubmit `route-prompt.mjs` | Checks every message against the ai-sdlc skills and tells Claude which one to call (with a keyword hint and the active change's next step). Skipped for `/slash` commands; off with `"routePrompts": false` in `.sdlc/config.json` |
 
+Codex runs these shared checks through `scripts/codex-hook.mjs`. Its `apply_patch` payload is parsed before the edit: touched paths and resulting content go through the same secret, protected-path, test-lock, approval, and plan checks; unknown or ambiguous patch syntax is denied. Codex prompt-required results become denials because its `PreToolUse` hook cannot open a Claude-style approval prompt. The Codex hook config covers shell and `apply_patch` calls; the separate desktop plugin trust step is required for those checks to run. The `sdlc route` table below describes Claude Code subagent routing, not Codex model selection.
+
 **What's active where:**
-- **Every session where the plugin is enabled**, set up or not: the secrets guard (blocks `.env`, keys, credentials) and the production-deploy prompt.
-- **Only in repos set up with `/ai-sdlc:setup`** (they have `.sdlc/config.json`): the verify gate, the formatter (if you turned it on), the session-start summary and the per-message skill routing.
+- **Claude Code:** every plugin-enabled session gets the secrets guard and production-deploy prompt; repos set up with `/ai-sdlc:setup` also get verification, optional formatting, session summary and prompt routing.
+- **Codex desktop:** only after the user trusts the plugin hooks; shell and patch tools get the Codex secrets and production checks. Set up the repository with `$setup` to enable plan/verify state-based checks, session summary and prompt routing. Prompt-required results are denials.
 - **Only while a change is active:** the plan gate (`sdlc deactivate` turns it off for out-of-band edits).
 
 ## Gates and how strictly they apply
 **Verify is incremental.** After a full pass, `sdlc verify` stores the git tree it passed on. The next run compares trees: nothing changed (docs and the artifact folder excluded, plus whatever is in `verifyIgnore`) → it finishes at once; something changed → it runs everything, or only the checks whose `paths` match a changed file. `--force` runs all. The Stop hook uses the same comparison, so ending a turn after only editing docs, or after reverting an edit, doesn't demand a re-run. Needs a git repo; without one it always runs everything.
 
-**Approval is a human act.** `approvalGate` in `.sdlc/config.json` (default `["plan"]`; add `"intent"`, `"spec"`, `"review"`, or `[]` to turn off) makes the guard pause at the permission prompt for `sdlc approve <stage>`, for a hand-written `status: approved` in that stage's artifact, and for shell edits of it. Claude can't answer the prompt. `SDLC_APPROVER=<name>` in the launching shell pre-authorizes (CI, headless runs) and is recorded as the approver; the same text inside a command does nothing. Shell forgery detection is heuristic.
+**Approval is a human act.** `approvalGate` in `.sdlc/config.json` (default `["plan"]`; add `"intent"`, `"spec"`, `"review"`, or `[]` to turn off) makes the guard pause at the permission prompt in Claude Code for `sdlc approve <stage>`, for a hand-written `status: approved` in that stage's artifact, and for shell edits of it. Claude can't answer the prompt. In Codex, those prompt-required outcomes are denied with guidance to satisfy the workflow and retry; set `SDLC_APPROVER=<name>` in the launching environment only when pre-authorization is appropriate. The same text inside a command does nothing. Shell forgery detection is heuristic.
 
 **`sdlc doctor`** says whether the hooks actually fire (the guard leaves a heartbeat before every tool call). If `node` is not on the PATH hooks run with, they fail silently and every guard is off; run it once after setup.
 

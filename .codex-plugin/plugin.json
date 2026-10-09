@@ -1,0 +1,19 @@
+{
+  "name": "ai-sdlc",
+  "version": "0.7.0",
+  "description": "AI-native SDLC skills and lifecycle guardrails for Codex.",
+  "author": {
+    "name": "Tam Mai",
+    "email": "tam.mai@bigin.vn"
+  },
+  "interface": {
+    "displayName": "AI-SDLC",
+    "shortDescription": "AI-native SDLC for developers",
+    "longDescription": "Move software changes through intent, design, spec, plan, verified build, review, and ship with shared skills and host-specific guardrails. Codex plugin hooks require user trust and have documented differences from Claude Code.",
+    "developerName": "Tam Mai",
+    "category": "Developer Tools",
+    "capabilities": []
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.codex.json"
+}

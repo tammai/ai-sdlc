@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { hookRoot, isInitialized, loadConfig, loadState, chainStatus, readStdinJson, heartbeat } from './lib.mjs';
 
 const input = await readStdinJson();
+const codex = process.env.AI_SDLC_HOST === 'codex';
 const root = hookRoot(input);
 if (!isInitialized(root)) process.exit(0);
 const cfg = loadConfig(root);
@@ -20,11 +21,13 @@ if (state.active) {
   lines.push(
     `Active change: ${c.id} (tier ${c.tier}) in ${cfg.artifactsDir}/${c.id}/`,
     `  intent=${c.status.intent} design=${c.status.design} ui=${c.status.ui} spec=${c.status.spec} plan=${c.status.plan} verify=${c.status.verify} review=${c.status.review}`,
-    `  Next step: ${c.next}. Use /ai-sdlc:vibe to continue.`
+    `  Next step: ${c.next}. ${codex ? 'Use the $vibe skill to continue.' : 'Use /ai-sdlc:vibe to continue.'}`
   );
   if (state.dirty) lines.push('  Unverified edits exist — run `sdlc verify` before reporting done.');
   if (state.testLock?.length) lines.push(`  Locked tests (do not edit): ${state.testLock.join(', ')}`);
 } else {
-  lines.push('No active change. Start one with /ai-sdlc:vibe <idea> or /ai-sdlc:fix <bug>.');
+  lines.push(codex
+    ? 'No active change. Start one with the $vibe skill (or use $fix for a bug).'
+    : 'No active change. Start one with /ai-sdlc:vibe <idea> or /ai-sdlc:fix <bug>.');
 }
 process.stdout.write(lines.join('\n') + '\n');

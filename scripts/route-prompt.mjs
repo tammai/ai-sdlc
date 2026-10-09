@@ -18,6 +18,7 @@ const HINTS = [
 ];
 
 const input = await readStdinJson();
+const codex = process.env.AI_SDLC_HOST === 'codex';
 const prompt = String(input.prompt || '').trim();
 const root = hookRoot(input);
 if (!prompt || !isInitialized(root)) process.exit(0);
@@ -27,16 +28,18 @@ const state = loadState(root);
 // route (edit tools, shell commands, formatters). Recorded whether or not the routing note is on.
 if (state.active) { const turnTree = treeId(root); if (turnTree) { state.turnTree = turnTree; saveState(root, state); } }
 if (cfg.routePrompts === false) process.exit(0);
-if (prompt.startsWith('/')) process.exit(0); // an explicit slash command already chose its skill
+if (prompt.startsWith('/') || (codex && /^\$[\w-]+\b/.test(prompt))) process.exit(0); // explicit host skill invocation already chose its skill
 
-const lines = ['[ai-sdlc] Before acting, check this message against the ai-sdlc skills and call the matching one with the Skill tool:'];
+const lines = [codex
+  ? '[ai-sdlc] Before acting, check this message against the ai-sdlc skills and invoke the matching skill with its $skill-name:'
+  : '[ai-sdlc] Before acting, check this message against the ai-sdlc skills and call the matching one with the Skill tool:'];
 lines.push(
   '  idea / feature / change / "continue" → vibe (sizes the tier, resumes the active change) · bug or regression → fix · incident or alert → triage',
   '  UI or screen work → uiux · datastore/framework/contract choice → architecture · capacity or "what breaks if" → system-design',
   '  "where are we" → status · verified and reviewed → ship · review a diff → review · a repeated correction → learn'
 );
 const hint = HINTS.find(([re]) => re.test(prompt))?.[1];
-if (hint) lines.push(`Keyword hint: ${hint} (a guess from wording; ignore it if the message means something else).`);
+if (hint) lines.push(`Keyword hint: ${codex ? `$${hint}` : hint} (a guess from wording; ignore it if the message means something else).`);
 if (state.active) {
   const c = chainStatus(root, cfg, state.active);
   lines.push(`Active change ${c.id} (tier ${c.tier}), next step: ${c.next}. A request to change this app's code or copy is part of the change: go through the skill, not a direct edit.`);
