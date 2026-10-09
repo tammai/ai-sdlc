@@ -4,6 +4,14 @@ All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](htt
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
 For Codex installation and updates, follow the Codex instructions in the README.
 
+## [0.9.0] — 2026-10-09
+
+### Added
+- **Human local verification at review.** For changes with runnable, user-visible behavior, the review skill asks the human to start the app locally, follow concrete checks, and report the result before review approval or ship. The review artifact records the command, entry point, checks, and outcome; non-applicable changes require a reason.
+
+### Changed
+- The README review flow now calls out the local manual check before review approval.
+
 ## [0.8.0] — 2026-10-09
 
 ### Added

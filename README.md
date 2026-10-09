@@ -96,7 +96,7 @@ You may see `sdlc` in the sections below. It is the plugin's CLI (`node scripts/
 | Spec | `system-design`, `architecture`, `uiux`, `stack` → `spec` | `design.md` + ADRs (tier L), `ui.md` + `DESIGN.md` (UI work), then `spec.md` with policies applied while writing | approve design / UI direction / spec | CLI refuses spec approval until required design artifacts are approved |
 | Plan, build | `plan` → `build` | `plan.md`, then code from a tier-routed implementer | approve plan | **plan gate** hook: no code edits until plan.md is approved |
 | Verify | `build`, `fix` | `verify.md` toolchain evidence | — | **Stop** hook: can't finish with unverified edits; **test lock** during fixes |
-| Review, ship | `review` → `ship` | `review.md`, PR with the chain | approve review; code owner merges; release manager deploys | **prod gate** (ask/deny, including pushes to main), secrets guard |
+| Review, ship | `review` → `ship` | `review.md`, PR with the chain | run relevant changes locally and report the result before review approval; code owner merges; release manager deploys | review skill records the manual check; **prod gate** (ask/deny, including pushes to main), secrets guard |
 | Maintain | `triage` | a new `intent.md` (`source: monitor/incident/scan`) + eval | service owner triages | deterministic `sdlc detect` bands |
 
 Design skills: `system-design` (capacity math against real stack limits, failure modes, adversarial `architect-reviewer`), `architecture` (ADR log in `docs/sdlc/adr/`), `uiux` (discovery interview, DESIGN.md contract, 2–3 directions, numeric craft rules, anti-slop list, capped polish loop, evidence-gated `ui-reviewer`).

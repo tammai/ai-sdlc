@@ -11,7 +11,7 @@
       "source": "./",
       "description": "Vibe coding for developers on the AI-native SDLC playbook: intent → design → spec → plan → verify → review → ship. Claude Code plugin with shared SDLC skills also available in Codex; opinionated stacks and deterministic guardrails.",
       "license": "MIT",
-      "version": "0.8.0"
+      "version": "0.9.0"
     }
   ]
 }
