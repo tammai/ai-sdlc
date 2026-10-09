@@ -2,6 +2,19 @@
 
 All notable changes to the ai-sdlc plugin. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 After updating, run `/plugin marketplace update ai-sdlc` then `/plugin update ai-sdlc@ai-sdlc`.
+For Codex installation and updates, follow the Codex instructions in the README.
+
+## [0.8.0] — 2026-10-09
+
+### Added
+- **Codex plugin support.** The Codex compatibility manifest reuses the shared SDLC skills and configures Codex lifecycle hooks through a protocol adapter. The adapter checks shell and `apply_patch` calls with the shared guard, bounds patch parsing, and denies malformed or unsupported input. Codex users can invoke skills with `$skill-name`.
+- **Codex setup guidance** in README covers local marketplace installation, CLI skill enablement, desktop hook trust, and differences in approval behavior.
+
+### Changed
+- Release metadata is aligned at `0.8.0` across the Claude Code plugin manifest, Claude marketplace entry, and Codex plugin manifest.
+
+### Known limits
+- Codex bundled hooks are supported for manually installed desktop plugins and run only after the user trusts them. CLI setup enables the shared skills, not these hooks. Codex prompt-required outcomes are denials rather than interactive approval prompts; hooks are not a security boundary.
 
 ## [0.7.0] — 2026-10-08
 
