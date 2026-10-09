@@ -44,4 +44,4 @@ No tests are added. Run `node test/run.mjs --no-evals` for unit and packaging ch
 Revert the changes to the review skill and artifact template; no runtime state or production data is affected.
 
 ## Deviations
-Release preparation added README, changelog, and version metadata updates as requested. The full eval suite could not complete on this Windows environment; see verify.md.
+Release preparation added README, changelog, and version metadata updates as requested. The full eval suite remains blocked by the available Claude four-turn limit; see verify.md.
